@@ -139,12 +139,12 @@ Composed with `Glue.Hash_spec`, this gives the advertised API contract.
 
 Remaining work, in dependency order:
 
-1. **Build infrastructure (S).** Heavy Lean builds need a build machine again;
-   the previous VM is gone and its state is archived (restore recipe in the
-   project archive). Add a CI job (elan + Lean cache, per-kernel matrix) and a
-   job that runs the artifact-identity check on every `src/**` or `.syso`
-   change. Cache `Hashtree/Gen` oleans; a full build of all current proofs is
-   tens of minutes and several GB.
+1. **Build infrastructure (S).** The cheap proof gate and the Docker images are
+   in place (`.github/workflows/formal-verification.yml`, `formal/Dockerfile`,
+   `formal/ci/`), including a nightly full build and axiom audit. Still needed
+   for PR-blocking coverage: a self-hosted runner for that heavy job, a Lean
+   olean cache keyed per kernel, and a rebuilt build machine for local full
+   runs (the previous VM is archived).
 2. **linux/amd64 completion (L).** Every count for `avx_x4`, `avx2_x8`,
    `avx512_x16` (the X86Loop/X86ProofV generators exist; the multi-lane
    all-counts work was started and stopped), the tail chains
@@ -182,6 +182,52 @@ Remaining work, in dependency order:
 9. **Documentation and maintenance (S).** Keep the proof-to-artifact mapping,
    the regeneration commands, and the CI identity check in this directory.
 
+## Changing the assembly: the proof workflow
+
+The proofs are tied to the instruction streams in `Hashtree/Kernels`, which are
+generated from the shipped `.syso` archives. A cheap CI gate
+(`formal/ci/proofs.py check`, a few seconds, no Lean) enforces the tie on every
+pull request:
+
+- every model is regenerated from the current `.syso` object and compared with
+  the committed one;
+- the artifact and source hashes recorded in `formal/proofs.json` must be
+  current, so editing `src/*.S` without rebuilding the `.syso` fails;
+- every proved kernel must still have its theorem module in `Gen.tar.zst`.
+
+So an assembly change that is not accompanied by a proof update fails the gate.
+The failing job prints the exact commands; in short:
+
+1. `make -C formal/lean models` (or `python3 formal/ci/proofs.py gen-models
+   --repo .`) rebuilds `Hashtree/Kernels/*` from the new objects and updates
+   `formal/proofs.json`. It needs `ar` and the cross `objdump`s; the
+   `formal/ci/Dockerfile` image has them.
+2. `make -C formal/lean regen KERNEL=<kernel>` removes only that kernel's
+   `Gen` trees, regenerates them, and then builds its final theorem. This is
+   the heavy step: budget 8+ cores, 16 GB RAM, 15–60 min for a single-count
+   kernel and up to a few hours for the every-count x86 trees, plus several GB
+   of disk. The targets are listed at the top of `regen.sh`.
+3. `make -C formal/lean pack` repacks `Gen.tar.zst`, updates the per-file
+   manifest and records the archive hash in `formal/proofs.json`.
+4. Commit the model, `formal/proofs.json`, `Gen.tar.zst`, `Gen.sha256` and
+   `Gen.files.sha256` together with the assembly change.
+
+Regeneration is per kernel, so documentation, test, or other-kernel changes
+need no heavy work. A change to a kernel's instruction stream needs it for that
+kernel only. A change to a wrapper or the Go code needs the corresponding
+hand-written model updated and its proof rebuilt (`KERNEL=wrapper_linux_amd64`,
+`go_generic`, `go_api`); those models are not generated from an object.
+
+### What the CI gate proves, and what it does not
+
+The cheap gate checks that the certificate **exists** and that the models still
+describe the shipped objects; it does **not** re-run the Lean kernel. The
+nightly `proof-build` job does that (`formal/Dockerfile`, `make all && make
+audit`, which prints the axioms of every final theorem). For merge-blocking
+assurance on assembly changes, run that job on a self-hosted runner and make it
+a required check. `.github/workflows/formal-verification.yml` contains both
+jobs.
+
 ## Building
 
 Requires `elan` with the toolchain from `lean-toolchain` (Lean 4.35.0), `zstd`
@@ -191,12 +237,18 @@ and `sha256sum`:
 cd formal/lean
 make gen                       # restore Hashtree/Gen from Gen.tar.zst
 make verify                    # check it against Gen.files.sha256
+make gate                      # cheap CI gate: models + artifacts + certificates
 lake build Hashtree            # library; the generated proofs dominate the time
+make audit                     # print the axioms of every final theorem
 lake exe x86check linux        # differential check of the x86 models
 lake exe armcheck linux        # AArch64 (also: armcheck mac)
 lake exe rvcheck               # RV64
+make check-models              # all of the above differential checks
 
-make regen                     # rebuild Hashtree/Gen from the models (long)
+make models                    # regenerate Hashtree/Kernels from the .syso files
+make regen                     # rebuild all of Hashtree/Gen (long)
+make regen KERNEL=avx2_x8      # rebuild one kernel and check its theorem
+make pack                      # repack Gen.tar.zst and update the hashes
 lake exe x86proof <dir> <first> <last>   # regenerate one slice of a Gen tree
 ```
 
@@ -216,13 +268,22 @@ No local toolchain is needed. The image contains Debian, the official Lean
 docker build -f formal/Dockerfile -t hashtree-formal formal   # from the repo root
 docker run --rm hashtree-formal                    # make all: gen + verify + build
 docker run --rm -it hashtree-formal bash           # interactive
-docker run --rm hashtree-formal make regen         # regenerate the proofs
+docker run --rm -v "$PWD/formal/lean:/work" hashtree-formal \
+  make gen regen KERNEL=avx2_x8 pack                # work on the host tree
 ```
 
 A full `lake build Hashtree` needs several GB of RAM and tens of minutes; the
 container has no special requirements beyond that. Building the image is
 reproducible per architecture (`linux/amd64`, `linux/arm64`) and is the
 supported way to check the proofs without installing Lean.
+
+The cheap gate has its own small image (cross binutils, python3, zstd; no
+Lean):
+
+```
+docker build -f formal/ci/Dockerfile -t hashtree-proof-gate formal/ci
+docker run --rm -v "$PWD:/repo" hashtree-proof-gate
+```
 
 ## Provenance
 

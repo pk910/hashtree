@@ -1,0 +1,670 @@
+{
+  "schema": 1,
+  "toolchain": "leanprover/lean4:v4.35.0",
+  "gen": {
+    "archive": "formal/lean/Gen.tar.zst",
+    "sha256": "45447557f398ab1a7e2e45b2f7d330888837be77d9f829a5dfbd2a3e95d50fcd",
+    "files_manifest": "formal/lean/Gen.files.sha256"
+  },
+  "artifacts": {
+    "linux_amd64": {
+      "path": "hashtree_linux_amd64.syso",
+      "sha256": "22110ec511ff8697f7b1b0c9a9124373b3518f3d7a6ec6726cd9a2b3c1fd3b7c"
+    },
+    "linux_arm64": {
+      "path": "hashtree_linux_arm64.syso",
+      "sha256": "261d32f59d9cdb7c65ae259c5b0a56228b9bac4834bcd35a7c4265585aa27d5b"
+    },
+    "linux_riscv64": {
+      "path": "hashtree_linux_riscv64.syso",
+      "sha256": "1888111f819bf724150bdb2934352ebea437297d05ebd0575296037a05e38004"
+    },
+    "darwin_arm64": {
+      "path": "hashtree_darwin_arm64.syso",
+      "sha256": "e69872b5a7d8234eb2e259cc408c38956d8d33ac30128dca0d4b224812eed489"
+    },
+    "windows_amd64": {
+      "path": "hashtree_windows_amd64.syso",
+      "sha256": "123cadb7a9cb6ccccedda19facdf6c6bb3ae746c807d0c210565e4a6a6b31418"
+    }
+  },
+  "sources": {
+    "sha256_1_generic.go": "1f5af7e65977ce7c1766e6f2346c95f1bc8fb97a129cb39ecacb5b24d177cd9b",
+    "src/hashtree.c": "862ed785ba954e178bf15c717a3b9e1e927d0b6b7513561240d545a860f2122e",
+    "src/sha256_armv8_crypto.S": "2cc8f3ee8e55c13c7d12c72dec7dd86c2f99ae6adae6c1fc02c9d8ca793e4fe3",
+    "src/sha256_armv8_neon_x1.S": "c7ba7d9b422ed1e149791140faaf70193e25d54e1311ea61988a1cfa0473da33",
+    "src/sha256_armv8_neon_x4.S": "7183d34cefa1467e553804e8fb9ac45a4fc51cb49871d2e04d97d3dc4c1e89bb",
+    "src/sha256_avx_x1.S": "894300871505a4e1e619f1d8983abe6f40037cf91f7414852fe3d0f8cfc1efe2",
+    "src/sha256_avx_x16.S": "0da3da0b5c7be6199ec48ad0b01ea97eca78a460accb3c071d2b952866c2dfdb",
+    "src/sha256_avx_x4.S": "75cbe61c71f01fcca0cc214526e7cddea8a60d235478555c6352dd83a601a0a8",
+    "src/sha256_avx_x8.S": "ed72f6e58bf59ddce43940a0f20ebc5efa27549d74f48fe8e69d5aa94ee2a6f2",
+    "src/sha256_generic.c": "c7d63af78f2dd8c9120905b2687e55702d7dd075d8b6409763d24225e55f9768",
+    "src/sha256_riscv_crypto.S": "ce5e93eba54d960cf8745bad9204c4b54798a4fe6c852ced78e20091b5f32682",
+    "src/sha256_riscv_x1.S": "ba8da294560e2854d586520a89062a6b157355768592788db76a88946462008c",
+    "src/sha256_riscv_zbb_x1.S": "c1f837c88159475951223b9945df6a5f2d8c7a68b57e4d69a07daa06d955c994",
+    "src/sha256_shani.S": "95957d6fb896307b6e10f3e31e5ee1584ff4223572fc6c5289a8042979c23ad3",
+    "src/sha256_sse_x1.S": "cd6b02397fb92015124bffc5a0c94bb24efa9f5fb8300d7258012a8466b495d8",
+    "wrapper_arm64.s": "829843a0322a3c7ac4fbaceb0be88fe109a51a488f387bcb72749defae047c18",
+    "wrapper_darwin_amd64.s": "01ea86a6361039a4c2dbc04d58659838e793009ed0495776d39e0bdfc0a6939d",
+    "wrapper_linux_amd64.s": "a84b1c88b4201da80ac9440afd4bde7d7c3e64b4f9253e6c33e528ed525abb5c",
+    "wrapper_linux_riscv64.s": "bdb0716391abf7631261ae13c304f9fc9f61a1441e4bda3cc181f1aebae314b4",
+    "wrapper_windows_amd64.s": "29daa017627ecd4ae3ff01f870996e6029445b2cb5d59cc1ae0be489c8255268"
+  },
+  "units": [
+    {
+      "name": "shani_x2",
+      "platform": "linux_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_amd64.syso",
+      "object": "sha256_shani.o",
+      "symbol": "hashtree_sha256_shani_x2",
+      "model": "Hashtree/Kernels/X86/Shani.lean",
+      "namespace": "Hashtree.Kernels.X86.Shani",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_shani.S"
+      ],
+      "proof": {
+        "status": "proved-all-counts",
+        "blocks": "every c",
+        "theorems": [
+          "Hashtree.Proofs.ShaniAll.shani_correct",
+          "Hashtree.Proofs.ShaniW.correctW"
+        ]
+      }
+    },
+    {
+      "name": "sse_x1",
+      "platform": "linux_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_amd64.syso",
+      "object": "sha256_sse_x1.o",
+      "symbol": "hashtree_sha256_sse_x1",
+      "model": "Hashtree/Kernels/X86/SseX1.lean",
+      "namespace": "Hashtree.Kernels.X86.SseX1",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_sse_x1.S"
+      ],
+      "proof": {
+        "status": "proved-all-counts",
+        "blocks": "every c",
+        "theorems": [
+          "Hashtree.Proofs.SseX1All.correct"
+        ]
+      }
+    },
+    {
+      "name": "avx_x1",
+      "platform": "linux_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_amd64.syso",
+      "object": "sha256_avx_x1.o",
+      "symbol": "hashtree_sha256_avx_x1",
+      "model": "Hashtree/Kernels/X86/AvxX1.lean",
+      "namespace": "Hashtree.Kernels.X86.AvxX1",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_avx_x1.S"
+      ],
+      "proof": {
+        "status": "proved-all-counts",
+        "blocks": "every c",
+        "theorems": [
+          "Hashtree.Proofs.AvxX1All.correct",
+          "Hashtree.Proofs.AvxX1W.correctW"
+        ]
+      }
+    },
+    {
+      "name": "avx_x4",
+      "platform": "linux_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_amd64.syso",
+      "object": "sha256_avx_x4.o",
+      "symbol": "hashtree_sha256_avx_x4",
+      "model": "Hashtree/Kernels/X86/AvxX4.lean",
+      "namespace": "Hashtree.Kernels.X86.AvxX4",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_avx_x4.S"
+      ],
+      "proof": {
+        "status": "proved-fixed-count",
+        "blocks": "c = 4",
+        "theorems": [
+          "Hashtree.Gen.AvxX4P.Final.out_final"
+        ]
+      }
+    },
+    {
+      "name": "avx2_x8",
+      "platform": "linux_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_amd64.syso",
+      "object": "sha256_avx_x8.o",
+      "symbol": "hashtree_sha256_avx2_x8",
+      "model": "Hashtree/Kernels/X86/Avx2X8.lean",
+      "namespace": "Hashtree.Kernels.X86.Avx2X8",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_avx_x8.S"
+      ],
+      "proof": {
+        "status": "proved-fixed-count",
+        "blocks": "c = 8",
+        "theorems": [
+          "Hashtree.Gen.Avx2X8P.Final.out_final"
+        ]
+      }
+    },
+    {
+      "name": "avx512_x16",
+      "platform": "linux_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_amd64.syso",
+      "object": "sha256_avx_x16.o",
+      "symbol": "hashtree_sha256_avx512_x16",
+      "model": "Hashtree/Kernels/X86/Avx512X16.lean",
+      "namespace": "Hashtree.Kernels.X86.Avx512X16",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_avx_x16.S"
+      ],
+      "proof": {
+        "status": "proved-fixed-count",
+        "blocks": "c = 16",
+        "theorems": [
+          "Hashtree.Gen.Avx512X16P.Final.out_final"
+        ]
+      }
+    },
+    {
+      "name": "shani_x2",
+      "platform": "windows_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_windows_amd64.syso",
+      "object": "sha256_shani.o",
+      "symbol": "hashtree_sha256_shani_x2",
+      "model": "Hashtree/Kernels/X86Win/Shani.lean",
+      "namespace": "Hashtree.Kernels.X86Win.Shani",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_shani.S"
+      ],
+      "proof": {
+        "status": "model-only",
+        "blocks": "-",
+        "theorems": [],
+        "note": "COFF code differs from linux/amd64 (calling convention, shadow space); validated by execution, no functional proof (R5)"
+      }
+    },
+    {
+      "name": "sse_x1",
+      "platform": "windows_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_windows_amd64.syso",
+      "object": "sha256_sse_x1.o",
+      "symbol": "hashtree_sha256_sse_x1",
+      "model": "Hashtree/Kernels/X86Win/SseX1.lean",
+      "namespace": "Hashtree.Kernels.X86Win.SseX1",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_sse_x1.S"
+      ],
+      "proof": {
+        "status": "model-only",
+        "blocks": "-",
+        "theorems": [],
+        "note": "COFF code differs from linux/amd64 (calling convention, shadow space); validated by execution, no functional proof (R5)"
+      }
+    },
+    {
+      "name": "avx_x1",
+      "platform": "windows_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_windows_amd64.syso",
+      "object": "sha256_avx_x1.o",
+      "symbol": "hashtree_sha256_avx_x1",
+      "model": "Hashtree/Kernels/X86Win/AvxX1.lean",
+      "namespace": "Hashtree.Kernels.X86Win.AvxX1",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_avx_x1.S"
+      ],
+      "proof": {
+        "status": "model-only",
+        "blocks": "-",
+        "theorems": [],
+        "note": "COFF code differs from linux/amd64 (calling convention, shadow space); validated by execution, no functional proof (R5)"
+      }
+    },
+    {
+      "name": "avx_x4",
+      "platform": "windows_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_windows_amd64.syso",
+      "object": "sha256_avx_x4.o",
+      "symbol": "hashtree_sha256_avx_x4",
+      "model": "Hashtree/Kernels/X86Win/AvxX4.lean",
+      "namespace": "Hashtree.Kernels.X86Win.AvxX4",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_avx_x4.S"
+      ],
+      "proof": {
+        "status": "model-only",
+        "blocks": "-",
+        "theorems": [],
+        "note": "COFF code differs from linux/amd64 (calling convention, shadow space); validated by execution, no functional proof (R5)"
+      }
+    },
+    {
+      "name": "avx2_x8",
+      "platform": "windows_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_windows_amd64.syso",
+      "object": "sha256_avx_x8.o",
+      "symbol": "hashtree_sha256_avx2_x8",
+      "model": "Hashtree/Kernels/X86Win/Avx2X8.lean",
+      "namespace": "Hashtree.Kernels.X86Win.Avx2X8",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_avx_x8.S"
+      ],
+      "proof": {
+        "status": "model-only",
+        "blocks": "-",
+        "theorems": [],
+        "note": "COFF code differs from linux/amd64 (calling convention, shadow space); validated by execution, no functional proof (R5)"
+      }
+    },
+    {
+      "name": "avx512_x16",
+      "platform": "windows_amd64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_windows_amd64.syso",
+      "object": "sha256_avx_x16.o",
+      "symbol": "hashtree_sha256_avx512_x16",
+      "model": "Hashtree/Kernels/X86Win/Avx512X16.lean",
+      "namespace": "Hashtree.Kernels.X86Win.Avx512X16",
+      "translator": "x86_to_lean.py",
+      "sources": [
+        "src/sha256_avx_x16.S"
+      ],
+      "proof": {
+        "status": "model-only",
+        "blocks": "-",
+        "theorems": [],
+        "note": "COFF code differs from linux/amd64 (calling convention, shadow space); validated by execution, no functional proof (R5)"
+      }
+    },
+    {
+      "name": "sha_x1",
+      "platform": "linux_arm64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_arm64.syso",
+      "object": "sha256_armv8_crypto.o",
+      "symbol": "hashtree_sha256_sha_x1",
+      "model": "Hashtree/Kernels/Arm/ShaX1.lean",
+      "namespace": "Hashtree.Kernels.Arm.ShaX1",
+      "translator": "arm_to_lean.py",
+      "sources": [
+        "src/sha256_armv8_crypto.S"
+      ],
+      "proof": {
+        "status": "proved-fixed-count",
+        "blocks": "c = 2",
+        "theorems": [
+          "Hashtree.Gen.ArmShaX1P.Final.out_final"
+        ]
+      }
+    },
+    {
+      "name": "neon_x1",
+      "platform": "linux_arm64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_arm64.syso",
+      "object": "sha256_armv8_neon_x1.o",
+      "symbol": "hashtree_sha256_neon_x1",
+      "model": "Hashtree/Kernels/Arm/NeonX1.lean",
+      "namespace": "Hashtree.Kernels.Arm.NeonX1",
+      "translator": "arm_to_lean.py",
+      "sources": [
+        "src/sha256_armv8_neon_x1.S"
+      ],
+      "proof": {
+        "status": "proved-fixed-count",
+        "blocks": "c = 2 and c = 0",
+        "theorems": [
+          "Hashtree.Gen.ArmNeonX1P.Final.out_final",
+          "Hashtree.Gen.ArmNeonX1P0.Final.only_stack_writes_run"
+        ]
+      }
+    },
+    {
+      "name": "neon_x4",
+      "platform": "linux_arm64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_arm64.syso",
+      "object": "sha256_armv8_neon_x4.o",
+      "symbol": "hashtree_sha256_neon_x4",
+      "model": "Hashtree/Kernels/Arm/NeonX4.lean",
+      "namespace": "Hashtree.Kernels.Arm.NeonX4",
+      "translator": "arm_to_lean.py",
+      "sources": [
+        "src/sha256_armv8_neon_x4.S"
+      ],
+      "proof": {
+        "status": "proved-fixed-count",
+        "blocks": "c = 4",
+        "theorems": [
+          "Hashtree.Gen.ArmNeonX4P.Final.out_final"
+        ]
+      }
+    },
+    {
+      "name": "sha_x1",
+      "platform": "darwin_arm64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_darwin_arm64.syso",
+      "object": "sha256_armv8_crypto.o",
+      "symbol": "_hashtree_sha256_sha_x1",
+      "model": "Hashtree/Kernels/ArmMac/ShaX1.lean",
+      "namespace": "Hashtree.Kernels.ArmMac.ShaX1",
+      "translator": "arm_to_lean.py",
+      "sources": [
+        "src/sha256_armv8_crypto.S"
+      ],
+      "proof": {
+        "status": "transfers",
+        "blocks": "-",
+        "theorems": [],
+        "note": "instruction streams identical to linux/arm64 except the tail symbol; the linux theorems transfer by a rename lemma, not yet built (R3)"
+      }
+    },
+    {
+      "name": "neon_x1",
+      "platform": "darwin_arm64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_darwin_arm64.syso",
+      "object": "sha256_armv8_neon_x1.o",
+      "symbol": "_hashtree_sha256_neon_x1",
+      "model": "Hashtree/Kernels/ArmMac/NeonX1.lean",
+      "namespace": "Hashtree.Kernels.ArmMac.NeonX1",
+      "translator": "arm_to_lean.py",
+      "sources": [
+        "src/sha256_armv8_neon_x1.S"
+      ],
+      "proof": {
+        "status": "transfers",
+        "blocks": "-",
+        "theorems": [],
+        "note": "instruction streams identical to linux/arm64 except the tail symbol; the linux theorems transfer by a rename lemma, not yet built (R3)"
+      }
+    },
+    {
+      "name": "neon_x4",
+      "platform": "darwin_arm64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_darwin_arm64.syso",
+      "object": "sha256_armv8_neon_x4.o",
+      "symbol": "_hashtree_sha256_neon_x4",
+      "model": "Hashtree/Kernels/ArmMac/NeonX4.lean",
+      "namespace": "Hashtree.Kernels.ArmMac.NeonX4",
+      "translator": "arm_to_lean.py",
+      "sources": [
+        "src/sha256_armv8_neon_x4.S"
+      ],
+      "proof": {
+        "status": "transfers",
+        "blocks": "-",
+        "theorems": [],
+        "note": "instruction streams identical to linux/arm64 except the tail symbol; the linux theorems transfer by a rename lemma, not yet built (R3)"
+      }
+    },
+    {
+      "name": "riscv_x1",
+      "platform": "linux_riscv64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_riscv64.syso",
+      "object": "sha256_riscv_x1.o",
+      "symbol": "hashtree_sha256_riscv_x1",
+      "model": "Hashtree/Kernels/Riscv/X1.lean",
+      "namespace": "Hashtree.Kernels.Riscv.X1",
+      "translator": "riscv_to_lean.py",
+      "sources": [
+        "src/sha256_riscv_x1.S"
+      ],
+      "proof": {
+        "status": "proved-fixed-count",
+        "blocks": "c = 2",
+        "theorems": [
+          "Hashtree.Gen.RvX1P.Final.out_final"
+        ],
+        "note": "the Go path calls the unproved C dispatcher hashtree_hash, so this is a kernel proof, not end-to-end (R4/R6)"
+      }
+    },
+    {
+      "name": "riscv_zbb_x1",
+      "platform": "linux_riscv64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_riscv64.syso",
+      "object": "sha256_riscv_zbb_x1.o",
+      "symbol": "hashtree_sha256_riscv_zbb_x1",
+      "model": "Hashtree/Kernels/Riscv/ZbbX1.lean",
+      "namespace": "Hashtree.Kernels.Riscv.ZbbX1",
+      "translator": "riscv_to_lean.py",
+      "sources": [
+        "src/sha256_riscv_zbb_x1.S"
+      ],
+      "proof": {
+        "status": "proved-fixed-count",
+        "blocks": "c = 2",
+        "theorems": [
+          "Hashtree.Gen.RvZbbX1P.Final.out_final"
+        ],
+        "note": "the Go path calls the unproved C dispatcher hashtree_hash, so this is a kernel proof, not end-to-end (R4/R6)"
+      }
+    },
+    {
+      "name": "riscv_crypto",
+      "platform": "linux_riscv64",
+      "kind": "asm-kernel",
+      "artifact": "hashtree_linux_riscv64.syso",
+      "object": "sha256_riscv_crypto.o",
+      "symbol": "hashtree_sha256_riscv_crypto",
+      "model": "Hashtree/Kernels/Riscv/Crypto.lean",
+      "namespace": "Hashtree.Kernels.Riscv.Crypto",
+      "translator": "riscv_to_lean.py",
+      "sources": [
+        "src/sha256_riscv_crypto.S"
+      ],
+      "proof": {
+        "status": "proved-fixed-count",
+        "blocks": "c = 2",
+        "theorems": [
+          "Hashtree.Gen.RvCryptoP.Final.out_final"
+        ],
+        "note": "the Go path calls the unproved C dispatcher hashtree_hash, so this is a kernel proof, not end-to-end (R4/R6)"
+      }
+    },
+    {
+      "name": "wrapper_linux_amd64",
+      "platform": "linux/amd64",
+      "kind": "wrapper",
+      "model": "Hashtree/Kernels/X86/WrapperLinux.lean",
+      "sources": [
+        "wrapper_linux_amd64.s"
+      ],
+      "proof": {
+        "status": "proved-conditional",
+        "blocks": "-",
+        "theorems": [
+          "Hashtree.Proofs.WrapperAmd64.wrapper_correct"
+        ],
+        "note": "conditional on Fits .avx2 and Fits .avx512 (R2)"
+      }
+    },
+    {
+      "name": "wrapper_arm64",
+      "platform": "linux/arm64+darwin/arm64",
+      "kind": "wrapper",
+      "sources": [
+        "wrapper_arm64.s"
+      ],
+      "proof": {
+        "status": "unproved",
+        "blocks": "-",
+        "theorems": [],
+        "note": "PR #79 wrapper; kernel footprint proof exists, wrapper proof pending (R3)"
+      }
+    },
+    {
+      "name": "wrapper_linux_riscv64",
+      "platform": "linux/riscv64",
+      "kind": "wrapper",
+      "sources": [
+        "wrapper_linux_riscv64.s"
+      ],
+      "proof": {
+        "status": "unproved",
+        "blocks": "-",
+        "theorems": [],
+        "note": "R4"
+      }
+    },
+    {
+      "name": "wrapper_windows_amd64",
+      "platform": "windows/amd64",
+      "kind": "wrapper",
+      "sources": [
+        "wrapper_windows_amd64.s"
+      ],
+      "proof": {
+        "status": "unproved",
+        "blocks": "-",
+        "theorems": [],
+        "note": "R5"
+      }
+    },
+    {
+      "name": "wrapper_darwin_amd64",
+      "platform": "darwin/amd64",
+      "kind": "wrapper",
+      "sources": [
+        "wrapper_darwin_amd64.s"
+      ],
+      "proof": {
+        "status": "unproved",
+        "blocks": "-",
+        "theorems": [],
+        "note": "generic path only"
+      }
+    },
+    {
+      "name": "go_generic",
+      "platform": "go",
+      "kind": "go",
+      "model": "Hashtree/GoGeneric.lean",
+      "sources": [
+        "sha256_1_generic.go"
+      ],
+      "proof": {
+        "status": "proved-all-lengths",
+        "blocks": "any length",
+        "theorems": [
+          "Hashtree.GoProof.sha256_1_generic_eq"
+        ]
+      }
+    },
+    {
+      "name": "c_generic",
+      "platform": "c",
+      "kind": "c",
+      "sources": [
+        "src/sha256_generic.c"
+      ],
+      "proof": {
+        "status": "unproved",
+        "blocks": "-",
+        "theorems": [],
+        "note": "R6"
+      }
+    },
+    {
+      "name": "c_dispatch",
+      "platform": "c",
+      "kind": "c",
+      "sources": [
+        "src/hashtree.c"
+      ],
+      "proof": {
+        "status": "unproved",
+        "blocks": "-",
+        "theorems": [],
+        "note": "dispatch/detection/override; models exist for concrete validation only (R6)"
+      }
+    },
+    {
+      "name": "riscv_dispatch_hash",
+      "platform": "linux_riscv64",
+      "kind": "c",
+      "artifact": "hashtree_linux_riscv64.syso",
+      "object": "hashtree.o",
+      "symbol": "hashtree_hash",
+      "model": "Hashtree/Kernels/Riscv/DispHash.lean",
+      "namespace": "Hashtree.Kernels.Riscv.DispHash",
+      "translator": "riscv_to_lean.py",
+      "sources": [
+        "src/hashtree.c"
+      ],
+      "proof": {
+        "status": "unproved",
+        "blocks": "-",
+        "theorems": [],
+        "note": "C dispatcher; model used for concrete differential validation only (R4/R6)"
+      }
+    },
+    {
+      "name": "riscv_init_and_hash",
+      "platform": "linux_riscv64",
+      "kind": "c",
+      "artifact": "hashtree_linux_riscv64.syso",
+      "object": "hashtree.o",
+      "symbol": "init_and_hash",
+      "model": "Hashtree/Kernels/Riscv/DispInitAndHash.lean",
+      "namespace": "Hashtree.Kernels.Riscv.DispInitAndHash",
+      "translator": "riscv_to_lean.py",
+      "sources": [
+        "src/hashtree.c"
+      ],
+      "proof": {
+        "status": "unproved",
+        "blocks": "-",
+        "theorems": [],
+        "note": "C dispatcher; model used for concrete differential validation only (R4/R6)"
+      }
+    },
+    {
+      "name": "riscv_init",
+      "platform": "linux_riscv64",
+      "kind": "c",
+      "artifact": "hashtree_linux_riscv64.syso",
+      "object": "hashtree.o",
+      "symbol": "hashtree_init",
+      "model": "Hashtree/Kernels/Riscv/DispInit.lean",
+      "namespace": "Hashtree.Kernels.Riscv.DispInit",
+      "translator": "riscv_to_lean.py",
+      "sources": [
+        "src/hashtree.c"
+      ],
+      "proof": {
+        "status": "unproved",
+        "blocks": "-",
+        "theorems": [],
+        "note": "C dispatcher; model used for concrete differential validation only (R4/R6)"
+      }
+    }
+  ]
+}

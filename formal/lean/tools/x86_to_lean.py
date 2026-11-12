@@ -260,7 +260,8 @@ def split_ops(s):
 
 def main():
     obj, sym, ns = sys.argv[1], sys.argv[2], sys.argv[3]
-    coff = 'COFF' in subprocess.run(['file', obj], capture_output=True, text=True).stdout
+    # COFF objects start with the 0x8664 machine field; ELF starts with \x7fELF.
+    coff = open(obj, 'rb').read(2) == b'\x64\x86'
     if coff:
         elf = '/tmp/x86_to_lean_%d.o' % abs(hash(obj))
         subprocess.run(['x86_64-w64-mingw32-objcopy', '-O', 'elf64-x86-64', obj, elf], check=True)

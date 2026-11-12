@@ -51,15 +51,21 @@ Notes on individual platforms:
 ## When artifacts change
 
 Any change to `src/**` or to a `.syso` invalidates the tie between the proofs
-and the shipped code until the check is rerun:
+and the shipped code until the check is rerun. The CI gate
+(`formal/ci/proofs.py check`, run by
+`.github/workflows/formal-verification.yml`) automates this:
 
-1. Run `check_instruction_identity.sh` on the new artifacts.
-2. If a stream changed, regenerate the corresponding
-   `Hashtree/Kernels/<platform>/<kernel>.lean` with the translators in
-   `formal/lean/tools/` (they need the object file and the cross objdump) and
-   re-elaborate the proofs. A change in instruction numbering invalidates the
-   generated `Hashtree/Gen` files for that kernel, not the rest of the project.
-3. Update `artifacts.sha256` and the log.
+1. It regenerates every model from the current `.syso` and compares the term
+   stream with `Hashtree/Kernels/*`, and it checks the artifact/source hashes
+   in `formal/proofs.json`.
+2. If a stream changed, regenerate the model with
+   `make -C formal/lean models`, rebuild that kernel's certificate with
+   `make -C formal/lean regen KERNEL=<kernel>`, repack with
+   `make -C formal/lean pack`, and commit the model, `formal/proofs.json` and
+   the `Gen` archive/hashes.
+3. Update `artifacts.sha256` and the log when the released objects change.
 
-The C code (`sha256_generic.c`, `hashtree.c`, detection, override) is not part
-of the current machine-code proofs; see the gaps in `../README.md`.
+The identity check against `hashtree-bindings`' archives is separate and still
+run manually with `./check_instruction_identity.sh` (see above). The C code
+(`sha256_generic.c`, `hashtree.c`, detection, override) is not part of the
+current machine-code proofs; see the gaps in `../README.md`.

@@ -1,0 +1,46 @@
+name: formal verification
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  # Cheap and always on: proves that the shipped .syso objects are still the
+  # ones the Lean models and certificates talk about.  No Lean toolchain, a few
+  # seconds.  Fails when an asm change was not followed by regenerating the
+  # model and the certificate.
+  proof-gate:
+    name: models and certificates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the gate image
+        run: docker build -f formal/ci/Dockerfile -t hashtree-proof-gate formal/ci
+      - name: Check models, artifacts and certificates
+        run: docker run --rm -v "$PWD:/repo" hashtree-proof-gate
+
+  # Expensive: re-checks the proof terms with the Lean kernel and prints the
+  # axioms.  Nightly and manual by default; move it onto a self-hosted runner
+  # and make it a required check if every asm PR should block on it.
+  proof-build:
+    name: build certificates (heavy)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Lean oleans
+        uses: actions/cache@v4
+        with:
+          path: formal/lean/.lake
+          key: lake-${{ runner.os }}-${{ hashFiles('formal/lean/lean-toolchain', 'formal/lean/Gen.sha256', 'formal/lean/Hashtree/**/*.lean') }}
+      - name: Build the toolchain image
+        run: docker build -f formal/Dockerfile -t hashtree-formal formal
+      - name: Build every proof and audit the axioms
+        run: |
+          docker run --rm -v "$PWD/formal/lean/.lake:/work/.lake" hashtree-formal \
+            sh -c "make all && make audit"

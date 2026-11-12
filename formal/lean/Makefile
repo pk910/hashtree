@@ -5,8 +5,9 @@
 # this directory, so it is kept out of git and restored from Gen.tar.zst.
 
 LAKE ?= lake
+KERNEL ?= all
 
-.PHONY: gen verify build regen clean-gen
+.PHONY: gen verify build regen pack models gate check-models audit clean-gen
 
 gen:            ## restore the pinned generated proofs
 	@sha256sum -c Gen.sha256 --quiet
@@ -20,8 +21,26 @@ verify:         ## check the restored tree against the pinned hashes
 build: gen      ## restore the generated proofs and build the library
 	$(LAKE) build Hashtree
 
-regen:          ## regenerate Hashtree/Gen from the committed models (long)
-	./regen.sh
+regen:          ## regenerate Hashtree/Gen from the committed models (KERNEL=name for one)
+	./regen.sh $(KERNEL)
+
+pack:           ## repack Hashtree/Gen into Gen.tar.zst and update the hashes
+	./pack-gen.sh
+
+models:         ## regenerate Hashtree/Kernels from the .syso files, update proofs.json
+	python3 ../ci/proofs.py gen-models --repo ../..
+
+gate:           ## cheap CI gate: models, artifacts and certificates (no Lean)
+	python3 ../ci/proofs.py check --repo ../..
+
+check-models:   ## differential execution of every model against the spec
+	$(LAKE) exe x86check
+	$(LAKE) exe armcheck linux
+	$(LAKE) exe armcheck mac
+	$(LAKE) exe rvcheck
+
+audit:          ## print the axioms of every final theorem
+	$(LAKE) env lean Axioms.lean
 
 clean-gen:
 	rm -rf Hashtree/Gen

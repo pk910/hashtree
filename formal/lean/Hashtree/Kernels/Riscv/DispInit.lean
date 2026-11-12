@@ -8,56 +8,56 @@ open Hashtree.Asm Hashtree.Asm.Riscv
 set_option maxRecDepth 100000 in
 /-- The instructions of `hashtree_init`, in address order. -/
 def prog : Array Instr := #[
-  .addi 2 2 (-48),  -- 0 @a6: c.addi16sp sp,-48
-  .sd 8 2 (32),  -- 1 @a8: c.sdsp s0,32(sp)
-  .auipc 8 (.got 0),  -- 2 @aa: auipc s0,0x0
-  .ld 8 8 (0),  -- 3 @ae: ld s0,0(s0) # aa <hashtree_init+0x4>
-  .sd 1 2 (40),  -- 4 @b2: c.sdsp ra,40(sp)
-  .ld 15 8 (0),  -- 5 @b4: c.ld a5,0(s0)
-  .sd 15 2 (24),  -- 6 @b6: c.sdsp a5,24(sp)
-  .addi 15 0 (0),  -- 7 @b8: c.li a5,0
-  .br .eq 10 0 20,  -- 8 @ba: c.beqz a0,d6 <.L22>
-  .auipc 15 (.sym ".data.rel.local" (0)),  -- 9 @bc: auipc a5,0x0
-  .sd 10 15 (0),  -- 10 @c0: sd a0,0(a5) # bc <.L14>
-  .ld 14 2 (24),  -- 11 @c4: c.ldsp a4,24(sp)
-  .ld 15 8 (0),  -- 12 @c6: c.ld a5,0(s0)
-  .bop .xor 15 15 14,  -- 13 @c8: c.xor a5,a4
-  .addi 14 0 (0),  -- 14 @ca: c.li a4,0
-  .br .ne 15 0 48,  -- 15 @cc: c.bnez a5,12a <.L23>
-  .ld 1 2 (40),  -- 16 @ce: c.ldsp ra,40(sp)
-  .ld 8 2 (32),  -- 17 @d0: c.ldsp s0,32(sp)
-  .addi 2 2 (48),  -- 18 @d2: c.addi16sp sp,48
-  .jalr 0 1 0,  -- 19 @d4: c.jr ra
-  .addi 16 0 (4),  -- 20 @d6: c.li a6,4
-  .addi 14 0 (0),  -- 21 @d8: c.li a4,0
-  .addi 13 0 (0),  -- 22 @da: c.li a3,0
-  .addi 12 0 (1),  -- 23 @dc: c.li a2,1
-  .addi 11 2 (8),  -- 24 @de: c.addi4spn a1,sp,8
-  .addi 10 0 (258),  -- 25 @e0: addi a0,zero,258
-  .sd 0 2 (16),  -- 26 @e4: c.sdsp zero,16(sp)
-  .sd 16 2 (8),  -- 27 @e6: c.sdsp a6,8(sp)
-  .auipc 1 (.sym "syscall" (0)),  -- 28 @e8: auipc ra,0x0
-  .jalr 1 1 (0),  -- 29 @ec: jalr ra,0(ra) # e8 <.L22+0x12>
-  .add 15 0 10,  -- 30 @f0: c.mv a5,a0
-  .auipc 10 (.got 1),  -- 31 @f2: auipc a0,0x0
-  .ld 10 10 (0),  -- 32 @f6: ld a0,0(a0) # f2 <.L22+0x1c>
-  .br .ne 15 0 9,  -- 33 @fa: c.bnez a5,bc <.L14>
-  .ld 14 2 (16),  -- 34 @fc: c.ldsp a4,16(sp)
-  .lui 15 2,  -- 35 @fe: c.lui a5,0x2
-  .addi 15 15 (256),  -- 36 @100: addi a5,a5,256 # 2100 <hashtree_hash+0x1fce>
-  .bop .and 13 14 15,  -- 37 @104: and a3,a4,a5
-  .auipc 10 (.got 2),  -- 38 @108: auipc a0,0x0
-  .ld 10 10 (0),  -- 39 @10c: ld a0,0(a0) # 108 <.L22+0x32>
-  .br .eq 13 15 9,  -- 40 @110: beq a3,a5,bc <.L14>
-  .bopi .and 14 14 (16),  -- 41 @114: c.andi a4,16
-  .auipc 10 (.got 1),  -- 42 @116: auipc a0,0x0
-  .ld 10 10 (0),  -- 43 @11a: ld a0,0(a0) # 116 <.L22+0x40>
-  .br .eq 14 0 9,  -- 44 @11e: c.beqz a4,bc <.L14>
-  .auipc 10 (.got 3),  -- 45 @120: auipc a0,0x0
-  .ld 10 10 (0),  -- 46 @124: ld a0,0(a0) # 120 <.L22+0x4a>
-  .jal 0 9,  -- 47 @128: c.j bc <.L14>
-  .auipc 1 (.sym "__stack_chk_fail" (0)),  -- 48 @12a: auipc ra,0x0
-  .jalr 1 1 (0)  -- 49 @12e: jalr ra,0(ra) # 12a <.L23>
+  .addi 2 2 (-48),  -- 0 @a2: c.addi16sp sp,-48
+  .sd 8 2 (32),  -- 1 @a4: c.sdsp s0,32(sp)
+  .auipc 8 (.got 0),  -- 2 @a6: auipc s0,0x0
+  .ld 8 8 (0),  -- 3 @aa: ld s0,0(s0) # a6 <hashtree_init+0x4>
+  .sd 1 2 (40),  -- 4 @ae: c.sdsp ra,40(sp)
+  .ld 15 8 (0),  -- 5 @b0: c.ld a5,0(s0)
+  .sd 15 2 (24),  -- 6 @b2: c.sdsp a5,24(sp)
+  .addi 15 0 (0),  -- 7 @b4: c.li a5,0
+  .br .eq 10 0 20,  -- 8 @b6: c.beqz a0,d2 <.L19>
+  .auipc 15 (.sym ".data.rel.local" (0)),  -- 9 @b8: auipc a5,0x0
+  .sd 10 15 (0),  -- 10 @bc: sd a0,0(a5) # b8 <.L12>
+  .ld 14 2 (24),  -- 11 @c0: c.ldsp a4,24(sp)
+  .ld 15 8 (0),  -- 12 @c2: c.ld a5,0(s0)
+  .bop .xor 15 15 14,  -- 13 @c4: c.xor a5,a4
+  .addi 14 0 (0),  -- 14 @c6: c.li a4,0
+  .br .ne 15 0 48,  -- 15 @c8: c.bnez a5,126 <.L20>
+  .ld 1 2 (40),  -- 16 @ca: c.ldsp ra,40(sp)
+  .ld 8 2 (32),  -- 17 @cc: c.ldsp s0,32(sp)
+  .addi 2 2 (48),  -- 18 @ce: c.addi16sp sp,48
+  .jalr 0 1 0,  -- 19 @d0: c.jr ra
+  .addi 16 0 (4),  -- 20 @d2: c.li a6,4
+  .addi 14 0 (0),  -- 21 @d4: c.li a4,0
+  .addi 13 0 (0),  -- 22 @d6: c.li a3,0
+  .addi 12 0 (1),  -- 23 @d8: c.li a2,1
+  .addi 11 2 (8),  -- 24 @da: c.addi4spn a1,sp,8
+  .addi 10 0 (258),  -- 25 @dc: addi a0,zero,258
+  .sd 0 2 (16),  -- 26 @e0: c.sdsp zero,16(sp)
+  .sd 16 2 (8),  -- 27 @e2: c.sdsp a6,8(sp)
+  .auipc 1 (.sym "syscall" (0)),  -- 28 @e4: auipc ra,0x0
+  .jalr 1 1 (0),  -- 29 @e8: jalr ra,0(ra) # e4 <.LVL17+0x4>
+  .add 15 0 10,  -- 30 @ec: c.mv a5,a0
+  .auipc 10 (.got 1),  -- 31 @ee: auipc a0,0x0
+  .ld 10 10 (0),  -- 32 @f2: ld a0,0(a0) # ee <.LVL19>
+  .br .ne 15 0 9,  -- 33 @f6: c.bnez a5,b8 <.L12>
+  .ld 14 2 (16),  -- 34 @f8: c.ldsp a4,16(sp)
+  .lui 15 2,  -- 35 @fa: c.lui a5,0x2
+  .addi 15 15 (256),  -- 36 @fc: addi a5,a5,256 # 2100 <.LASF16+0x1ed5>
+  .bop .and 13 14 15,  -- 37 @100: and a3,a4,a5
+  .auipc 10 (.got 2),  -- 38 @104: auipc a0,0x0
+  .ld 10 10 (0),  -- 39 @108: ld a0,0(a0) # 104 <.LVL22+0x8>
+  .br .eq 13 15 9,  -- 40 @10c: beq a3,a5,b8 <.L12>
+  .bopi .and 14 14 (16),  -- 41 @110: c.andi a4,16
+  .auipc 10 (.got 3),  -- 42 @112: auipc a0,0x0
+  .ld 10 10 (0),  -- 43 @116: ld a0,0(a0) # 112 <.LVL23>
+  .br .ne 14 0 9,  -- 44 @11a: c.bnez a4,b8 <.L12>
+  .auipc 10 (.got 1),  -- 45 @11c: auipc a0,0x0
+  .ld 10 10 (0),  -- 46 @120: ld a0,0(a0) # 11c <.LBE37>
+  .jal 0 9,  -- 47 @124: c.j b8 <.L12>
+  .auipc 1 (.sym "__stack_chk_fail" (0)),  -- 48 @126: auipc ra,0x0
+  .jalr 1 1 (0)  -- 49 @12a: jalr ra,0(ra) # 126 <.L20>
 ]
 
 set_option maxRecDepth 100000 in
