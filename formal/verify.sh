@@ -103,6 +103,22 @@ fi
 echo "== full proof build: every module under Hashtree/Proofs and Hashtree/Gen"
 time make all
 
+# A build that silently skips a module is a false green.  Every source module
+# we asked for must have produced an olean (lake deduplicates imports, so the
+# target list is the authority, not the job counter).
+check_oleans() {
+  local src=$1 built=$2 expected actual
+  expected=$(find "Hashtree/$src" -name '*.lean' | wc -l)
+  actual=$( (find ".lake/build/lib/lean/Hashtree/$built" -name '*.olean' 2>/dev/null || true) | wc -l )
+  if [ "$actual" -lt "$expected" ]; then
+    echo "error: only $actual/$expected $src modules have oleans; the build did not cover them all" >&2
+    exit 1
+  fi
+  echo "$src: $actual/$expected modules built"
+}
+check_oleans Gen Gen
+check_oleans Proofs Proofs
+
 echo "== axiom audit"
 make audit | tee "$AUDIT"
 

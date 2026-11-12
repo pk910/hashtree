@@ -260,8 +260,9 @@ touch them). The project therefore uses a reproducible-build-style protocol:
    cheap gate, restores and builds every proof module, runs `make audit`,
    enforces the axiom policy, and writes `formal/verification-report.json`
    with the commit, toolchain, Gen archive hash, Gen file-manifest hash and
-   audit summary. The report is never committed; paste its fields into the PR
-   template.
+   audit summary. It also fails if any requested proof module has no olean, so
+   a build that silently skips part of the tree cannot produce a green report.
+   The report is never committed; paste its fields into the PR template.
 2. An **independent reviewer** checks out the same commit, runs the same
    command, and compares `gen.archive_sha256`, `gen.files_manifest_sha256`,
    the toolchain and the audit result with the author's report. Matching
