@@ -4,33 +4,33 @@ on:
   pull_request:
   push:
     branches: [main, master]
-  schedule:
-    - cron: '17 3 * * *'
   workflow_dispatch:
 
 jobs:
   # Cheap and always on: proves that the shipped .syso objects are still the
-  # ones the Lean models and certificates talk about.  No Lean toolchain, a few
-  # seconds.  Fails when an asm change was not followed by regenerating the
-  # model and the certificate.
+  # ones the Lean models and the committed certificates were produced from.
+  # No Lean toolchain, a few seconds.  Fails when an asm, model or generator
+  # change was not followed by regenerating and repacking.
   proof-gate:
-    name: models and certificates
+    name: models and certificates (cheap)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build the gate image
         run: docker build -f formal/ci/Dockerfile -t hashtree-proof-gate formal/ci
-      - name: Check models, artifacts and certificates
+      - name: Check models, artifacts and certificate inputs
         run: docker run --rm -v "$PWD:/repo" hashtree-proof-gate
 
-  # Expensive: re-checks the proof terms with the Lean kernel and prints the
-  # axioms.  Nightly and manual by default; move it onto a self-hosted runner
-  # and make it a required check if every asm PR should block on it.
+  # The heavy Lean check is deliberately NOT run on hosted runners: a full
+  # kernel replay of Hashtree/Gen is too expensive.  Authors run
+  # formal/verify.sh locally and an independent reviewer repeats it, comparing
+  # the report.  This job exists for a self-hosted runner with the label
+  # `hashtree-proof`, is manual only, and uploads the same report.
   proof-build:
-    name: build certificates (heavy)
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 240
+    name: full certificates and audit (self-hosted, manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, hashtree-proof]
+    timeout-minutes: 480
     steps:
       - uses: actions/checkout@v4
       - name: Cache Lean oleans
@@ -40,7 +40,15 @@ jobs:
           key: lake-${{ runner.os }}-${{ hashFiles('formal/lean/lean-toolchain', 'formal/lean/Gen.sha256', 'formal/lean/Hashtree/**/*.lean') }}
       - name: Build the toolchain image
         run: docker build -f formal/Dockerfile -t hashtree-formal formal
-      - name: Build every proof and audit the axioms
+      - name: Check every proof and audit the axioms
         run: |
-          docker run --rm -v "$PWD/formal/lean/.lake:/work/.lake" hashtree-formal \
-            sh -c "make all && make audit"
+          docker run --rm -v "$PWD:/repo" -w /repo \
+            -e VERIFY_COMMIT="$GITHUB_SHA" -e VERIFY_BRANCH="$GITHUB_REF_NAME" \
+            -e VERIFY_DIRTY=0 -e VERIFY_GATE=skipped \
+            hashtree-formal /repo/formal/verify.sh --inside-container \
+              --out /repo/formal/verification-report.json
+      - name: Upload the verification report
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-report
+          path: formal/verification-report.json

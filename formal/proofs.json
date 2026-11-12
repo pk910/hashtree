@@ -1,10 +1,11 @@
 {
-  "schema": 1,
+  "schema": 2,
   "toolchain": "leanprover/lean4:v4.35.0",
   "gen": {
     "archive": "formal/lean/Gen.tar.zst",
     "sha256": "45447557f398ab1a7e2e45b2f7d330888837be77d9f829a5dfbd2a3e95d50fcd",
-    "files_manifest": "formal/lean/Gen.files.sha256"
+    "files_manifest": "formal/lean/Gen.files.sha256",
+    "files_manifest_sha256": "5156b37de43e91495279173ff2be2f466287da4fbb2e690e2a66a9b4dd098b39"
   },
   "artifacts": {
     "linux_amd64": {
@@ -666,5 +667,46 @@
         "note": "C dispatcher; model used for concrete differential validation only (R4/R6)"
       }
     }
-  ]
+  ],
+  "generators": {
+    "formal/lean/ArmProof.lean": "d8ceeeb0c88a13d28d541e1c4dcdf5e11f0592144f5caa0cc1b11f27ba327983",
+    "formal/lean/RvProof.lean": "35a7dff3829f40161ad842d50fe92d2ca138d96f6ad1702642a4b4fcccff4c5a",
+    "formal/lean/X86Loop.lean": "4b969ff3238ba356129cf0b4f820cc4af208e5ecf6a6ceb2999287065f4d7947",
+    "formal/lean/X86Loop1.lean": "c9ee4a180cf2d84b234e6ab3ca69f11861f1df83fb56dea2a1e4af475d2bf75e",
+    "formal/lean/X86Loop1W.lean": "b937a05d1281971e3ac30a75bc1bbb5a08a1543360b9d89e783ae5d3f6bd1ed6",
+    "formal/lean/X86LoopW.lean": "5ce54ccf3c749cc09c60ebf8c703ee0ef522b652af39d895e11193594a0dcb08",
+    "formal/lean/X86Proof1.lean": "99728eea854292b70365416f829e02757f9f42a3a64fe41be72760986837f817",
+    "formal/lean/X86ProofV.lean": "17554726a2df5b0448da9db42cbc7d6edc024b083946f273ba98a67a5d4d52ff",
+    "formal/lean/tools/arm_to_lean.py": "0796dd087f3501b5e90eea02cbd5a447c3b71f8d3396afca918a5fbf936462d1",
+    "formal/lean/tools/riscv_to_lean.py": "12408fb4ffe0e5d41f775c2e1c1017ff668dc2412f88c9bacecfb296c9a7d06b",
+    "formal/lean/tools/x86_to_lean.py": "f1cfccefb3d516f857770fc002ba254a3e891858f03a2f0e95921d3bca63ace1"
+  },
+  "models": {
+    "Hashtree/GoGeneric.lean": "76022f234e2a264647002b10751e40470664a63de2bedc8c3a12a20c5467aa81",
+    "Hashtree/Kernels/Arm/NeonX1.lean": "33281c93ffa955a4b975a79a60dc9bd77ac9fea4f9311eb5a0be31deb9adad17",
+    "Hashtree/Kernels/Arm/NeonX4.lean": "995a9021ca54021aff6f884f8ebac4af0770f2882cf2acc637fad79864233baa",
+    "Hashtree/Kernels/Arm/ShaX1.lean": "0009744ef51ec38ccb0ef71f61dc721c984a3af179cac1d4054322e0f04eb2eb",
+    "Hashtree/Kernels/ArmMac/NeonX1.lean": "c1a68af934dbd33a6a2c999cd73a357488636770d5a7adcf46d555190f57ce1a",
+    "Hashtree/Kernels/ArmMac/NeonX4.lean": "544ff5f897f65334cc8b26569e0cf5e7c9c0e6f46d6f8115737f3f2655ca53fe",
+    "Hashtree/Kernels/ArmMac/ShaX1.lean": "eb6353be13019c7666d91311e5c18864031037cc44efeca1ed969a8debee669f",
+    "Hashtree/Kernels/Riscv/Crypto.lean": "32d7f93520ab98a8738248930f7671ecccd1c32f96bc49df40a3a0eeb96fab70",
+    "Hashtree/Kernels/Riscv/DispHash.lean": "b9715c3052d55f7caa60fac8282c44fac845fde1eee9cb4fbb080be51beda0fa",
+    "Hashtree/Kernels/Riscv/DispInit.lean": "f8d041aa306e4d6f57b314b43354c69ed7326cfd8df4fe3088183626edf31e7d",
+    "Hashtree/Kernels/Riscv/DispInitAndHash.lean": "6c9f4e5f217c009ad0e4ca32827152aee62bd143fcfffa957e74ed994ca479c9",
+    "Hashtree/Kernels/Riscv/X1.lean": "cbd14cb87e2f693bda6c8ecf9b609cd5fdede3666dd15c46502a0d3f79ec5c1e",
+    "Hashtree/Kernels/Riscv/ZbbX1.lean": "ce727b56f38c4e71413ba6a9f7382b6c175d003f724fc2bf4eec42d630752eae",
+    "Hashtree/Kernels/X86/Avx2X8.lean": "5b56a182ba8830d3a7ca36738b9bc81fa59567632ff5fcbae83e9e900557a5a8",
+    "Hashtree/Kernels/X86/Avx512X16.lean": "b0c22a34671c171abba14801442520a1c113fbbc754d8cf50669a64999072681",
+    "Hashtree/Kernels/X86/AvxX1.lean": "7b76c3d3b1c7cac674ae8f480570321348610d1cfa5c109a5be2a8f7e9b77f2e",
+    "Hashtree/Kernels/X86/AvxX4.lean": "3031aef79fc74fa61577118d081a6b98f682194fce9d2cdb0023d92016192fa4",
+    "Hashtree/Kernels/X86/Shani.lean": "ed57dbe006c48aebff223962e95f48565484f556d3ce611551a7452f1b7eebb6",
+    "Hashtree/Kernels/X86/SseX1.lean": "b45acec8b6d52da8d7a7e94b22e3c07060e905c62aa9bd41dad6eba192a95c0c",
+    "Hashtree/Kernels/X86/WrapperLinux.lean": "8f64275cf1139996a4a8cc9b4baa072de048d390feb3b3af5080163853b788c4",
+    "Hashtree/Kernels/X86Win/Avx2X8.lean": "74c50b1d871122e5a2168df62347ce0ed284f956dac91e0e03db8a21778b2bbd",
+    "Hashtree/Kernels/X86Win/Avx512X16.lean": "1726cfb0ec5c9d4e1845c03a12b5f5b74080170be2a771b089a04c521b6e51d7",
+    "Hashtree/Kernels/X86Win/AvxX1.lean": "38a83c215cf75c4c6c777ee3eeff42b47d146496937915a09ba65271b52b95e7",
+    "Hashtree/Kernels/X86Win/AvxX4.lean": "a708ed8a38056cd09826ebf5c6452ff5da502403800f2532d2c211eefdd15889",
+    "Hashtree/Kernels/X86Win/Shani.lean": "81e82d75303db915c154e2720a49ab834a1f42bd1072bb16fa408cf0682d9bee",
+    "Hashtree/Kernels/X86Win/SseX1.lean": "bc3d08c89f568c892f7ae492e6ccd95701e779fd086c996619b484472282fc0a"
+  }
 }

@@ -140,12 +140,12 @@ Composed with `Glue.Hash_spec`, this gives the advertised API contract.
 
 Remaining work, in dependency order:
 
-1. **Build infrastructure (S).** The cheap proof gate and the Docker images are
-   in place (`.github/workflows/formal-verification.yml`, `formal/Dockerfile`,
-   `formal/ci/`), including a nightly full build and axiom audit. Still needed
-   for PR-blocking coverage: a self-hosted runner for that heavy job, a Lean
-   olean cache keyed per kernel, and a rebuilt build machine for local full
-   runs (the previous VM is archived).
+1. **Build infrastructure (S).** The cheap proof gate and both Docker images
+   are in place (`.github/workflows/formal-verification.yml`,
+   `formal/Dockerfile`, `formal/ci/`), together with `formal/verify.sh` and the
+   author/reviewer protocol below. The heavy kernel check is intentionally not
+   hosted CI; a self-hosted runner with the `hashtree-proof` label can run the
+   same script manually. A Lean olean cache is optional.
 2. **linux/amd64 completion (L).** Every count for `avx_x4`, `avx2_x8`,
    `avx512_x16` (the X86Loop/X86ProofV generators exist; the multi-lane
    all-counts work was started and stopped), the tail chains
@@ -194,7 +194,13 @@ pull request:
   the committed one;
 - the artifact and source hashes recorded in `formal/proofs.json` must be
   current, so editing `src/*.S` without rebuilding the `.syso` fails;
-- every proved kernel must still have its theorem module in `Gen.tar.zst`.
+- the model and generator hashes recorded at pack time must be current, so
+  changing a model or a generator without rebuilding and repacking the
+  certificate fails;
+- every proved kernel must still have its theorem module in `Gen.tar.zst`,
+  and every proved theorem must be covered by `#print axioms` in
+  `Axioms.lean`;
+- no hand-written `axiom` declarations may appear in the proof sources.
 
 So an assembly change that is not accompanied by a proof update fails the gate.
 The failing job prints the exact commands; in short:
@@ -209,9 +215,12 @@ The failing job prints the exact commands; in short:
    kernel and up to a few hours for the every-count x86 trees, plus several GB
    of disk. The targets are listed at the top of `regen.sh`.
 3. `make -C formal/lean pack` repacks `Gen.tar.zst`, updates the per-file
-   manifest and records the archive hash in `formal/proofs.json`.
+   manifest and records the archive hash, the model hashes and the generator
+   hashes in `formal/proofs.json`.
 4. Commit the model, `formal/proofs.json`, `Gen.tar.zst`, `Gen.sha256` and
    `Gen.files.sha256` together with the assembly change.
+5. Run `formal/verify.sh` on the commit and put the report fields in the PR
+   (see below). The cheap gate alone does not run the Lean kernel.
 
 Regeneration is per kernel, so documentation, test, or other-kernel changes
 need no heavy work. A change to a kernel's instruction stream needs it for that
@@ -219,15 +228,61 @@ kernel only. A change to a wrapper or the Go code needs the corresponding
 hand-written model updated and its proof rebuilt (`KERNEL=wrapper_linux_amd64`,
 `go_generic`, `go_api`); those models are not generated from an object.
 
-### What the CI gate proves, and what it does not
+### What the cheap gate proves, and what it does not
 
-The cheap gate checks that the certificate **exists** and that the models still
-describe the shipped objects; it does **not** re-run the Lean kernel. The
-nightly `proof-build` job does that (`formal/Dockerfile`, `make all && make
-audit`, which prints the axioms of every final theorem). For merge-blocking
-assurance on assembly changes, run that job on a self-hosted runner and make it
-a required check. `.github/workflows/formal-verification.yml` contains both
-jobs.
+The gate binds the committed certificate to its inputs: the shipped objects
+still match the models, the certificate was packed from the current models and
+generator sources, every proved theorem is covered by the axiom audit, and no
+hand-written `axiom` was added. It does **not** replay the Lean kernel, so it
+cannot tell you that the proof terms are accepted.
+
+Two consequences worth stating explicitly:
+
+- A green `lake build` is not enough even when the kernel does run: `sorry`
+  compiles with a warning. The axiom audit is part of verification, and
+  `formal/ci/proofs.py check-audit` rejects `sorryAx` and any axiom outside
+  Lean's standard set plus the expected `_native.bv_decide.ax_*` lemmas.
+- A successful build of an older certificate is not evidence about a newer
+  model. Only a build of the committed tree is. `make pack` records whatever
+  models are current and cannot know that `regen` ran; a certificate packed
+  without regenerating does not bind to the new instruction stream. The full
+  build catches it, because the generated proofs import the models: the old
+  slices no longer elaborate against the new `prog`.
+
+### Verifying a change without heavy CI
+
+Hosted CI is too expensive for the full kernel replay: `make all` elaborates
+every module under `Hashtree/Proofs` and `Hashtree/Gen` (thousands of generated
+proofs; the old `lake build Hashtree` target was a false green and did not
+touch them). The project therefore uses a reproducible-build-style protocol:
+
+1. The **author** runs `formal/verify.sh` on the final commit. It runs the
+   cheap gate, restores and builds every proof module, runs `make audit`,
+   enforces the axiom policy, and writes `formal/verification-report.json`
+   with the commit, toolchain, Gen archive hash, Gen file-manifest hash and
+   audit summary. The report is never committed; paste its fields into the PR
+   template.
+2. An **independent reviewer** checks out the same commit, runs the same
+   command, and compares `gen.archive_sha256`, `gen.files_manifest_sha256`,
+   the toolchain and the audit result with the author's report. Matching
+   digests show the run is reproducible; the kernel check is the actual proof.
+   The reviewer records `Verified-by` in the PR. If the digests differ,
+   investigate before approving — determinism is what makes the two runs
+   meaningful.
+3. The review also looks at the diff of `Axioms.lean`, `formal/lean/Makefile`,
+   `formal/Dockerfile`, the generators and `formal/proofs.json`: removing a
+   theorem from the audit or weakening the build is the remaining way to game
+   a local run.
+
+No Lean installation is needed with `formal/verify.sh --docker`: it builds and
+uses the pinned `hashtree-proof-gate` and `hashtree-formal` images and mounts
+the checkout at `/repo`. The full run needs several GB of RAM and is much
+faster with 8+ cores. A single-kernel change still needs the full audit unless
+the reviewer scopes the build; the `regen.sh` targets are per kernel.
+
+The heavy job in `.github/workflows/formal-verification.yml` is manual only and
+requires a self-hosted runner labelled `hashtree-proof`; it runs the same
+script and uploads the same report. It is not scheduled on hosted runners.
 
 ## Building
 
@@ -235,6 +290,9 @@ Requires `elan` with the toolchain from `lean-toolchain` (Lean 4.35.0), `zstd`
 and `sha256sum`:
 
 ```
+formal/verify.sh               # gate + full proof build + axiom audit + report
+formal/verify.sh --docker      # same in the pinned containers
+
 cd formal/lean
 make gen                       # restore Hashtree/Gen from Gen.tar.zst
 make verify                    # check it against Gen.files.sha256
