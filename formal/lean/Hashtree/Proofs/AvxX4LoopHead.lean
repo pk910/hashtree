@@ -100,4 +100,40 @@ theorem KExL_assume : KExL.assume =
     [((.lt (⟨0, [0, 0, 1]⟩ : Lin) (⟨4, []⟩ : Lin)), true),
      ((.not (.eq (⟨0, [0, 0, 1]⟩ : Lin) (⟨0, []⟩ : Lin))), true)] := by decide +kernel
 
+/-! ## The two non-looping count classes, from the pilot entry state
+
+The count-0 early return and the `1 ≤ c < 4` early exit, at `entryS 24` (the pilot's entry
+state).  These are the entryS analogues of `AvxX4Entry.zero_run`/`small_prefix` at `entryW`. -/
+
+/-- The count-0 path takes neither branch: pc 3 `ret` halts with rsp advanced past the return
+marker. -/
+def orc0 : Nat → Bool := fun _ => false
+
+def KZ : State E Lin := abstract (run prog 4 m0q orc0 4 (entryS 24))
+
+theorem zero_slice : sliceCheck prog 4 m0q orc0 4 (entryS 24) KZ [] = true := by decide +kernel
+theorem KZ_pc : KZ.pc = 3 := by decide +kernel
+theorem KZ_halted : KZ.halted = true := by decide +kernel
+theorem KZ_tail : KZ.tail = none := by decide +kernel
+theorem KZ_mem : KZ.mem = [] := by decide +kernel
+theorem KZ_rsp : KZ.getG 4 = .ptr ⟨rStack, (⟨32, []⟩ : Lin)⟩ := by decide +kernel
+theorem KZ_assume : KZ.assume =
+    [((.not (.eq (⟨0, [0, 0, 1]⟩ : Lin) (⟨0, []⟩ : Lin))), false)] := by decide +kernel
+
+/-- Counts 1–3: the `jne` at pc 2 is taken, the `jl` at pc 6 exits, rsp is restored, and the
+kernel reaches the avx_x1 tail in 8 instructions. -/
+def orcS : Nat → Bool := fun pc => decide (pc ∈ ([2, 6] : List Nat))
+
+def KSmS : State E Lin := abstract (run prog 4 m0q orcS 8 (entryS 24))
+
+theorem small_slice : sliceCheck prog 4 m0q orcS 8 (entryS 24) KSmS [] = true := by decide +kernel
+theorem KSmS_pc : KSmS.pc = 4143 := by decide +kernel
+theorem KSmS_halted : KSmS.halted = true := by decide +kernel
+theorem KSmS_tail : KSmS.tail = some "hashtree_sha256_avx_x1" := by decide +kernel
+theorem KSmS_mem : KSmS.mem = [] := by decide +kernel
+theorem KSmS_rsp : KSmS.getG 4 = .ptr ⟨rStack, (⟨24, []⟩ : Lin)⟩ := by decide +kernel
+theorem KSmS_assume : KSmS.assume =
+    [((.lt (⟨0, [0, 0, 1]⟩ : Lin) (⟨4, []⟩ : Lin)), true),
+     ((.not (.eq (⟨0, [0, 0, 1]⟩ : Lin) (⟨0, []⟩ : Lin))), true)] := by decide +kernel
+
 end Hashtree.Proofs.AvxX4Loop
