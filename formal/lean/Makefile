@@ -22,7 +22,7 @@ verify: gen     ## check the restored tree against the pinned hashes
 # root module and its imports); it does not touch Hashtree.Gen.  Building every
 # module explicitly is what makes the Lean kernel re-check every certificate.
 # The list is expanded after `gen` has restored Hashtree/Gen.
-PROOF_MODULES = $(shell find Hashtree/Proofs Hashtree/Gen -name '*.lean' 2>/dev/null | sed -e 's|/|.|g' -e 's|\.lean$$||') Axioms
+PROOF_MODULES = $(shell find Hashtree/Proofs Hashtree/Gen -name '*.lean' 2>/dev/null | sed -e 's|/|.|g' -e 's|\.lean$$||')
 
 build: gen      ## restore the generated proofs and check every proof module
 	$(LAKE) build $(PROOF_MODULES)

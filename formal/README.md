@@ -276,9 +276,12 @@ touch them). The project therefore uses a reproducible-build-style protocol:
 
 No Lean installation is needed with `formal/verify.sh --docker`: it builds and
 uses the pinned `hashtree-proof-gate` and `hashtree-formal` images and mounts
-the checkout at `/repo`. The full run needs several GB of RAM and is much
-faster with 8+ cores. A single-kernel change still needs the full audit unless
-the reviewer scopes the build; the `regen.sh` targets are per kernel.
+the checkout at `/repo`. Measured on a 24-core reference machine, the full
+build takes roughly 3–4 h: the per-kernel slice trees are serial import chains
+(`AvxX4P` alone is 200 slices at 40–55 s each), so cores do not shorten the
+longest chain much. `make check-models` takes about 12 min, and regenerating
+one kernel is minutes. A single-kernel change still needs the full audit unless
+the reviewer deliberately scopes the build; `regen.sh` targets are per kernel.
 
 The heavy job in `.github/workflows/formal-verification.yml` is manual only and
 requires a self-hosted runner labelled `hashtree-proof`; it runs the same
@@ -336,8 +339,8 @@ docker run --rm -v "$PWD/formal/lean:/work" hashtree-formal \
 ```
 
 Checking every proof module (`make build`, i.e. the whole `Hashtree/Gen` tree)
-needs several GB of RAM and tens of minutes on a normal machine; the container
-has no special requirements beyond that. Building the image is
+needs several GB of RAM and about 3–4 h on a 24-core machine, dominated by the
+serial slice chains; the container has no special requirements beyond that. Building the image is
 reproducible per architecture (`linux/amd64`, `linux/arm64`) and is the
 supported way to check the proofs without installing Lean.
 
