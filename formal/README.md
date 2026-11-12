@@ -239,7 +239,9 @@ cd formal/lean
 make gen                       # restore Hashtree/Gen from Gen.tar.zst
 make verify                    # check it against Gen.files.sha256
 make gate                      # cheap CI gate: models + artifacts + certificates
-lake build Hashtree            # library; the generated proofs dominate the time
+make build                     # check every proof module (Hashtree/Proofs + Gen)
+# `lake build Hashtree` alone is not enough: it builds only the library root and
+# its imports, not the generated Hashtree.Gen tree.
 make audit                     # print the axioms of every final theorem
 lake exe x86check linux        # differential check of the x86 models
 lake exe armcheck linux        # AArch64 (also: armcheck mac)
@@ -273,8 +275,9 @@ docker run --rm -v "$PWD/formal/lean:/work" hashtree-formal \
   make gen regen KERNEL=avx2_x8 pack                # work on the host tree
 ```
 
-A full `lake build Hashtree` needs several GB of RAM and tens of minutes; the
-container has no special requirements beyond that. Building the image is
+Checking every proof module (`make build`, i.e. the whole `Hashtree/Gen` tree)
+needs several GB of RAM and tens of minutes on a normal machine; the container
+has no special requirements beyond that. Building the image is
 reproducible per architecture (`linux/amd64`, `linux/arm64`) and is the
 supported way to check the proofs without installing Lean.
 
