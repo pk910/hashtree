@@ -206,6 +206,24 @@ the `.syso`/`libhashtree.a` archives only when the *models* are regenerated;
 see `tools/` for the object-to-Lean translators and their required cross
 tools. `make regen` works from the committed models and needs no artifacts.
 
+### Docker
+
+No local toolchain is needed. The image contains Debian, the official Lean
+4.35.0 release and `make`/`zstd` (~0.9 GB); the proof tree is copied in, and
+`Hashtree/Gen` is restored from the archive and hash-checked at run time.
+
+```
+docker build -f formal/Dockerfile -t hashtree-formal formal   # from the repo root
+docker run --rm hashtree-formal                    # make all: gen + verify + build
+docker run --rm -it hashtree-formal bash           # interactive
+docker run --rm hashtree-formal make regen         # regenerate the proofs
+```
+
+A full `lake build Hashtree` needs several GB of RAM and tens of minutes; the
+container has no special requirements beyond that. Building the image is
+reproducible per architecture (`linux/amd64`, `linux/arm64`) and is the
+supported way to check the proofs without installing Lean.
+
 ## Provenance
 
 `Hashtree/Kernels/*` was generated from the objects listed in

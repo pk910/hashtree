@@ -25,3 +25,6 @@ regen:          ## regenerate Hashtree/Gen from the committed models (long)
 
 clean-gen:
 	rm -rf Hashtree/Gen
+
+.PHONY: all
+all: gen verify build   ## restore, verify the hashes, and build the proofs
