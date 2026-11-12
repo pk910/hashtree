@@ -1,0 +1,17 @@
+# Artifacts the machine-code models were generated from.
+# hashtree source commit: 76c54d6dcf3596c03788ea5bc0ef030e9f1b43f4 (v0.2.6; hashtree-bindings lib/HASHTREE_VERSION)
+# Upstream .syso blobs are unchanged at 42836eb9e25c68f175a78416a5f66ba832478fb0 (main, 2026-11-12).
+#
+# Shipped upstream archives (paths relative to the hashtree repository):
+22110ec511ff8697f7b1b0c9a9124373b3518f3d7a6ec6726cd9a2b3c1fd3b7c  hashtree_linux_amd64.syso
+261d32f59d9cdb7c65ae259c5b0a56228b9bac4834bcd35a7c4265585aa27d5b  hashtree_linux_arm64.syso
+1888111f819bf724150bdb2934352ebea437297d05ebd0575296037a05e38004  hashtree_linux_riscv64.syso
+e69872b5a7d8234eb2e259cc408c38956d8d33ac30128dca0d4b224812eed489  hashtree_darwin_arm64.syso
+123cadb7a9cb6ccccedda19facdf6c6bb3ae746c807d0c210565e4a6a6b31418  hashtree_windows_amd64.syso
+#
+# hashtree-bindings archives built from that commit (paths relative to hashtree-bindings):
+11ddb71b2ce74843c7718c1679a23bb5735e2cae5e7d790b7acfa95b5c948efc  lib/linux_amd64/libhashtree.a
+5a13f0571283166db73b3d0a3f6509610db1032cff7a716097c24d7afa5d1ab5  lib/linux_arm64/libhashtree.a
+ad778d532be6a2bd2c008449db9d36682bedc6de465a672c373989563c47fa80  lib/linux_riscv64/libhashtree.a
+0358e3f13c1c2ffbd25b76f3c0d2527bc51d336991d3c47b1e3c7b3a6f8d56ab  lib/darwin_arm64/libhashtree.a
+90b892a4e7ae3f91bd0635ea91792372acc95f39df76aed9a418b22b4714c7e5  lib/windows_amd64/libhashtree.a

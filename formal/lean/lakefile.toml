@@ -1,0 +1,69 @@
+name = "hashtree"
+version = "0.1.0"
+defaultTargets = ["Hashtree"]
+
+[leanOptions]
+autoImplicit = false
+
+[[lean_lib]]
+name = "Hashtree"
+
+[[lean_exe]]
+name = "x86check"
+root = "X86Check"
+
+[[lean_exe]]
+name = "armcheck"
+root = "ArmCheck"
+
+[[lean_exe]]
+name = "rvcheck"
+root = "RvCheck"
+
+[[lean_exe]]
+name = "x86scan"
+root = "X86Scan"
+
+[[lean_exe]]
+name = "x86slices"
+root = "X86Slices"
+
+[[lean_exe]]
+name = "x86proof"
+root = "X86Proof"
+
+[[lean_exe]]
+name = "x86insncheck"
+root = "X86InsnCheck"
+
+[[lean_exe]]
+name = "x86loop"
+root = "X86Loop"
+
+[[lean_exe]]
+name = "x86proof1"
+root = "X86Proof1"
+
+[[lean_exe]]
+name = "rvproof"
+root = "RvProof"
+
+[[lean_exe]]
+name = "x86loop1"
+root = "X86Loop1"
+
+[[lean_exe]]
+name = "x86loopw"
+root = "X86LoopW"
+
+[[lean_exe]]
+name = "x86proofv"
+root = "X86ProofV"
+
+[[lean_exe]]
+name = "x86loop1w"
+root = "X86Loop1W"
+
+[[lean_exe]]
+name = "armproof"
+root = "ArmProof"
