@@ -14,7 +14,7 @@ gen:            ## restore the pinned generated proofs
 	@zstd -dc Gen.tar.zst | tar -x
 	@echo "restored Hashtree/Gen"
 
-verify:         ## check the restored tree against the pinned hashes
+verify: gen     ## check the restored tree against the pinned hashes
 	@sha256sum -c Gen.files.sha256 --quiet
 	@echo "Hashtree/Gen matches the pinned hashes"
 
@@ -45,7 +45,7 @@ check-models:   ## differential execution of every model against the spec
 	$(LAKE) exe armcheck mac
 	$(LAKE) exe rvcheck
 
-audit:          ## print the axioms of every final theorem
+audit: build    ## print the axioms of every final theorem
 	$(LAKE) env lean Axioms.lean
 
 clean-gen:
