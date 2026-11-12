@@ -18,8 +18,14 @@ verify:         ## check the restored tree against the pinned hashes
 	@sha256sum -c Gen.files.sha256 --quiet
 	@echo "Hashtree/Gen matches the pinned hashes"
 
-build: gen      ## restore the generated proofs and build the library
-	$(LAKE) build Hashtree
+# `lake build Hashtree` only builds the hand-written library (the library's
+# root module and its imports); it does not touch Hashtree.Gen.  Building every
+# module explicitly is what makes the Lean kernel re-check every certificate.
+# The list is expanded after `gen` has restored Hashtree/Gen.
+PROOF_MODULES = $(shell find Hashtree/Proofs Hashtree/Gen -name '*.lean' 2>/dev/null | sed -e 's|/|.|g' -e 's|\.lean$$||') Axioms
+
+build: gen      ## restore the generated proofs and check every proof module
+	$(LAKE) build $(PROOF_MODULES)
 
 regen:          ## regenerate Hashtree/Gen from the committed models (KERNEL=name for one)
 	./regen.sh $(KERNEL)
