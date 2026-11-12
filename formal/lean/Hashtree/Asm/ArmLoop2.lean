@@ -80,16 +80,24 @@ theorem envMem_ecomb (e : Key → W32) (σ : Nat → Int) (m : Addr Int → Cell
 
 /-! ## A readable spill area -/
 
-/-- Stack bytes in `[lo, sp0)` are readable: byte `o % 4` of a lane keyed by the address. -/
+/-- Base address of the 4-byte lane holding byte offset `o`. -/
+def laneBase (o : Int) : Int := o - o % 4
+
+/-- Stack bytes in `[lo, sp0)` are readable: byte `o % 4` of a lane keyed by the lane base. -/
 def mem0sH (ro : Region) (rodata : List Nat) (sp0 lo : Int) : Addr Lin → Cell E Lin := fun a =>
   if a.region = rStack then
     match a.off.asInt with
-    | some o => if lo ≤ o ∧ o < sp0 then .dat (.var (.m a.region a.off)) (o % 4).toNat else mem0s ro rodata a
+    | some o =>
+      if lo ≤ o ∧ o < sp0 then
+        .dat (.var (.m a.region (Lin.ofInt (laneBase o)))) (o % 4).toNat
+      else mem0s ro rodata a
     | none => mem0s ro rodata a
   else mem0s ro rodata a
 
+/-- The matching concrete condition: every byte of a spilled lane is byte `o % 4` of the lane. -/
 def WfMemH (ro : Region) (rodata : List Nat) (sp0 lo : Int) (m : Addr Int → Cell W32 Int) : Prop :=
-  WfMem ro rodata m ∧ ∀ o, lo ≤ o → o < sp0 → m ⟨rStack, o⟩ = .dat (cellX (m ⟨rStack, o⟩)) (o % 4).toNat
+  WfMem ro rodata m ∧ ∀ o, lo ≤ o → o < sp0 →
+    m ⟨rStack, o⟩ = .dat (cellX (m ⟨rStack, laneBase o⟩)) (o % 4).toNat
 
 theorem mem0RelH_of_wf (ro : Region) (rodata : List Nat) (sp0 lo : Int) (env : Key → W32) (σ : Nat → Int)
     (m : Addr Int → Cell W32 Int) (hw : WfMemH ro rodata sp0 lo m) (he : EnvMem env σ m) :
@@ -106,12 +114,19 @@ theorem mem0RelH_of_wf (ro : Region) (rodata : List Nat) (sp0 lo : Int) (env : K
       rw [e] at ha ⊢; exact h0 _ ha
     | some o =>
       by_cases hlo : lo ≤ o ∧ o < sp0
-      · have e : mem0sH ro rodata sp0 lo ⟨rStack, off⟩ = .dat (.var (.m rStack off)) (o % 4).toNat := by
+      · have e : mem0sH ro rodata sp0 lo ⟨rStack, off⟩ =
+            .dat (.var (.m rStack (Lin.ofInt (laneBase o)))) (o % 4).toNat := by
           simp only [mem0sH, ite_true, hk, hlo, and_self]
         rw [e]
         have hev : off.eval σ = o := Lin.eval_asInt σ off o hk
-        simp only [mapCell, E.eval, mapAddr, hev]
-        rw [he, hev]; exact hw.2 o hlo.1 hlo.2
+        simp only [mapCell, E.eval]
+        rw [he]
+        simp only [mapAddr]
+        have hlin : Lin.eval σ (Lin.ofInt (laneBase o)) = laneBase o := by
+          simp [Lin.ofInt, Lin.eval, dotC]
+        rw [hlin]
+        rw [show (⟨rStack, Lin.eval σ off⟩ : Addr Int) = ⟨rStack, o⟩ from by rw [hev]]
+        exact hw.2 o hlo.1 hlo.2
       · have e : mem0sH ro rodata sp0 lo ⟨rStack, off⟩ = mem0s ro rodata ⟨rStack, off⟩ := by
           simp only [mem0sH, ite_true, hk, hlo, ite_false]
         rw [e] at ha ⊢; exact h0 _ ha
@@ -134,37 +149,81 @@ theorem mem0sH_keyed (ro : Region) (rodata : List Nat) (sp0 lo : Int) :
 
 theorem wfH_view (ro : Region) (rodata : List Nat) (sp0 lo : Int) (m : Addr Int → Cell W32 Int)
     (M : CLog) (hM : OutLog sp0 M) (hro : ro ≠ rOut) (hw : WfMem ro rodata m)
-    (hp : ∀ o, lo ≤ o → o < sp0 → ∃ x, lookup (⟨rStack, o⟩ : Addr Int) M = .ok (some (.dat x (o % 4).toNat))) :
+    (hp : ∀ o, lo ≤ o → o < sp0 → ∃ x,
+      lookup (⟨rStack, o⟩ : Addr Int) M = .ok (some (.dat x (o % 4).toNat)) ∧
+      lookup (⟨rStack, laneBase o⟩ : Addr Int) M = .ok (some (.dat x 0))) :
     WfMemH ro rodata sp0 lo (view M m) := by
   refine ⟨wf_view ro rodata sp0 m M hM hro hw, fun o h1 h2 => ?_⟩
-  obtain ⟨x, hx⟩ := hp o h1 h2
-  simp only [view, hx, cellX]
+  obtain ⟨x, hx, hl⟩ := hp o h1 h2
+  have v1 : view M m ⟨rStack, o⟩ = .dat x (o % 4).toNat := by simp only [view, hx]
+  have v2 : view M m ⟨rStack, laneBase o⟩ = .dat x 0 := by simp only [view, hl]
+  rw [v1, v2]
+  rfl
 
-/-- The spill area of a symbolic log: every byte is byte `o % 4` of a stored lane. -/
+/-- The spill area of a symbolic log, byte by byte: byte `o` and its lane base hold the same
+stored lane, in the right byte position. -/
 def pushOk (K : State E Lin) (sp0 lo : Int) : Bool :=
   (List.range (sp0 - lo).toNat).all fun i =>
-    match lookup (⟨rStack, Lin.ofInt (lo + i)⟩ : Addr Lin) K.mem with
-    | .ok (some (.dat _ k)) => k == ((lo + i) % 4).toNat
-    | _ => false
+    let o := lo + (i : Int)
+    match lookup (⟨rStack, Lin.ofInt o⟩ : Addr Lin) K.mem,
+        lookup (⟨rStack, Lin.ofInt (laneBase o)⟩ : Addr Lin) K.mem with
+    | .ok (some (.dat x k)), .ok (some (.dat y 0)) => x == y && k == (o % 4).toNat
+    | _, _ => false
 
 theorem pushOk_sound (e : Key → W32) (σ : Nat → Int) (K : State E Lin) (sp0 lo : Int)
     (h : pushOk K sp0 lo = true) :
-    ∀ o, lo ≤ o → o < sp0 → ∃ x, lookup (⟨rStack, o⟩ : Addr Int)
-      (K.mem.map (fun p => (mapAddr σ p.1, mapCell e σ p.2))) = .ok (some (.dat x (o % 4).toNat)) := by
+    ∀ o, lo ≤ o → o < sp0 → ∃ x,
+      lookup (⟨rStack, o⟩ : Addr Int)
+        (K.mem.map (fun p => (mapAddr σ p.1, mapCell e σ p.2))) = .ok (some (.dat x (o % 4).toNat)) ∧
+      lookup (⟨rStack, laneBase o⟩ : Addr Int)
+        (K.mem.map (fun p => (mapAddr σ p.1, mapCell e σ p.2))) = .ok (some (.dat x 0)) := by
   intro o h1 h2
   simp only [pushOk, List.all_eq_true, List.mem_range] at h
   have hi := h (o - lo).toNat (by omega)
-  rw [show lo + ((o - lo).toNat : Int) = o by omega] at hi
-  split at hi
-  · rename_i x k hl
-    simp only [beq_iff_eq] at hi
-    have := lookup_hom e σ _ K.mem _ hl
-    have ha : mapAddr σ (⟨rStack, Lin.ofInt o⟩ : Addr Lin) = ⟨rStack, o⟩ := by
-      simp [mapAddr, Lin.ofInt, Lin.eval, dotC]
-    rw [ha] at this
-    refine ⟨x.eval e, ?_⟩
-    rw [this, hi]; rfl
-  · cases hi
+  rw [show lo + (((o - lo).toNat : Nat) : Int) = o by omega] at hi
+  cases hx0 : lookup (⟨rStack, Lin.ofInt o⟩ : Addr Lin) K.mem with
+  | error e => simp only [hx0] at hi; cases hi
+  | ok v1 =>
+    cases v1 with
+    | none => simp only [hx0] at hi; cases hi
+    | some c1 =>
+      cases c1 with
+      | pb a k => simp only [hx0] at hi; cases hi
+      | dat x k =>
+        cases hy0 : lookup (⟨rStack, Lin.ofInt (laneBase o)⟩ : Addr Lin) K.mem with
+        | error e => simp only [hx0, hy0] at hi; cases hi
+        | ok v2 =>
+          cases v2 with
+          | none => simp only [hx0, hy0] at hi; cases hi
+          | some c2 =>
+            cases c2 with
+            | pb a k0 => simp only [hx0, hy0] at hi; cases hi
+            | dat y k0 =>
+              cases k0 with
+              | zero =>
+                simp only [hx0, hy0, Bool.and_eq_true, beq_iff_eq] at hi
+                obtain ⟨rfl, rfl⟩ := hi
+                have hx' : lookup (⟨rStack, o⟩ : Addr Int)
+                    (K.mem.map (fun p => (mapAddr σ p.1, mapCell e σ p.2))) =
+                      .ok (some (.dat (x.eval e) (o % 4).toNat)) := by
+                  have := lookup_hom e σ _ K.mem _ hx0
+                  have ha : mapAddr σ (⟨rStack, Lin.ofInt o⟩ : Addr Lin) = ⟨rStack, o⟩ := by
+                    simp [mapAddr, Lin.ofInt, Lin.eval, dotC]
+                  rw [ha] at this
+                  rw [this]
+                  rfl
+                have hy' : lookup (⟨rStack, laneBase o⟩ : Addr Int)
+                    (K.mem.map (fun p => (mapAddr σ p.1, mapCell e σ p.2))) =
+                      .ok (some (.dat (x.eval e) 0)) := by
+                  have := lookup_hom e σ _ K.mem _ hy0
+                  have ha : mapAddr σ (⟨rStack, Lin.ofInt (laneBase o)⟩ : Addr Lin) =
+                      ⟨rStack, laneBase o⟩ := by
+                    simp [mapAddr, Lin.ofInt, Lin.eval, dotC]
+                  rw [ha] at this
+                  rw [this]
+                  rfl
+                exact ⟨x.eval e, hx', hy'⟩
+              | succ k0 => simp only [hx0, hy0] at hi; cases hi
 
 /-! ## A cut that is an instance of another -/
 

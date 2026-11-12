@@ -75,6 +75,27 @@ theorem outCell_sound (env : Key → W32) (σ : Nat → Int) (K : State E Lin) (
     exact this
   · cases h
 
+/-- Output byte `o` after the pointer held in `base` is byte `b` of the stored lane held by
+location variable `id`.  (`outCell` is the case `base = Lin.sym 1`.) -/
+def outCellAt (K : State E Lin) (base : Lin) (o id b : Nat) : Bool :=
+  match lookup ((⟨rOut, base⟩ : Addr Lin).plusI (o : Int)) K.mem with
+  | .ok (some (.dat (.var (.n i)) b')) => i == id && b' == b
+  | _ => false
+
+theorem outCellAt_sound (env : Key → W32) (σ : Nat → Int) (K : State E Lin) (base : Lin)
+    (o id b : Nat) (h : outCellAt K base o id b = true) :
+    lookup (⟨rOut, base.eval σ + (o : Int)⟩ : Addr Int) (mapState env σ K).mem =
+      .ok (some (.dat (env (.n id)) b)) := by
+  simp only [outCellAt] at h
+  split at h
+  · rename_i i b' heq
+    simp only [Bool.and_eq_true, beq_iff_eq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have := lookup_hom env σ _ K.mem _ heq
+    simp only [mapAddr, Addr.plusI, Addr.plus, Lin.eval_add, Lin.eval_ofInt] at this
+    simpa [mapState, mapCell, E.eval, mapAddr] using this
+  · cases h
+
 theorem assumeOk_of (σ : Nat → Int) (K : State E Lin) (A : List (Cond Lin × Bool)) (h : K.assume = A)
     (hA : ∀ p ∈ A, (mapCond σ p.1).decideC = some p.2) : AssumeOk σ K := by
   intro p hp; rw [h] at hp; exact hA p hp
