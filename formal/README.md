@@ -286,8 +286,10 @@ script and uploads the same report. It is not scheduled on hosted runners.
 
 ## Building
 
-Requires `elan` with the toolchain from `lean-toolchain` (Lean 4.35.0), `zstd`
-and `sha256sum`:
+Requires `elan` with the toolchain from `lean-toolchain` (Lean 4.35.0), `zstd`,
+`sha256sum` and—for the gate—`python3`, `ar`, the GNU cross `objdump`s and
+LLVM's `llvm-objdump` (the `formal/ci/Dockerfile` image has them all;
+`formal/verify.sh --docker` avoids installing anything):
 
 ```
 formal/verify.sh               # gate + full proof build + axiom audit + report
