@@ -206,6 +206,7 @@ def emit_turn(M):
     a("open Hashtree.Asm Hashtree.Asm.X86 Hashtree.Asm.X86Sym Hashtree.Kernels.X86.AvxX4")
     a("namespace Hashtree.Proofs.AvxX4LoopTurn")
     a("open Hashtree.Gen.AvxX4P")
+    a("open Hashtree.Proofs.AvxX4Loop")
     a("")
     a("/-!")
     a("# The avx_x4 loop turn at every count")
