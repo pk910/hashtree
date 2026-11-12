@@ -50,10 +50,11 @@ into the output theorem. None of it is hand-written: the generators in this
 directory produce it deterministically from the committed instruction streams
 (fixed seeds, no external input, no artifacts read).
 
-It is therefore not committed as plain text. It ships as `Gen.tar.zst` (4.0 MB,
-about 100x smaller), `make gen` restores it and checks the per-file hashes in
-`Gen.files.sha256`, and `make regen` rebuilds the whole tree from source (CI
-runs that to verify the archive). Everything outside `Gen` is about 100k lines
+It is therefore not committed as plain text. It ships as `Gen.tar.zst` (3.5 MB,
+about 120x smaller), `make gen` restores it and checks the per-file hashes in
+`Gen.files.sha256`, and `make regen` rebuilds the whole tree from source (run it
+on a build machine and diff to verify the archive; per-kernel regeneration is
+used for changes). Everything outside `Gen` is about 100k lines
 / 6.5 MB: 78k lines of disassembled instruction streams (the trust anchor),
 8.7k lines of machine models and their soundness proofs, 2.4k lines of
 all-counts/wrapper proofs, and the spec, generators and tooling.
