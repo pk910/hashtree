@@ -7,7 +7,10 @@ import Hashtree.Asm.X86
 whose index is in the set `S` (and on the flags when `flg ∈ S`).  `execE_agree` shows that one
 instruction that reads no register of `S` takes two agreeing states to results that agree on
 `S` minus the registers it writes (or fail with the same message); `execE_eq` relates the
-instruction body `execE` to `exec`.  The intended use is an entry
+instruction body `execE` to `exec`.  `run_agree` lifts this to whole runs: if the reference run
+does not fail and a per-pc analysis of read and write sets justifies every instruction it
+executes (with `successors` and `execE_ok_pc` locating the pc of the next one), the peer run
+ends in a state that agrees on the analysis set of the final pc.  The intended use is an entry
 contract for a kernel that tolerates arbitrary values in scratch registers the kernel overwrites
 before reading (the x4/x8/x16 tail-call hand-offs).
 -/
@@ -1386,6 +1389,231 @@ theorem execE_agree {ro : Region} {mem0 : Addr γ → Cell α γ} {orc : Nat →
             exact AgreeR.pure ((h.setG_diff (d := rsp) rfl (by decide)).halt)
           · rw [if_neg h5, if_neg h5]
             exact AgreeR.throw
+
+end
+
+/-! ## Successor positions of one instruction
+
+`successors pc i` lists the program counters a successful execution of `i` can continue at:
+the jump target (`jmp`), both arms of a branch, `pc + 1`, or nothing for `ret` and the two
+tail-call forms (whose result is the same state, stopped).  `execE_ok_pc` shows that every
+successful body leaves the state either at `pc` or at one of those successors; `run_agree` uses
+it to carry its register invariant across a step of the run. -/
+
+section
+variable {α γ : Type}
+
+/-- A property that holds of every successful result of a computation. -/
+def OkProp (P : State α γ → Prop) (r : Except String (State α γ)) : Prop := ∀ s', r = .ok s' → P s'
+
+theorem OkProp_pure (P : State α γ → Prop) (x : State α γ) (h : P x) : OkProp P (pure x) := by
+  intro s' hs; cases hs; exact h
+
+theorem OkProp_throw (P : State α γ → Prop) (e : String) : OkProp P (throw e) := by
+  intro s' hs; cases hs
+
+theorem OkProp_bind {β : Type} (P : State α γ → Prop) (m : Except String β)
+    (f : β → Except String (State α γ)) (h : ∀ a, OkProp P (f a)) : OkProp P (m >>= f) := by
+  intro s' hs
+  cases hm : m with
+  | error e => rw [hm] at hs; cases hs
+  | ok a => rw [hm] at hs; exact h a s' hs
+
+theorem OkProp_ite (P : State α γ → Prop) (c : Prop) [Decidable c] (a b : Except String (State α γ))
+    (ha : c → OkProp P a) (hb : ¬ c → OkProp P b) : OkProp P (if c then a else b) := by
+  by_cases hc : c
+  · rw [if_pos hc]; exact ha hc
+  · rw [if_neg hc]; exact hb hc
+
+end
+
+section
+variable {α γ : Type} [Lane α] [Ctl γ] [AddrEq γ] [Inhabited α] [Inhabited γ]
+
+-- the pc lemmas are about the record updates alone, which take no instance argument
+set_option linter.unusedSectionVars false
+
+/-! ### State updates keep the pc -/
+
+@[simp] theorem setG_pc (s : State α γ) (i : Nat) (v : Val α γ) : (s.setG i v).pc = s.pc := rfl
+@[simp] theorem setV_pc (s : State α γ) (i : Nat) (v : List α) : (s.setV i v).pc = s.pc := rfl
+@[simp] theorem next_pc (s : State α γ) : s.next.pc = s.pc + 1 := rfl
+@[simp] theorem setVec_pc (s : State α γ) (vex : Bool) (w d : Nat) (v : List α) :
+    (setVec s vex w d v).pc = s.pc := rfl
+@[simp] theorem setData32_pc (s : State α γ) (d : Nat) (x : α) : (setData32 s d x).pc = s.pc := rfl
+@[simp] theorem clearFlags_pc (s : State α γ) : (clearFlags s).pc = s.pc := rfl
+@[simp] theorem setFlags_pc (s : State α γ) (a b : γ) : (setFlags s a b).pc = s.pc := rfl
+@[simp] theorem halt_pc (s : State α γ) : (halt s).pc = s.pc := rfl
+@[simp] theorem storeLane_pc (s : State α γ) (a : Addr γ) (x : α) : (storeLane s a x).pc = s.pc := rfl
+@[simp] theorem storeLanes_pc : ∀ (l : List α) (s : State α γ) (a : Addr γ),
+    (storeLanes s a l).pc = s.pc
+  | [], _, _ => rfl
+  | x :: xs, s, a => by simp only [storeLanes, storeLanes_pc xs, storeLane_pc]
+@[simp] theorem storeVal_pc (s : State α γ) (a : Addr γ) (v : Val α γ) : (storeVal s a v).pc = s.pc := by
+  cases v with
+  | num lo hi => simp only [storeVal, storeLane_pc]
+  | ptr p => rfl
+
+/-- A branch lands at its target or after it (`State.branch` records the condition it took). -/
+theorem branch_pc_cases (orc : Nat → Bool) (s : State α γ) (c : Cond γ) (t : Nat) :
+    (s.branch orc c t).pc = t ∨ (s.branch orc c t).pc = s.pc + 1 := by
+  unfold State.branch
+  dsimp only
+  cases hd : c.decideC with
+  | some b =>
+    cases b <;> simp [State.next]
+  | none =>
+    by_cases ho : orc s.pc <;> simp [State.next, ho]
+
+/-- The pc of the next instruction: `pc + 1`, a jump target, or unchanged (`ret`, tail calls). -/
+def successors (pc : Nat) : Instr → List Nat
+  | .jmp t => [t]
+  | .jcc _ t => [t, pc + 1]
+  | .jmpTail _ => []
+  | .jccTail _ _ => [pc + 1]
+  | .ret => []
+  | _ => [pc + 1]
+
+/-- Every successful instruction body lands at `pc` again or at one of its successors. -/
+theorem execE_pc_ok (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat → Bool) (i : Instr)
+    (s : State α γ) :
+    OkProp (fun s' => s'.pc = s.pc ∨ s'.pc ∈ successors s.pc i) (execE ro mem0 orc i s) := by
+  cases i <;> dsimp only [execE]
+  case jmp t =>
+    apply OkProp_pure
+    exact Or.inr (by simp [successors])
+  case jmpTail name =>
+    apply OkProp_pure
+    exact Or.inl rfl
+  case jcc c t =>
+    split
+    · apply OkProp_pure
+      rcases branch_pc_cases orc s _ t with h | h
+      · exact Or.inr (by rw [h]; simp [successors])
+      · exact Or.inr (by rw [h]; simp [successors])
+    · apply OkProp_throw
+  case jccTail c name =>
+    split
+    · apply OkProp_ite
+      · intro _
+        apply OkProp_pure
+        exact Or.inl rfl
+      · intro hne
+        apply OkProp_pure
+        rcases branch_pc_cases orc s _ 1000000000 with h | h
+        · exact absurd h hne
+        · exact Or.inr (by rw [h]; simp [successors])
+    · apply OkProp_throw
+  case ret =>
+    split
+    · apply OkProp_bind
+      intro v
+      split
+      · apply OkProp_pure
+        exact Or.inl rfl
+      · apply OkProp_throw
+    · apply OkProp_throw
+  all_goals
+    (repeat (first
+      | apply OkProp_bind; intro _
+      | apply OkProp_throw
+      | apply OkProp_ite <;> intro _
+      | (apply OkProp_pure; simp [successors])
+      | split))
+
+/-- A successful instruction leaves the pc at `pc` or at a successor of `i`. -/
+theorem execE_ok_pc (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat → Bool) (i : Instr)
+    (s s' : State α γ) (h : execE ro mem0 orc i s = .ok s') :
+    s'.pc = s.pc ∨ s'.pc ∈ successors s.pc i :=
+  execE_pc_ok ro mem0 orc i s s' h
+
+/-! ## Runs preserve agreement
+
+`run_agree` is the congruence for `run`: if the reference run finishes without an error and the
+analysis `Ds` justifies every instruction it executes (it reads no register of `Ds pc`, it
+writes no flag, and the registers it writes leave the successor's `Ds`), then the peer run
+executes the same instructions and ends in a state that agrees on `Ds` of the final pc.  The
+induction is driven by the reference run's success: a step that failed would make the final
+error non-`none`, and a step that succeeded keeps agreement by `execE_agree`; the successor
+containment is `execE_ok_pc`.  No disjunctive step relation is needed, because the only user of
+the congruence already knows that the reference run succeeds. -/
+
+theorem run_of_halted (prog : Array Instr) (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat → Bool) :
+    ∀ (n : Nat) (s : State α γ), s.halted = true → run prog ro mem0 orc n s = s
+  | 0, _, _ => rfl
+  | n + 1, s, h => by simp [run, h]
+
+theorem fail_err_ne_none (s : State α γ) (msg : String) : (s.fail msg).err ≠ none := by
+  cases hs : s.err with
+  | none => simp [State.fail, hs]
+  | some e => simp [State.fail, hs]
+
+/-- Two runs from agreeing states agree, as long as the analysis `Ds` covers every executed
+instruction (reads outside `Ds`, no flag writes, writes stay within the successors' `Ds`). -/
+theorem run_agree (prog : Array Instr) (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat → Bool)
+    (Ds : Nat → List Nat)
+    (hsound : ∀ (pc : Nat) (i : Instr), prog[pc]? = some i →
+      (∀ r, r ∈ readsOf i → r ∉ Ds pc) ∧
+      (∀ d, d ∈ gprWritesOf i → d ≠ flg) ∧
+      (∀ p' : Nat, p' ∈ successors pc i →
+        ∀ r, r ∈ eraseAll (Ds pc) (writesOf i) → r ∈ Ds p')) :
+    ∀ (n : Nat) (s1 s2 : State α γ), AgreeOn (Ds s1.pc) s1 s2 →
+      (run prog ro mem0 orc n s1).err = none →
+      AgreeOn (Ds (run prog ro mem0 orc n s1).pc) (run prog ro mem0 orc n s1)
+        (run prog ro mem0 orc n s2)
+  | 0, s1, s2, h, _ => h
+  | n + 1, s1, s2, h, herrf => by
+    simp only [run] at herrf ⊢
+    by_cases hh : s1.halted = true
+    · simp only [hh, ite_true] at herrf ⊢
+      rw [if_pos (show s2.halted = true from by rw [← h.halted]; exact hh)]
+      exact h
+    · simp only [hh, Bool.false_eq_true, ite_false] at herrf ⊢
+      rw [if_neg (show ¬ (s2.halted = true) from by rw [← h.halted]; exact hh)]
+      cases hfetch : prog[s1.pc]? with
+      | none =>
+        simp only [hfetch] at herrf
+        exact absurd herrf (fail_err_ne_none _ _)
+      | some i =>
+        rw [← h.pc]
+        simp only [hfetch] at herrf ⊢
+        obtain ⟨hread, hgpr, hsucc⟩ := hsound s1.pc i hfetch
+        cases hstep : execE ro mem0 orc i s1 with
+        | error e =>
+          -- a failed step leaves a halted state whose error the run can never clear
+          have hex : exec ro mem0 orc i s1 = s1.fail e := by
+            rw [execE_eq]
+            simp only [hh, Bool.false_eq_true, ite_false, hstep, okOr]
+          rw [hex] at herrf
+          rw [run_of_halted prog ro mem0 orc n (s1.fail e) (by unfold State.fail; split <;> rfl)] at herrf
+          exact absurd herrf (fail_err_ne_none _ _)
+        | ok s1' =>
+          have hex : exec ro mem0 orc i s1 = s1' := by
+            rw [execE_eq]
+            simp only [hh, Bool.false_eq_true, ite_false, hstep, okOr]
+          cases h2 : execE ro mem0 orc i s2 with
+          | error e =>
+            have hR := execE_agree (ro := ro) (mem0 := mem0) (orc := orc) h i hread hgpr
+            rw [hstep, h2] at hR
+            exact hR.elim
+          | ok s2' =>
+            have hR : AgreeOn (eraseAll (Ds s1.pc) (writesOf i)) s1' s2' := by
+              have := execE_agree (ro := ro) (mem0 := mem0) (orc := orc) h i hread hgpr
+              rw [hstep, h2] at this
+              exact this
+            have hex2 : exec ro mem0 orc i s2 = s2' := by
+              rw [execE_eq]
+              simp only [show ¬ (s2.halted = true) from by rw [← h.halted]; exact hh,
+                Bool.false_eq_true, ite_false, h2, okOr]
+            -- the written registers stay inside the analysis at the landed pc
+            have hT : ∀ r, r ∈ eraseAll (Ds s1.pc) (writesOf i) → r ∈ Ds s1'.pc := by
+              intro r hr
+              rcases execE_ok_pc ro mem0 orc i s1 s1' hstep with hpc' | hpc'
+              · rw [hpc']; exact mem_eraseAll _ _ hr
+              · exact hsucc s1'.pc hpc' r hr
+            rw [hex] at herrf ⊢
+            rw [hex2] at ⊢
+            exact run_agree prog ro mem0 orc Ds hsound n s1' s2' (hR.mono hT) herrf
 
 end
 
