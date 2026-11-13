@@ -177,3 +177,6 @@ import Hashtree.Proofs.WinAvx2X8
 -- R5: the stack-memory shift of the sse_x1/avx_x1 frame transfer (foundation)
 #print axioms Hashtree.Asm.X86.shAddr_region
 #print axioms Hashtree.Asm.X86.shAddr_plusI
+#print axioms Hashtree.Asm.X86.shAddr_same
+#print axioms Hashtree.Asm.X86.lookup_sh
+#print axioms Hashtree.Asm.X86.readCell_sh

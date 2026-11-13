@@ -113,4 +113,57 @@ theorem shAddr_plusI (μ : Int) (a : Addr Int) (k : Int) :
       exact h
     rw [shAddr_of_ne μ _ h', shAddr_of_ne μ a h]
 
+
+
+theorem shAddr_same (μ : Int) (a b : Addr Int) :
+    AddrEq.same (shAddr μ a) (shAddr μ b) = AddrEq.same a b := by
+  obtain ⟨ra, oa⟩ := a
+  obtain ⟨rb, ob⟩ := b
+  by_cases ha : ra = rStack <;> by_cases hb : rb = rStack
+  · rw [shAddr_of_eq μ _ ha, shAddr_of_eq μ _ hb]
+    show some ((ra == rb) && (oa + μ == ob + μ)) = some ((ra == rb) && (oa == ob))
+    rw [ha, hb]
+    by_cases h : oa = ob
+    · rw [h]; simp
+    · have h2 : oa + μ ≠ ob + μ := by omega
+      rw [show (oa + μ == ob + μ) = false from by simpa using (beq_eq_false_iff_ne.mpr h2),
+          show (oa == ob) = false from by simpa using (beq_eq_false_iff_ne.mpr h)]
+  · rw [shAddr_of_eq μ _ ha, shAddr_of_ne μ _ hb]
+    show some ((ra == rb) && (oa + μ == ob)) = some ((ra == rb) && (oa == ob))
+    have hr : (rStack == rb) = false := by rw [beq_eq_false_iff_ne]; exact fun h => hb h.symm
+    have hr2 : (ra == rb) = false := by rw [beq_eq_false_iff_ne]; exact fun h => hb (h.symm.trans ha)
+    rw [hr2]; rfl
+  · rw [shAddr_of_ne μ _ ha, shAddr_of_eq μ _ hb]
+    show some ((ra == rb) && (oa == ob + μ)) = some ((ra == rb) && (oa == ob))
+    have hr : (ra == rStack) = false := by rw [beq_eq_false_iff_ne]; exact fun h => ha h
+    have hr2 : (ra == rb) = false := by rw [beq_eq_false_iff_ne]; exact fun h => ha (h.trans hb)
+    rw [hr2]; rfl
+  · rw [shAddr_of_ne μ _ ha, shAddr_of_ne μ _ hb]
+
+theorem lookup_sh (μ : Int) (a : Addr Int) (l : List (Addr Int × Cell W32 Int)) :
+    lookup (shAddr μ a) (shLog μ l) = (lookup a l).map (Option.map (shCell μ)) := by
+  induction l with
+  | nil => rfl
+  | cons bc l ih =>
+    obtain ⟨b, c⟩ := bc
+    simp only [shLog_cons, lookup, shAddr_same]
+    cases h : AddrEq.same a b with
+    | none => rfl
+    | some v =>
+      cases v with
+      | true => rfl
+      | false => simpa only [h] using ih
+
+theorem readCell_sh (μ : Int) (mem0w mem0l : Addr Int → Cell W32 Int)
+    (h0 : ∀ a, mem0w (shAddr μ a) = shCell μ (mem0l a)) (s : State W32 Int) (a : Addr Int) :
+    readCell mem0w (shSt μ s) (shAddr μ a) = (readCell mem0l s a).map (shCell μ) := by
+  simp only [readCell, shSt_mem, lookup_sh]
+  cases h : lookup a s.mem with
+  | error e => rfl
+  | ok o =>
+    cases o with
+    | none => simp only [Except.map, Option.map, h0]
+    | some c => rfl
+
+
 end Hashtree.Asm.X86
