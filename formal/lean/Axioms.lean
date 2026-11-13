@@ -42,6 +42,7 @@ import Hashtree.Proofs.WinShaniTransfer
 import Hashtree.Proofs.WinShaniFront
 import Hashtree.Proofs.WinShaniFlags
 import Hashtree.Proofs.WinShaniEpi
+import Hashtree.Proofs.WinShaniCall
 import Hashtree.Proofs.WinAvxX4
 import Hashtree.Proofs.WinAvx2X8
 
@@ -284,3 +285,16 @@ import Hashtree.Proofs.WinAvx2X8
 #print axioms Hashtree.Proofs.WinShaniEpi.run_epilogue
 #print axioms Hashtree.Proofs.WinShaniEpi.run_epilogue_getV
 #print axioms Hashtree.Proofs.WinShaniEpi.epiFinal_getG_rsp
+
+-- R5: the shani_x2 complete-call composition (prologue + flags + seed + body transfer +
+-- epilogue).  The body-exit facts are hypotheses of the composition, not axioms.
+#print axioms Hashtree.Proofs.WinShaniCall.seedSt_getG
+#print axioms Hashtree.Proofs.WinShaniCall.renSt_getG16
+#print axioms Hashtree.Proofs.WinShaniCall.saveSt_getG
+#print axioms Hashtree.Proofs.WinShaniCall.shani_seed_eq
+#print axioms Hashtree.Proofs.WinShaniCall.bodyExit_getG_rsp
+#print axioms Hashtree.Proofs.WinShaniCall.shani_call_run
+#print axioms Hashtree.Proofs.WinShaniCall.shani_call
+#print axioms Hashtree.Proofs.WinShaniCall.shani_call_getV
+#print axioms Hashtree.Proofs.WinShaniCall.shani_call_halted
+#print axioms Hashtree.Proofs.WinShaniCall.shani_call_rsp
