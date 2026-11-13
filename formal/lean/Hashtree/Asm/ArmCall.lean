@@ -532,6 +532,9 @@ structure NeonX4Cut (sp0 : Int) (scut : CS) : Prop where
   /-- the x4 leaves itself for the x1 kernel -/
   tail : scut.tail = some "hashtree_sha256_neon_x1"
   err : scut.err = none
+  /-- the shared return marker: the x4 stream does not clobber `x30`, so the x1 leg entered
+  from the cut returns to the wrapper's return pc -/
+  ret : scut.getG 30 = .ptr ⟨rRet, (2 : Int)⟩
   /-- the x4 frame is balanced at the cut: `SP` is the x4 entry `SP` -/
   sp : scut.getG 31 = .ptr ⟨rStack, sp0 + 2048⟩
 
