@@ -14,7 +14,7 @@ instructions are at windows pcs 8, 6103 and 4162; pcs 0..3 of each stream are th
 `Hashtree.Proofs.X86Chain` (R2, commit `6d27a36`) for those streams; it does not
 introduce a parallel chain layer.
 
-What is proved here (over the shipped arrays, all `native_decide`):
+What is proved here (over the shipped arrays, by kernel `decide`):
 
 * `win_chain_names` -- the four links are named exactly as the tail instructions name
   them, so `chainRun`'s `tail = some name` matching can succeed;
@@ -45,6 +45,7 @@ namespace Hashtree.Proofs.WinChain
 open Hashtree.Asm Hashtree.Asm.X86 Hashtree.Proofs.X86Chain
 
 set_option autoImplicit false
+set_option maxHeartbeats 0
 set_option maxRecDepth 100000
 
 abbrev p512 : Array Instr := Hashtree.Kernels.X86Win.Avx512X16.prog
@@ -80,12 +81,12 @@ theorem win_chain_tails :
     p512[8]? = some (.jccTail .b "hashtree_sha256_avx2_x8")
       ∧ p8[6103]? = some (.jmpTail "hashtree_sha256_avx_x4")
       ∧ p4[4162]? = some (.jmpTail "hashtree_sha256_avx_x1") := by
-  native_decide
+  decide
 
 /-- The small-count entry path of each multi-lane shipped stream returns at pc 3. -/
 theorem win_small_exit :
     p512[3]? = some .ret ∧ p8[3]? = some .ret ∧ p4[3]? = some .ret := by
-  native_decide
+  decide
 
 /-- Chain soundness for the windows chain: per-link obligations compose into a returning
 chain that meets the chain post-condition.  (Specialisation of `chain_sound`.) -/

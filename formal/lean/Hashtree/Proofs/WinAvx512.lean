@@ -1,6 +1,7 @@
 import Hashtree.Proofs.Win64
 import Hashtree.Gen.Avx512X16P.Final
 import Hashtree.Kernels.X86Win.Avx512X16
+import Hashtree.Proofs.WinScan
 
 /-!
 # R5: functional contract for the windows `avx512_x16` kernel
@@ -19,8 +20,8 @@ The windows stream is the linux one under a permutation of the general registers
 | `r8`  (8) | `r10` (10) | rodata base 4160 |
 
 `windows_prog_correspondence` records the per-instruction identity of the *shipped* streams; it is
-proved in-module (`win_correspondence`) by a compiled comparison of the two arrays (`corrAll_eq`,
-`native_decide`, all 3247 instructions), and `python3 formal/ci/proofs.py check` re-validates both
+proved in-module (`win_correspondence`) by a chunked kernel comparison of the two arrays
+(`corrAll_eq`, `decide +kernel`, all 3247 instructions), and `python3 formal/ci/proofs.py check` re-validates both
 models against the objects on every CI run.
 
 Everything else is machine-checked here:
@@ -44,8 +45,9 @@ space, `exec_ren`/`run_ren_upto`).
 -/
 
 open Hashtree.Asm Hashtree.Asm.X86 Hashtree.Asm.X86Sym Hashtree.Asm.SpecQ Hashtree.Spec
+open Hashtree.Proofs.WinScan
 set_option autoImplicit false
-set_option maxHeartbeats 4000000
+set_option maxHeartbeats 0
 set_option maxRecDepth 100000
 
 namespace Hashtree.Proofs.WinAvx512
@@ -111,24 +113,39 @@ theorem linuxProg_ok (pc : Nat) (x : Instr) (hx : linuxProg[pc]? = some x) : okI
 def windows_prog_correspondence : Prop :=
   ∀ j, j < linuxProg.size → winProg[j]? = (linuxProg[j]?).map (rlI F)
 
-/-- The per-instruction comparison of the two shipped streams, as a Boolean kernel evaluation. -/
+/-- The per-instruction comparison of the two shipped streams, as a scan over the zipped lists
+(no array indexing: see `Hashtree.Proofs.WinScan`). -/
 def corrAll : Bool :=
-  (List.range linuxProg.size).all (fun j =>
-    decide (winProg[j]? = (linuxProg[j]?).map (rlI F)))
+  (((winProg.toList.drop 0).take linuxProg.size).zip
+      ((linuxProg.toList.drop 0).take linuxProg.size)).all
+    (fun p => decide (p.1 = rlI F p.2))
 
 /-- The two generated streams agree instruction by instruction: all 3247 linux instructions have
-the same windows instruction at the same index.  Checked by compiled evaluation (`native_decide`),
-the same kind of witness the Gen certificates use for their `bv_decide` obligations, so the only
-axiom it adds is its own `native_decide` axiom.  (The windows stream is 45 instructions longer:
-the extra instructions lie past the linux body and are not part of the transferred run.) -/
-theorem corrAll_eq : corrAll = true := by native_decide
+the same windows instruction at the same index.  Kernel-checked (`decide +kernel`, no
+`native_decide` axiom), one 2048-instruction slice at a time; the chunked scan checks in seconds,
+while a single whole-stream kernel reduction needs tens of gigabytes (see `formal/notes/R5.md`).
+(The windows stream is 45 instructions longer: the extra instructions lie past the linux body and
+are not part of the transferred run.) -/
+theorem corrAll_eq : corrAll = true := by
+  unfold corrAll
+  apply all_take_drop _ _ 2048
+  · decide +kernel
+  apply all_take_drop _ _ 2048
+  · decide +kernel
+  decide +kernel
 
 /-- The correspondence as a proposition, for the transfer engine. -/
 theorem win_correspondence : windows_prog_correspondence := by
+  have hz : (((winProg.toList.drop 0).take linuxProg.size).zip
+      ((linuxProg.toList.drop 0).take linuxProg.size)).all
+      (fun p => decide (p.1 = rlI F p.2)) = true := by
+    simpa [corrAll] using corrAll_eq
+  have h := of_zip_scan (l1 := winProg.toList) (l2 := linuxProg.toList)
+    (o1 := 0) (o2 := 0) (n := linuxProg.size) (f := rlI F)
+    (by decide) (by decide) hz
   intro j hj
-  have hm : j ∈ List.range linuxProg.size := List.mem_range.mpr hj
-  have h := List.all_eq_true.mp corrAll_eq j hm
-  simpa [corrAll] using h
+  have := h j hj
+  simpa using this
 
 /-- Simulate a linux run of `n` steps on the windows program. -/
 theorem win_transfer {ro : Region} {mem0 : Addr Int → Cell W32 Int} {orc : Nat → Bool}

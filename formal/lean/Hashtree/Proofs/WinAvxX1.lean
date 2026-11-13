@@ -1,6 +1,7 @@
 import Hashtree.Proofs.Win64
 import Hashtree.Kernels.X86.AvxX1
 import Hashtree.Kernels.X86Win.AvxX1
+import Hashtree.Proofs.WinScan
 
 /-!
 # R5: the Win64 ABI model for the windows `avx_x1` kernel
@@ -46,8 +47,9 @@ with a complete windows functional contract is `avx512_x16` (`Proofs.WinAvx512`)
 -/
 
 open Hashtree.Asm Hashtree.Asm.X86
+open Hashtree.Proofs.WinScan
 set_option autoImplicit false
-set_option maxHeartbeats 4000000
+set_option maxHeartbeats 0
 set_option maxRecDepth 100000
 
 namespace Hashtree.Proofs.WinAvxX1
@@ -101,26 +103,41 @@ def shiftTgt (p : Nat) : Instr → Instr
 displacements are unchanged (both streams use the same low `rsp` offsets). -/
 def bodyI (f : Nat → Nat) (p : Nat) (i : Instr) : Instr := shiftTgt p (rlI f i)
 
-/-- The instruction-by-instruction comparison of the two shipped bodies. -/
-def bodyOk (n : Nat) : Bool :=
-  (List.range n).all (fun j =>
-    decide (winProg[19 + j]? = (linuxProg[8 + j]?).map (bodyI F 11)))
+/-- The body comparison as a scan over the zipped instruction slices: element `j` of the zip is
+linux body instruction `7 + j` paired with windows body instruction `18 + j`.  Stating the scan
+over slices (rather than over indices into the two arrays) keeps the array indexing out of the
+kernel reduction; see `Hashtree.Proofs.WinScan`. -/
+def bodyZip (n : Nat) : List (Instr × Instr) :=
+  ((winProg.toList.drop 19).take n).zip ((linuxProg.toList.drop 8).take n)
 
-/-- Machine-checked: the 4049 body instructions of the windows stream are the linux ones
-renamed and re-based.  The comparison is a compiled evaluation (`native_decide`): the kernel
-reducer needs many minutes for an array of this size, so this theorem carries a
-`native_decide` axiom, the same kind of compiled witness the Gen certificates use for their
-`bv_decide` obligations. -/
-theorem bodyOk_full : bodyOk bodyLen = true := by native_decide
+def bodyOk (n : Nat) : Bool :=
+  (bodyZip n).all (fun p => decide (p.1 = bodyI F 11 p.2))
+
+/-- Machine-checked: the 4049 body instructions of the windows stream are the linux ones renamed
+and re-based.  Kernel-checked (`decide +kernel`, no `native_decide` axiom), one 2048-instruction
+slice at a time: a single whole-stream kernel reduction unfolds the 4116-instruction array literal
+once per index and needs tens of gigabytes without terminating in reasonable time, while the
+chunked scan checks in seconds (see `formal/notes/R5.md` for timings). -/
+theorem bodyOk_full : bodyOk bodyLen = true := by
+  change (bodyZip 4049).all (fun p => decide (p.1 = bodyI F 11 p.2)) = true
+  apply all_take_drop _ (bodyZip 4049) 2048
+  · decide +kernel
+  apply all_take_drop _ ((bodyZip 4049).drop 2048) 2048
+  · decide +kernel
+  decide +kernel
 
 /-- Pointwise form of `bodyOk_full`. -/
 theorem avx_body_correspondence :
     ∀ j, j < bodyLen →
       winProg[19 + j]? = (linuxProg[8 + j]?).map (bodyI F 11) := by
+  have hz : (bodyZip bodyLen).all (fun p => decide (p.1 = bodyI F 11 p.2)) = true := by
+    simpa [bodyOk] using bodyOk_full
+  have h := of_zip_scan (l1 := winProg.toList) (l2 := linuxProg.toList)
+    (o1 := 19) (o2 := 8) (n := bodyLen) (f := bodyI F 11)
+    (by decide) (by decide) hz
   intro j hj
-  have hm : j ∈ List.range bodyLen := List.mem_range.mpr hj
-  have h := List.all_eq_true.mp bodyOk_full j hm
-  simpa [bodyOk, bodyLen] using h
+  have := h j hj
+  simpa using this
 
 /-! ## Stack footprint -/
 
@@ -163,12 +180,21 @@ def refsIn (lo hi : Int) (i : Instr) : Bool := (memRefs i).all (refIn lo hi)
 inside `[entry_rsp-264, entry_rsp-72)` after the nine pushes and `sub rsp,192`.  The return
 address and the shadow space are never touched. -/
 theorem avx_stack_footprint : winProg.toList.all (refsIn 0 192) = true := by
-  native_decide
+  apply all_take_drop _ winProg.toList 2048
+  · decide +kernel
+  apply all_take_drop _ (winProg.toList.drop 2048) 2048
+  · decide +kernel
+  decide +kernel
 
 /-- The body only uses `[rsp, rsp + 64)`; the save area starts at `rsp + 64`. -/
 theorem avx_body_footprint :
     ((winProg.toList.drop 19).take bodyLen).all (refsIn 0 64) = true := by
-  native_decide
+  change ((winProg.toList.drop 19).take 4049).all (refsIn 0 64) = true
+  apply all_take_drop _ ((winProg.toList.drop 19).take 4049) 2048
+  · decide +kernel
+  apply all_take_drop _ (((winProg.toList.drop 19).take 4049).drop 2048) 2048
+  · decide +kernel
+  decide +kernel
 
 /-! ## Callee-saved general registers -/
 
@@ -217,14 +243,19 @@ def rspOk (i : Instr) : Bool :=
 (pc 10) and the epilogue's `add rsp,192` (pc 4076): no other instruction writes `rsp`.  The
 `push`/`pop` instructions are exempted here and are matched one for one by
 `avx_prologue_pushes`/`avx_epilogue_pops`, so together with the two `192` adjustments the
-frame is entered and left with the same `rsp`. -/
+frame is entered and left with the same `rsp`.  The three list scans cover exactly
+pcs `0..9`, `11..4075` and `4077..4115`, i.e. every instruction except the two `192`
+adjustments. -/
 theorem avx_rsp_balanced :
     winProg[10]? = some (.sub 64 rsp (.imm 192))
       ∧ winProg[4076]? = some (.alu .add 64 rsp (.imm 192))
-      ∧ (List.range 4116).all (fun j => decide (j ≠ 10 → j ≠ 4076 →
-          rspOk (winProg[j]?.getD .nop))) = true := by
-  refine ⟨by decide +kernel, by decide +kernel, ?_⟩
-  native_decide
+      ∧ (winProg.toList.take 10).all rspOk = true
+      ∧ ((winProg.toList.drop 11).take 4065).all rspOk = true
+      ∧ (winProg.toList.drop 4077).all rspOk = true := by
+  refine ⟨by decide +kernel, by decide +kernel, by decide +kernel, ?_, by decide +kernel⟩
+  apply all_take_drop _ ((winProg.toList.drop 11).take 4065) 2048
+  · decide +kernel
+  decide +kernel
 
 /-! ## The callee-saved vector save area -/
 
@@ -245,7 +276,14 @@ theorem avx_save_slots_untouched :
     ((winProg.toList.drop 19).take bodyLen).all (fun i =>
       (memRefs i).all (fun mw => !(rspBased mw.1) || decide (mw.1.disp + (mw.2 : Int) ≤ 64)
         || decide (192 ≤ mw.1.disp))) = true := by
-  native_decide
+  change ((winProg.toList.drop 19).take 4049).all (fun i =>
+    (memRefs i).all (fun mw => !(rspBased mw.1) || decide (mw.1.disp + (mw.2 : Int) ≤ 64)
+      || decide (192 ≤ mw.1.disp))) = true
+  apply all_take_drop _ ((winProg.toList.drop 19).take 4049) 2048
+  · decide +kernel
+  apply all_take_drop _ (((winProg.toList.drop 19).take 4049).drop 2048) 2048
+  · decide +kernel
+  decide +kernel
 
 /-- The vector registers written by an instruction. -/
 def writesVec : Instr → List Nat
@@ -282,6 +320,10 @@ theorem avx_callee_vec_split : winCalleeVec = savedVecs ++ [14, 15] := by decide
 register. -/
 theorem avx_no_xmm14_15 :
     winProg.toList.all (fun i => (writesVec i).all (fun r => decide (r ≠ 14 ∧ r ≠ 15))) = true := by
-  native_decide
+  apply all_take_drop _ winProg.toList 2048
+  · decide +kernel
+  apply all_take_drop _ (winProg.toList.drop 2048) 2048
+  · decide +kernel
+  decide +kernel
 
 end Hashtree.Proofs.WinAvxX1
