@@ -31,6 +31,7 @@ import Hashtree.Proofs.WinAvx512
 import Hashtree.Proofs.WinShani
 import Hashtree.Proofs.WinSseX1
 import Hashtree.Proofs.WinAvxX1
+import Hashtree.Proofs.WinChain
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -94,4 +95,10 @@ import Hashtree.Proofs.WinAvxX1
 #print axioms Hashtree.Proofs.WinAvxX1.avx_save_slots_untouched
 #print axioms Hashtree.Proofs.WinAvxX1.avx_callee_vec_split
 #print axioms Hashtree.Proofs.WinAvxX1.avx_no_xmm14_15
+#print axioms Hashtree.Proofs.WinChain.win_chain_names
+#print axioms Hashtree.Proofs.WinChain.win_chain_tails
+#print axioms Hashtree.Proofs.WinChain.win_small_exit
+#print axioms Hashtree.Proofs.WinChain.win_chainRun_returns
+#print axioms Hashtree.Proofs.WinChain.win_callChain_returns
+#print axioms Hashtree.Proofs.WinChain.win_callChain_fr
 #print axioms Hashtree.Proofs.WinAvxX1.renPerm

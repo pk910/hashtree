@@ -548,7 +548,7 @@
         "status": "unproved",
         "blocks": "-",
         "theorems": [],
-        "note": "R5: Go assembly (not a COFF object), no Lean model yet; the $1024-24 frame, the rsp save/restore in rbx and the three-way CPU dispatch are analysed in formal/notes/R5.md section 7.  Composition needs a windows contract for each dispatched kernel plus a wrapper model."
+        "note": "R5: Go assembly (not a COFF object); no Lean model of the wrapper text yet.  The wrapper's call is staged on R2's chain-aware tail-call contract Hashtree.Proofs.X86Chain (6d27a36, imported verbatim), instantiated for the four windows streams in Hashtree/Proofs/WinChain.lean: win_chain_names/win_chain_tails/win_small_exit (shipped tail pcs 8/6103/4162 and the pc-3 ret exit), win_chainRun_returns (chain_sound), win_callChain_returns (caller gets err=none, tail=none, halted=false, pc=0 and the chain post) and win_callChain_fr (frame/log composition).  Remaining inputs: per-link KSpecC (avx512_x16 count 16 is Proofs/WinAvx512.win_out; the frame kernels have ABI/frame models only) and the Go wrapper model; per-link rodata regions await R2's region-renaming lemma.  formal/notes/R5.md section 7."
       }
     },
     {
