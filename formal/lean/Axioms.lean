@@ -1,4 +1,4 @@
-import Hashtree.Proofs.WinSseShift
+import Hashtree.Proofs.WinSseExec
 -- Axiom audit for every final theorem.
 --
 -- `lake env lean Axioms.lean` after a full build prints the axioms each
@@ -222,3 +222,17 @@ import Hashtree.Proofs.WinAvx2X8
 #print axioms Hashtree.Asm.X86.gData32_sh
 #print axioms Hashtree.Asm.X86.gCtl_sh
 #print axioms Hashtree.Asm.X86.readVSrc_sh
+
+-- R5: the stack-memory shift engine (exec_sh, one instruction over all 39 constructors)
+#print axioms Hashtree.Asm.X86.shVal_id
+#print axioms Hashtree.Asm.X86.getG_sh_id
+#print axioms Hashtree.Asm.X86.gCtl_ok_region
+#print axioms Hashtree.Asm.X86.gCtl_sh_id
+#print axioms Hashtree.Asm.X86.setVec_sh
+#print axioms Hashtree.Asm.X86.setG_ptr_sh
+#print axioms Hashtree.Asm.X86.okOr_pure_sh
+#print axioms Hashtree.Asm.X86.okOr_bind_sh
+#print axioms Hashtree.Asm.X86.okOr_bind2_sh
+#print axioms Hashtree.Asm.X86.okOr_throw_sh
+#print axioms Hashtree.Asm.X86.okOr_bind_err_sh
+#print axioms Hashtree.Asm.X86.exec_sh
