@@ -29,6 +29,8 @@ import Hashtree.Gen.RvCryptoP.Final
 /- R5: windows amd64 -/
 import Hashtree.Proofs.WinAvx512
 import Hashtree.Proofs.WinShani
+import Hashtree.Proofs.WinSseX1
+import Hashtree.Proofs.WinAvxX1
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -67,3 +69,29 @@ import Hashtree.Proofs.WinShani
 #print axioms Hashtree.Proofs.WinShani.shani_prologue_saves
 #print axioms Hashtree.Proofs.WinShani.shani_epilogue_restores
 #print axioms Hashtree.Proofs.WinShani.shani_save_slots_untouched
+#print axioms Hashtree.Proofs.WinSseX1.sse_body_correspondence
+#print axioms Hashtree.Proofs.WinSseX1.sse_stack_footprint
+#print axioms Hashtree.Proofs.WinSseX1.sse_body_footprint
+#print axioms Hashtree.Proofs.WinSseX1.sse_prologue_pushes
+#print axioms Hashtree.Proofs.WinSseX1.sse_epilogue_pops
+#print axioms Hashtree.Proofs.WinSseX1.sse_callee_saved_covered
+#print axioms Hashtree.Proofs.WinSseX1.sse_rsp_balanced
+#print axioms Hashtree.Proofs.WinSseX1.sse_prologue_saves
+#print axioms Hashtree.Proofs.WinSseX1.sse_epilogue_restores
+#print axioms Hashtree.Proofs.WinSseX1.sse_save_slots_untouched
+#print axioms Hashtree.Proofs.WinSseX1.sse_callee_vec_split
+#print axioms Hashtree.Proofs.WinSseX1.sse_no_xmm14_15
+#print axioms Hashtree.Proofs.WinSseX1.renPerm
+#print axioms Hashtree.Proofs.WinAvxX1.avx_body_correspondence
+#print axioms Hashtree.Proofs.WinAvxX1.avx_stack_footprint
+#print axioms Hashtree.Proofs.WinAvxX1.avx_body_footprint
+#print axioms Hashtree.Proofs.WinAvxX1.avx_prologue_pushes
+#print axioms Hashtree.Proofs.WinAvxX1.avx_epilogue_pops
+#print axioms Hashtree.Proofs.WinAvxX1.avx_callee_saved_covered
+#print axioms Hashtree.Proofs.WinAvxX1.avx_rsp_balanced
+#print axioms Hashtree.Proofs.WinAvxX1.avx_prologue_saves
+#print axioms Hashtree.Proofs.WinAvxX1.avx_epilogue_restores
+#print axioms Hashtree.Proofs.WinAvxX1.avx_save_slots_untouched
+#print axioms Hashtree.Proofs.WinAvxX1.avx_callee_vec_split
+#print axioms Hashtree.Proofs.WinAvxX1.avx_no_xmm14_15
+#print axioms Hashtree.Proofs.WinAvxX1.renPerm
