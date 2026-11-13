@@ -380,7 +380,7 @@
         "status": "transfers",
         "blocks": "-",
         "theorems": [],
-        "note": "instruction streams identical to linux/arm64 except the tail symbol; the linux theorems transfer by a rename lemma, not yet built (R3)"
+        "note": "instruction stream identical to linux/arm64; the linux theorems transfer by the built rename lemma Hashtree.Asm.ArmRename.runChain_clean (the stream rename is the identity); per-kernel instantiation waits for the linux theorems (R3)"
       }
     },
     {
@@ -400,7 +400,7 @@
         "status": "transfers",
         "blocks": "-",
         "theorems": [],
-        "note": "instruction streams identical to linux/arm64 except the tail symbol; the linux theorems transfer by a rename lemma, not yet built (R3)"
+        "note": "instruction stream identical to linux/arm64; the linux theorems transfer by the built rename lemma Hashtree.Asm.ArmRename.runChain_clean (the stream rename is the identity); per-kernel instantiation waits for the linux theorems (R3)"
       }
     },
     {
@@ -420,7 +420,7 @@
         "status": "transfers",
         "blocks": "-",
         "theorems": [],
-        "note": "instruction streams identical to linux/arm64 except the tail symbol; the linux theorems transfer by a rename lemma, not yet built (R3)"
+        "note": "instruction stream identical to linux/arm64 except the neon_x1 tail symbol; the linux theorems transfer by the built rename lemma Hashtree.Asm.ArmRename.runChain_clean; per-kernel instantiation waits for the linux theorems (R3)"
       }
     },
     {
