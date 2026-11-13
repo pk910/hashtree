@@ -710,7 +710,7 @@ theorem AgreeR.ite {T : List Nat} {c : Prop} [Decidable c]
   · rw [if_pos hc, if_pos hc]; exact ha hc
   · rw [if_neg hc, if_neg hc]; exact hb hc
 
-theorem bind_ok {β : Type} (b : β) (f : β → Except String (State α γ)) :
+theorem bind_ok_agree {β : Type} (b : β) (f : β → Except String (State α γ)) :
     (Except.ok b >>= f) = f b := rfl
 
 theorem bind_error {β : Type} (e : String) (f : β → Except String (State α γ)) :
@@ -722,7 +722,7 @@ theorem AgreeR.bind {T : List Nat} {β : Type} {R1 R2 : Except String β} (hR : 
   subst hR
   cases R1 with
   | error e => simp only [bind_error]; exact AgreeR.throw
-  | ok b => simp only [bind_ok]; exact hF b
+  | ok b => simp only [bind_ok_agree]; exact hF b
 
 /-- `okOr` of agreeing computations that succeed agrees; a shared failure agrees on the old
 set (a failed step performs no writes). -/
