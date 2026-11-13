@@ -23,6 +23,14 @@ open Hashtree.Asm.X86Ren
 open Hashtree.Spec Hashtree.Kernels.X86.AvxX1
 open Hashtree.Proofs.ShaniW
 
+/-! ## Environments -/
+
+/-- `envAbs` only redefines the `.n` location variables; every `.m` key falls through to the
+caller's environment, so `EnvMem` is inherited unchanged.  This is why no tree/cut agreement
+lemma is needed for `EnvMem` itself. -/
+theorem envAbs_envMem (env : Key → W32) (R : State E Lin) (σ : Nat → Int)
+    (m : Addr Int → Cell W32 Int) (h : EnvMem env σ m) : EnvMem (envAbs env R) σ m := h
+
 /-! ## Generic transport lemmas -/
 
 theorem list_map_self {β : Type} (f : β → β) (l : List β) (h : ∀ x ∈ l, f x = x) :
