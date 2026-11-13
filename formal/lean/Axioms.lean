@@ -58,6 +58,8 @@ import Hashtree.Asm.RunExit
 import Hashtree.Proofs.WinShaniBridge
 import Hashtree.Proofs.WinAvx512Live
 import Hashtree.Proofs.WinAvxX4Live
+import Hashtree.Proofs.WinAvx2X8Live
+import Hashtree.Proofs.WinAvx512Bridge
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -444,3 +446,9 @@ import Hashtree.Proofs.WinAvxX4Live
 #print axioms Hashtree.Proofs.WinShaniBridge.call
 #print axioms Hashtree.Proofs.WinShaniBridge.shani_KSpecW
 #print axioms Hashtree.Proofs.WinShaniBridge.fitsW_shani
+
+-- R5: avx2_x8 liveness certificate (entry [8,4,5,6,12,13,14,15,2,1]; the push-saving body) and
+-- the avx512_x16 chain-link statement shape (KSpecC512_head: the obligation is the KSpecC head).
+#print axioms Hashtree.Proofs.WinAvx2X8Live.cert
+#print axioms Hashtree.Proofs.WinAvx2X8Live.live_entry
+#print axioms Hashtree.Proofs.WinAvx512Bridge.KSpecC512_head

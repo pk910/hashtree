@@ -97,3 +97,79 @@ bodies first.
 * x86check baseline at 66eb579: done, `/tmp/x86check_66eb579.log` (failures 0, 4m22s).
 * `make audit` (full Axioms.lean) is blocked by missing oleans of unrelated linux modules
   (`WrapperAmd64`, ...); audit new names through a scratch import file.
+
+## Thread 2 design (to be checked before proving)
+
+### Chain links: statement shape (`Proofs/WinAvx512Bridge.lean`, definitions only)
+
+`KSpecC512 s512 env σ m0 orcC c inp` (compiled, see the module): under the `KSpecW` memory
+hypotheses, from `s = mapState env σ entryWin`, after `s512 c` steps: `err = none` and either
+`c = 0 ∧ tail = none ∧ PostLink σ c inp 0 f` (the kernel returns at pc 3 without writing) or
+`c ≠ 0 ∧ tail = some "hashtree_sha256_avx2_x8" ∧ PreLink env σ c (c - c%16) (c%16) inp L8
+(resume f)`.  `KSpecC512_head` shows this is exactly the head clause of `X86Chain.KSpecC` for
+`winSpecs` with `P512 := (· = mapState env σ entryWin)`, `Q512 := PostLink σ c inp 0`,
+`P8 := PreLink env σ c (c - c%16) (c%16) inp L8`.
+
+* `PostLink σ c inp D f := halted ∧ Foot (σ 9) D (σ 1) (32c) f.mem ∧ OutOk inp (σ 1) c f.mem ∧
+  RegsOkW σ f` — the `KSpecW` conclusion, so a chain-aware `FitsW` is `∃ D, ChainPost ⊆ PostLink D`.
+* `PreLink env σ c d r L s := ∃ e' M', SameG env e' ∧ Agree L {s with flags := none}
+  (fr M' (mapState e' (shift σ d r) entryWin)) ∧ OutLogW (σ 9) M' ∧ Foot (σ 9) 0 (σ 1) (32c) M' ∧
+  OutOk inp (σ 1) d M'`: on the next link's entry live set `L` the handed state is the wrapper call
+  state with the symbols advanced (`shift`: input +64d, output +32d, count r), under a free vector
+  environment (U6; `entryWin`'s lanes are distinct symbols so any vector file is an instance),
+  over the output log so far.  Scratch registers (which may hold rodata pointers, not
+  representable as `entryWin` numbers) are outside `L`, which is why the pre is an `Agree` and not
+  an equality.  Flags: every kernel sets them before reading; implementation plan: a flags
+  pseudo-register `FL` (16) in `srcs`/`dsts` (`jcc`/`jccTail` read it; `cmp`/`test`/`sub`/`alu`/
+  `ror`/`shld`/`shl` write it) and `Agree L` compares flags iff `FL ∈ L` — a small, contained
+  generalisation of `RunAgree`; then `{s with flags := none}` disappears from `PreLink`.
+* Next-link entry: the avx2_x8 link's own bridge starts from `PreLink … L8` by `run_agree` on `L8`
+  (= `WinAvx2X8Live.live_entry`), exactly as the shani bridge starts from `seed_agree`.
+
+Dependency: the linux per-link certificate of the avx512 loop for an arbitrary count (the
+loop composition of `Avx512X16Body.body_run` + the `jb` tail with the residual, + the `c = 0`
+early `ret`) is R2's active work (`/root/ht/hashtree`: `Avx512X16Entry`, `AvxX4LoopWAll`,
+`AvxX4ToX1`, `AvxX4X1WAgree`, head b7857ec).  The windows link proof is: `win_transfer`
+(avx512 is a pure renaming, no prologue, no rsp) + `Agree` on `[2,4,6,7]`-renamed entry set
+between the renamed wrapper state and the linux certificate start state (the 3-step `test/je`
+prefix handled symbolically so that `rsp` leaves the live set), then `run_agree` + the linux
+link certificate.  Not started until the linux link lands (or is merged from R2's branch).
+
+### Frame-slot certificate (push-saving bodies: sse_x1, avx_x1, avx2_x8)
+
+Problem: `push r` / `mov [rsp+k], r` of a callee-saved register makes its entry value flow into
+a frame cell; with full-memory `Agree` that is a read, and the entry sets contain the callee-
+saved registers.  The value flows only cell → matching `pop`/restore → the same register, and
+the caller observes exactly "restored".
+
+Design (decidable from the stream, checked by `decide +kernel`):
+
+1. **Static rsp map.** For every pc, `rsp = base + δ(pc)` with `base ∈ {E, A}`: `E` the entry
+   rsp, `A` the aligned base after `and rsp, -32` (avx2_x8 only).  Every rsp writer in the three
+   streams is `push`/`pop`/`sub rsp, imm`/`add rsp, imm`/`mov rbp, rsp`/`mov rsp, rbp`/`and rsp,
+   -32` (the scans `*_rsp_balanced`, `avx2x8_rsp_chain` already list them); the map is computed
+   by a forward pass and *verified* per pc (predecessor consistency), so a non-static rsp motion
+   is reported, not assumed.  Memory operands `[rsp + k]` at pc are the slot `(base, δ(pc) + k)`.
+2. **Items** = general registers ∪ slots `(base, offset, 8 bytes)`.  `push r` reads `r`, writes
+   slot `(E, δ-8)`; `pop r` reads the slot, writes `r`; `mov [rsp+k], r` / `mov r, [rsp+k]` and
+   the vector saves/restores likewise (vector slots are 16/32 bytes and tagged by the vector
+   register — they are outside `Agree` anyway and only need the "written before read" check).
+3. **Tag flow** (copy propagation over the CFG): `tag(pc) : item → Option Reg` says which entry
+   callee-saved register's value an item holds.  Entry: `tag r = r` for the callee-saved set;
+   `push`/`pop`/save/restore copy tags; every other write clears; the fixpoint is computed like
+   `live` and verified per pc like `certB`.  **Check**: no instruction reads a tagged item except
+   as the source of a push/save/pop/restore (so tagged values never enter the computation), and
+   at the `ret`/tail pc every callee-saved register is tagged with itself.
+4. **Run relation**: two states equal except on tagged items (registers may differ, tagged
+   slots may differ, everything else equal) stay so (`exec_agree` variant with the item set
+   from the certificate), hence halted/err/tail/pc and all untagged memory agree; at exit the
+   tags give `RegsOkW` (final `r` = entry `r`) and the memory differs only on frame slots below
+   `E`, which `Foot` allows and `OutOk` never looks at.
+5. **What the next link / wrapper needs**: for avx2_x8 the pushes `rbp`, `rsi` sit above the
+   aligned frame (`avx2x8_frame_below`), the `r12`-`r15` saves at `[A + 896 + 8k]`; the
+   certificate entry set drops `[3,5,6,7,12,13,14,15]` and becomes `[8,4,2,1]` plus the tagged
+   set, matching avx512/avx_x4.
+
+If the per-pc rsp map fails to verify for a stream (an rsp write not in the list above), fall
+back to the fixed-rsp bodies first (shani done; avx512, avx_x4 next) — none of the three is
+expected to fail given sections 5/11/12 of R5.md.
