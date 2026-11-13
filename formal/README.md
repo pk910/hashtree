@@ -149,10 +149,15 @@ Remaining work, in dependency order:
 2. **linux/amd64 completion (L).** Every count for `avx_x4`, `avx2_x8`,
    `avx512_x16` (the X86Loop/X86ProofV generators exist; the multi-lane
    all-counts work was started and stopped), the tail chains
-   `x16 -> x8 -> x4 -> x1` as `KSpec` compositions with the right stack shift,
-   `Fits .avx2`/`Fits .avx512`, alignment for `avx2_x8`'s `and rsp,-32`, the
-   morestack path and the TLS no-op. This discharges both hypotheses of
-   `wrapper_correct` and makes the default amd64 path unconditional.
+   `x16 -> x8 -> x4 -> x1` as chain-aware `KSpecC` compositions (module
+   `Hashtree.Proofs.X86Chain`: each kernel's rodata is in its own region and a
+   link may hand its tail state to the next link), with the right stack shift,
+   alignment for `avx2_x8`'s `and rsp,-32`, the morestack path and the TLS
+   no-op. The single-run `KSpec` with `fin.tail = none` is satisfiable only by
+   the terminal kernels, so the old `Fits .avx2`/`Fits .avx512` clauses were
+   vacuous for the shipping dispatch; the chain contract replaces them. This
+   discharges the chain-aware dispatch hypotheses and makes the default amd64
+   path unconditional once the per-link entry bridges land.
 3. **linux/arm64 + darwin/arm64 completion (L).** Every count for `sha_x1`,
    `neon_x1`, `neon_x4`; chain the `neon_x4 -> neon_x1` tail; prove the ARM
    frame/stack-shift lemma analogous to `X86Frame`; model and prove the PR #79
