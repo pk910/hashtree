@@ -55,6 +55,7 @@ import Hashtree.Proofs.WinShippedClobber
 import Hashtree.Proofs.WinShaniSeedAlign
 import Hashtree.Asm.RunAgree
 import Hashtree.Asm.RunExit
+import Hashtree.Proofs.WinShaniBridge
 import Hashtree.Proofs.WinAvx512Live
 import Hashtree.Proofs.WinAvxX4Live
 
@@ -426,3 +427,12 @@ import Hashtree.Proofs.WinAvxX4Live
 #print axioms Hashtree.Asm.RunExit.run_exit
 #print axioms Hashtree.Asm.RunExit.run_preserve
 #print axioms Hashtree.Asm.RunExit.run_nowrite
+
+-- R5: the positive shani_x2 bridge (Proofs/WinShaniBridge): the windows body seed agrees with the
+-- certificate's state after `sub rsp, 88` on the entry live set [2,6,4,7] (seed_agree), so
+-- run_agree + ShaniW.correctW (at the save log folded into the initial memory, view) give the
+-- seed run halted/err-free/tail-free with the certificate's write log (cert), and RunExit locates
+-- the body exit at 669 with rsp and the callee-saved homes intact and the log unchanged after (exit).
+#print axioms Hashtree.Proofs.WinShaniBridge.seed_agree
+#print axioms Hashtree.Proofs.WinShaniBridge.cert
+#print axioms Hashtree.Proofs.WinShaniBridge.exit

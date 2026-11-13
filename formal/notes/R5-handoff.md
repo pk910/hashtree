@@ -21,7 +21,17 @@ over ssh, push to GitHub); the VM has no GitHub credentials.  Logs: `results/r5-
   `run_nowrite` (non-writing segment keeps the log).  These give `shani_call`'s `hcond`/`hpc`/`hnh`,
   `RegsOkW`'s callee-saved preservation, and the linux tail `add rsp,88; ret` leaving `mem` alone.
 
-## Next lemma (checkpoint (a), the positive shani bridge) — module `Proofs/WinShaniBridge.lean`
+## Checkpoint (a) status — module `Proofs/WinShaniBridge.lean`
+
+Landed: `seed_agree` (Agree [2,6,4,7] between `s0` = seed without the save log and the
+certificate's one-step state, via `run_hom` on the symbolic `E1`), `cert` (correctW at `view M m`
+transferred to the seed run by `run_agree`), `exit` (`run_exit`/`run_preserve`/`run_tail` + the
+two-step tail at 669/670 via `exec_shape`: the exit fuel `n ≤ N`, rsp and {8,3,12,13,14,15}
+intact, `finS.mem = (run n s0).mem`).  Next: `shani_call` instantiation (hv/hx/hvlen/hret
+helpers are in the file: `loadLanes_ok`, `loadVal_marker`, `entryWin_getV_len`), then
+`KSpecW winProg rodata stepsW 248` with `stepsW c := ShaniW.steps c + 22` and `FitsW .shani`.
+
+## The bridge recipe (as implemented)
 
 Recipe fixed (see R5.md §18 follow-up when written): `s0 := {seedSt st a with mem := []}`,
 `seedSt st a = fr M s0` with `M := saveLog st (a-248) 10 []`; `run_fr` moves `M` into `view M mem0c`;
