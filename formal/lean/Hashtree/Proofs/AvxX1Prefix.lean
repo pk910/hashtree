@@ -322,15 +322,22 @@ theorem exec_sub88_halted (ro : Region) (m : Addr Int → Cell W32 Int) (orc : N
 open Hashtree.Kernels.X86.AvxX1
 open Hashtree.Proofs.WrapperAmd64 (run_step)
 
+/-- `run_step` with an arbitrary rodata region. -/
+theorem run_step_ro (prog : Array Instr) (ro : Region) (m : Addr Int → Cell W32 Int)
+    (orc : Nat → Bool) (n : Nat) (s : CState) (i : Instr) (hh : s.halted = false)
+    (hi : prog[s.pc]? = some i) :
+    run prog ro m orc (n + 1) s = run prog ro m orc n (exec ro m orc i s) := by
+  simp [run, hh, hi]
+
 /-- **The entry prefix ignores the incoming flags.**  After the eight prefix instructions
 (`nop`, `push rbx/rbp/r12/r13/r14/r15`, `sub rsp, 88`) the state does not depend on the
 flags it started with: the `sub` overwrites them.  Hence a tail call into the x1 kernel may
 arrive with flags set by the caller's last comparison; only `sp` (a pointer in `rsp`) and
 `rsp < gpr.length` are needed. -/
-theorem run8_flags (m : Addr Int → Cell W32 Int) (orc : Nat → Bool) (B : CState)
+theorem run8_flags (ro : Region) (m : Addr Int → Cell W32 Int) (orc : Nat → Bool) (B : CState)
     (f : Option (Int × Int)) (hpc : B.pc = 0) (hh : B.halted = false)
     (sp : Addr Int) (h4 : B.getG rsp = .ptr sp) (hg : rsp < B.gpr.length) :
-    run prog 4 m orc 8 {B with flags := f} = run prog 4 m orc 8 B := by
+    run prog ro m orc 8 {B with flags := f} = run prog ro m orc 8 B := by
   let sp1 : Addr Int := sp.plusI (-8)
   let sp2 : Addr Int := sp1.plusI (-8)
   let sp3 : Addr Int := sp2.plusI (-8)
@@ -338,99 +345,113 @@ theorem run8_flags (m : Addr Int → Cell W32 Int) (orc : Nat → Bool) (B : CSt
   let sp5 : Addr Int := sp4.plusI (-8)
   let sp6 : Addr Int := sp5.plusI (-8)
   let sp7 : Addr Int := sp6.plusI (-8)
-  let t1 : CState := exec 4 m orc .nop B
-  let t2 : CState := exec 4 m orc (.push 3) t1
-  let t3 : CState := exec 4 m orc (.push 5) t2
-  let t4 : CState := exec 4 m orc (.push 12) t3
-  let t5 : CState := exec 4 m orc (.push 13) t4
-  let t6 : CState := exec 4 m orc (.push 14) t5
-  let t7 : CState := exec 4 m orc (.push 15) t6
-  have t1h : t1.halted = false := exec_nop_halted 4 m orc B hh
+  let t1 : CState := exec ro m orc .nop B
+  let t2 : CState := exec ro m orc (.push 3) t1
+  let t3 : CState := exec ro m orc (.push 5) t2
+  let t4 : CState := exec ro m orc (.push 12) t3
+  let t5 : CState := exec ro m orc (.push 13) t4
+  let t6 : CState := exec ro m orc (.push 14) t5
+  let t7 : CState := exec ro m orc (.push 15) t6
+  have t1h : t1.halted = false := exec_nop_halted ro m orc B hh
   have t1pc : t1.pc = 1 := by
-    show (exec 4 m orc .nop B).pc = 1
-    rw [exec_nop_pc 4 m orc B hh, hpc]
+    show (exec ro m orc .nop B).pc = 1
+    rw [exec_nop_pc ro m orc B hh, hpc]
   have t1g : t1.getG rsp = .ptr sp := by
-    have h := exec_nop_getG 4 m orc rsp B
+    have h := exec_nop_getG ro m orc rsp B
     rw [show t1.getG rsp = B.getG rsp from h, h4]
-  have t1len : t1.gpr.length = B.gpr.length := exec_nop_len 4 m orc B hh
-  have t2h : t2.halted = false := exec_push_halted2 4 m orc 3 t1 sp t1h t1g
+  have t1len : t1.gpr.length = B.gpr.length := exec_nop_len ro m orc B hh
+  have t2h : t2.halted = false := exec_push_halted2 ro m orc 3 t1 sp t1h t1g
   have t2pc : t2.pc = 2 := by
-    show (exec 4 m orc (.push 3) t1).pc = 2
-    rw [exec_push_pc2 4 m orc 3 t1 sp t1h t1g, t1pc]
+    show (exec ro m orc (.push 3) t1).pc = 2
+    rw [exec_push_pc2 ro m orc 3 t1 sp t1h t1g, t1pc]
   have t2g : t2.getG rsp = .ptr sp1 :=
-    exec_push_rsp2 4 m orc 3 t1 sp t1h t1g (by rw [t1len]; exact hg)
+    exec_push_rsp2 ro m orc 3 t1 sp t1h t1g (by rw [t1len]; exact hg)
   have t2len : t2.gpr.length = B.gpr.length := by
-    rw [exec_push_len2 4 m orc 3 t1 sp t1h t1g]; exact t1len
-  have t3h : t3.halted = false := exec_push_halted2 4 m orc 5 t2 sp1 t2h t2g
+    rw [exec_push_len2 ro m orc 3 t1 sp t1h t1g]; exact t1len
+  have t3h : t3.halted = false := exec_push_halted2 ro m orc 5 t2 sp1 t2h t2g
   have t3pc : t3.pc = 3 := by
-    show (exec 4 m orc (.push 5) t2).pc = 3
-    rw [exec_push_pc2 4 m orc 5 t2 sp1 t2h t2g, t2pc]
+    show (exec ro m orc (.push 5) t2).pc = 3
+    rw [exec_push_pc2 ro m orc 5 t2 sp1 t2h t2g, t2pc]
   have t3g : t3.getG rsp = .ptr sp2 :=
-    exec_push_rsp2 4 m orc 5 t2 sp1 t2h t2g (by rw [t2len]; exact hg)
+    exec_push_rsp2 ro m orc 5 t2 sp1 t2h t2g (by rw [t2len]; exact hg)
   have t3len : t3.gpr.length = B.gpr.length := by
-    rw [exec_push_len2 4 m orc 5 t2 sp1 t2h t2g]; exact t2len
-  have t4h : t4.halted = false := exec_push_halted2 4 m orc 12 t3 sp2 t3h t3g
+    rw [exec_push_len2 ro m orc 5 t2 sp1 t2h t2g]; exact t2len
+  have t4h : t4.halted = false := exec_push_halted2 ro m orc 12 t3 sp2 t3h t3g
   have t4pc : t4.pc = 4 := by
-    show (exec 4 m orc (.push 12) t3).pc = 4
-    rw [exec_push_pc2 4 m orc 12 t3 sp2 t3h t3g, t3pc]
+    show (exec ro m orc (.push 12) t3).pc = 4
+    rw [exec_push_pc2 ro m orc 12 t3 sp2 t3h t3g, t3pc]
   have t4g : t4.getG rsp = .ptr sp3 :=
-    exec_push_rsp2 4 m orc 12 t3 sp2 t3h t3g (by rw [t3len]; exact hg)
+    exec_push_rsp2 ro m orc 12 t3 sp2 t3h t3g (by rw [t3len]; exact hg)
   have t4len : t4.gpr.length = B.gpr.length := by
-    rw [exec_push_len2 4 m orc 12 t3 sp2 t3h t3g]; exact t3len
-  have t5h : t5.halted = false := exec_push_halted2 4 m orc 13 t4 sp3 t4h t4g
+    rw [exec_push_len2 ro m orc 12 t3 sp2 t3h t3g]; exact t3len
+  have t5h : t5.halted = false := exec_push_halted2 ro m orc 13 t4 sp3 t4h t4g
   have t5pc : t5.pc = 5 := by
-    show (exec 4 m orc (.push 13) t4).pc = 5
-    rw [exec_push_pc2 4 m orc 13 t4 sp3 t4h t4g, t4pc]
+    show (exec ro m orc (.push 13) t4).pc = 5
+    rw [exec_push_pc2 ro m orc 13 t4 sp3 t4h t4g, t4pc]
   have t5g : t5.getG rsp = .ptr sp4 :=
-    exec_push_rsp2 4 m orc 13 t4 sp3 t4h t4g (by rw [t4len]; exact hg)
+    exec_push_rsp2 ro m orc 13 t4 sp3 t4h t4g (by rw [t4len]; exact hg)
   have t5len : t5.gpr.length = B.gpr.length := by
-    rw [exec_push_len2 4 m orc 13 t4 sp3 t4h t4g]; exact t4len
-  have t6h : t6.halted = false := exec_push_halted2 4 m orc 14 t5 sp4 t5h t5g
+    rw [exec_push_len2 ro m orc 13 t4 sp3 t4h t4g]; exact t4len
+  have t6h : t6.halted = false := exec_push_halted2 ro m orc 14 t5 sp4 t5h t5g
   have t6pc : t6.pc = 6 := by
-    show (exec 4 m orc (.push 14) t5).pc = 6
-    rw [exec_push_pc2 4 m orc 14 t5 sp4 t5h t5g, t5pc]
+    show (exec ro m orc (.push 14) t5).pc = 6
+    rw [exec_push_pc2 ro m orc 14 t5 sp4 t5h t5g, t5pc]
   have t6g : t6.getG rsp = .ptr sp5 :=
-    exec_push_rsp2 4 m orc 14 t5 sp4 t5h t5g (by rw [t5len]; exact hg)
+    exec_push_rsp2 ro m orc 14 t5 sp4 t5h t5g (by rw [t5len]; exact hg)
   have t6len : t6.gpr.length = B.gpr.length := by
-    rw [exec_push_len2 4 m orc 14 t5 sp4 t5h t5g]; exact t5len
-  have t7h : t7.halted = false := exec_push_halted2 4 m orc 15 t6 sp5 t6h t6g
+    rw [exec_push_len2 ro m orc 14 t5 sp4 t5h t5g]; exact t5len
+  have t7h : t7.halted = false := exec_push_halted2 ro m orc 15 t6 sp5 t6h t6g
   have t7pc : t7.pc = 7 := by
-    show (exec 4 m orc (.push 15) t6).pc = 7
-    rw [exec_push_pc2 4 m orc 15 t6 sp5 t6h t6g, t6pc]
+    show (exec ro m orc (.push 15) t6).pc = 7
+    rw [exec_push_pc2 ro m orc 15 t6 sp5 t6h t6g, t6pc]
   have t7g : t7.getG rsp = .ptr sp6 :=
-    exec_push_rsp2 4 m orc 15 t6 sp5 t6h t6g (by rw [t6len]; exact hg)
-  rw [run_step prog m orc 7 {B with flags := f} .nop (by simpa using hh)
+    exec_push_rsp2 ro m orc 15 t6 sp5 t6h t6g (by rw [t6len]; exact hg)
+  rw [run_step_ro prog ro m orc 7 {B with flags := f} .nop (by simpa using hh)
     (by rw [show ({B with flags := f} : CState).pc = 0 from hpc]; rfl)]
-  rw [exec_nop_flags 4 m orc B f hh]
-  rw [run_step prog m orc 6 {t1 with flags := f} (.push 3) (by simpa [t1] using t1h)
+  rw [exec_nop_flags ro m orc B f hh]
+  rw [run_step_ro prog ro m orc 6 {t1 with flags := f} (.push 3) (by simpa [t1] using t1h)
     (by rw [show ({t1 with flags := f} : CState).pc = 1 from t1pc]; rfl)]
-  rw [exec_push_flags2 4 m orc 3 t1 f t1h sp t1g]
-  rw [run_step prog m orc 5 {t2 with flags := f} (.push 5) (by simpa [t2] using t2h)
+  rw [exec_push_flags2 ro m orc 3 t1 f t1h sp t1g]
+  rw [run_step_ro prog ro m orc 5 {t2 with flags := f} (.push 5) (by simpa [t2] using t2h)
     (by rw [show ({t2 with flags := f} : CState).pc = 2 from t2pc]; rfl)]
-  rw [exec_push_flags2 4 m orc 5 t2 f t2h sp1 t2g]
-  rw [run_step prog m orc 4 {t3 with flags := f} (.push 12) (by simpa [t3] using t3h)
+  rw [exec_push_flags2 ro m orc 5 t2 f t2h sp1 t2g]
+  rw [run_step_ro prog ro m orc 4 {t3 with flags := f} (.push 12) (by simpa [t3] using t3h)
     (by rw [show ({t3 with flags := f} : CState).pc = 3 from t3pc]; rfl)]
-  rw [exec_push_flags2 4 m orc 12 t3 f t3h sp2 t3g]
-  rw [run_step prog m orc 3 {t4 with flags := f} (.push 13) (by simpa [t4] using t4h)
+  rw [exec_push_flags2 ro m orc 12 t3 f t3h sp2 t3g]
+  rw [run_step_ro prog ro m orc 3 {t4 with flags := f} (.push 13) (by simpa [t4] using t4h)
     (by rw [show ({t4 with flags := f} : CState).pc = 4 from t4pc]; rfl)]
-  rw [exec_push_flags2 4 m orc 13 t4 f t4h sp3 t4g]
-  rw [run_step prog m orc 2 {t5 with flags := f} (.push 14) (by simpa [t5] using t5h)
+  rw [exec_push_flags2 ro m orc 13 t4 f t4h sp3 t4g]
+  rw [run_step_ro prog ro m orc 2 {t5 with flags := f} (.push 14) (by simpa [t5] using t5h)
     (by rw [show ({t5 with flags := f} : CState).pc = 5 from t5pc]; rfl)]
-  rw [exec_push_flags2 4 m orc 14 t5 f t5h sp4 t5g]
-  rw [run_step prog m orc 1 {t6 with flags := f} (.push 15) (by simpa [t6] using t6h)
+  rw [exec_push_flags2 ro m orc 14 t5 f t5h sp4 t5g]
+  rw [run_step_ro prog ro m orc 1 {t6 with flags := f} (.push 15) (by simpa [t6] using t6h)
     (by rw [show ({t6 with flags := f} : CState).pc = 6 from t6pc]; rfl)]
-  rw [exec_push_flags2 4 m orc 15 t6 f t6h sp5 t6g]
-  rw [run_step prog m orc 0 {t7 with flags := f} (.sub 64 4 (.imm 88)) (by simpa [t7] using t7h)
+  rw [exec_push_flags2 ro m orc 15 t6 f t6h sp5 t6g]
+  rw [run_step_ro prog ro m orc 0 {t7 with flags := f} (.sub 64 4 (.imm 88)) (by simpa [t7] using t7h)
     (by rw [show ({t7 with flags := f} : CState).pc = 7 from t7pc]; rfl)]
-  rw [exec_sub88_flags 4 m orc t7 f t7h sp6 t7g]
-  rw [run_step prog m orc 7 B .nop hh (by rw [hpc]; rfl)]
-  rw [run_step prog m orc 6 t1 (.push 3) t1h (by rw [t1pc]; rfl)]
-  rw [run_step prog m orc 5 t2 (.push 5) t2h (by rw [t2pc]; rfl)]
-  rw [run_step prog m orc 4 t3 (.push 12) t3h (by rw [t3pc]; rfl)]
-  rw [run_step prog m orc 3 t4 (.push 13) t4h (by rw [t4pc]; rfl)]
-  rw [run_step prog m orc 2 t5 (.push 14) t5h (by rw [t5pc]; rfl)]
-  rw [run_step prog m orc 1 t6 (.push 15) t6h (by rw [t6pc]; rfl)]
-  rw [run_step prog m orc 0 t7 (.sub 64 4 (.imm 88)) t7h (by rw [t7pc]; rfl)]
+  rw [exec_sub88_flags ro m orc t7 f t7h sp6 t7g]
+  rw [run_step_ro prog ro m orc 7 B .nop hh (by rw [hpc]; rfl)]
+  rw [run_step_ro prog ro m orc 6 t1 (.push 3) t1h (by rw [t1pc]; rfl)]
+  rw [run_step_ro prog ro m orc 5 t2 (.push 5) t2h (by rw [t2pc]; rfl)]
+  rw [run_step_ro prog ro m orc 4 t3 (.push 12) t3h (by rw [t3pc]; rfl)]
+  rw [run_step_ro prog ro m orc 3 t4 (.push 13) t4h (by rw [t4pc]; rfl)]
+  rw [run_step_ro prog ro m orc 2 t5 (.push 14) t5h (by rw [t5pc]; rfl)]
+  rw [run_step_ro prog ro m orc 1 t6 (.push 15) t6h (by rw [t6pc]; rfl)]
+  rw [run_step_ro prog ro m orc 0 t7 (.sub 64 4 (.imm 88)) t7h (by rw [t7pc]; rfl)]
 
+
+
+/-- Once the eight-instruction prefix has run, the incoming flags are gone: for any `n ≥ 8`
+the run from the flagged state equals the run from the flag-free one. -/
+theorem run_from_flag_entry (ro : Region) (m : Addr Int → Cell W32 Int) (orc : Nat → Bool)
+    (B : CState) (fl : Option (Int × Int)) (hpc : B.pc = 0) (hh : B.halted = false)
+    (sp : Addr Int) (h4 : B.getG rsp = .ptr sp) (hg : rsp < B.gpr.length)
+    (n : Nat) (hn : 8 ≤ n) :
+    run prog ro m orc n {B with flags := fl} = run prog ro m orc n B := by
+  obtain ⟨k, hk⟩ := Nat.le.dest hn
+  subst hk
+  rw [run_add prog ro m orc 8 k {B with flags := fl},
+    run8_flags ro m orc B fl hpc hh sp h4 hg,
+    ← run_add prog ro m orc 8 k B]
 
 end Hashtree.Proofs.AvxX1W
