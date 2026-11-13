@@ -54,6 +54,8 @@ import Hashtree.Proofs.WinWrapperSat
 import Hashtree.Proofs.WinShippedClobber
 import Hashtree.Proofs.WinShaniSeedAlign
 import Hashtree.Asm.RunAgree
+import Hashtree.Proofs.WinAvx512Live
+import Hashtree.Proofs.WinAvxX4Live
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -406,3 +408,10 @@ import Hashtree.Asm.RunAgree
 #print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_windows_live_entry
 #print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_linux_live_entry_eq
 #print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_windows_live_entry_eq
+
+-- R5: the liveness certificates of the push-free windows bodies avx512_x16 (entry [8,4,2,1]) and
+-- avx_x4 (entry [8,4,9,2,1]) for the chain-aware KSpecC bridges.
+#print axioms Hashtree.Proofs.WinAvx512Live.cert
+#print axioms Hashtree.Proofs.WinAvx512Live.live_entry
+#print axioms Hashtree.Proofs.WinAvxX4Live.cert
+#print axioms Hashtree.Proofs.WinAvxX4Live.live_entry

@@ -332,7 +332,7 @@ theorem exec_agree (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat → 
   rw [← h.halted]
   by_cases hh : s1.halted = true
   · simp only [hh, ite_true]; exact ⟨h, by simp⟩
-  rw [if_neg hh, if_neg hh]
+  rw [ite_eq_right hh, ite_eq_right hh]
   have hV := getV_ag h
   have hF := flags_ag h
   have hLL := loadLanes_ag h mem0
@@ -608,40 +608,77 @@ end Engine
 
 /-! ### Deciding a certificate and computing one -/
 
+/-- The per-pc check, walking the instruction list and the certificate in step (`Ls` is
+`L.drop p`); only jump targets look `L` up by index. -/
+def certAux (L : List (List Nat)) : Nat → List Instr → List (List Nat) → Bool
+  | _, [], _ => true
+  | p, i :: is, Ls =>
+    let Lp := Ls.headD []
+    let rest := Ls.drop 1
+    (srcs i).all (fun r => Lp.contains r) &&
+      (succs p i).all (fun q =>
+        (if q = p + 1 then rest.headD [] else L.getD q []).all fun r =>
+          (dsts i).contains r || Lp.contains r) &&
+      certAux L (p + 1) is rest
+
 /-- The certificate check on a program, with `L` as a list of per-pc sets. -/
-def certB (prog : Array Instr) (L : List (List Nat)) : Bool :=
-  (List.range prog.size).all fun p => match prog[p]? with
-    | none => true
-    | some i =>
-      (srcs i).all (fun r => (L.getD p []).contains r) &&
-        (succs p i).all fun q => (L.getD q []).all fun r => (dsts i).contains r || (L.getD p []).contains r
+def certB (prog : Array Instr) (L : List (List Nat)) : Bool := certAux L 0 prog.toList L
+
+theorem headD_drop (L : List (List Nat)) (p : Nat) : (L.drop p).headD [] = L.getD p [] := by
+  induction p generalizing L with
+  | zero => cases L <;> rfl
+  | succ n ih => cases L with
+    | nil => rfl
+    | cons x xs => exact ih xs
+
+theorem certAux_sound (L : List (List Nat)) : ∀ (p : Nat) (is : List Instr),
+    certAux L p is (L.drop p) = true →
+    ∀ k i, is[k]? = some i →
+      (∀ r, r ∈ srcs i → r ∈ L.getD (p + k) []) ∧
+        ∀ q, q ∈ succs (p + k) i → ∀ r, r ∈ L.getD q [] → r ∈ dsts i ++ L.getD (p + k) []
+  | _, [], _, k, i, hk => by simp at hk
+  | p, j :: js, h, 0, i, hk => by
+    simp only [List.getElem?_cons_zero, Option.some.injEq] at hk
+    subst hk
+    simp only [certAux, Bool.and_eq_true, List.all_eq_true, Bool.or_eq_true,
+      List.contains_iff_mem, headD_drop] at h
+    refine ⟨fun r hr => h.1.1 r hr, fun q hq r hr => ?_⟩
+    rw [List.mem_append]
+    apply h.1.2 q hq r
+    split
+    · rename_i hq1; subst hq1
+      rwa [List.getD_eq_getElem?_getD, List.getElem?_drop, ← List.getD_eq_getElem?_getD]
+    · exact hr
+  | p, j :: js, h, k + 1, i, hk => by
+    simp only [List.getElem?_cons_succ] at hk
+    simp only [certAux, Bool.and_eq_true] at h
+    have h2 : certAux L (p + 1) js (L.drop (p + 1)) = true := by
+      have := h.2
+      simp only [List.drop_drop] at this
+      first | exact this | (rw [Nat.add_comm 1 p] at this; exact this)
+    have := certAux_sound L (p + 1) js h2 k i hk
+    rwa [Nat.add_right_comm, Nat.add_assoc] at this
 
 theorem Cert_of_certB {prog : Array Instr} {L : List (List Nat)} (h : certB prog L = true) :
     Cert prog (fun p => L.getD p []) := by
   intro p i hp
-  have hlt : p < prog.size := (Array.getElem?_eq_some_iff.mp hp).1
-  have := (List.all_eq_true.mp h) p (List.mem_range.mpr hlt)
-  simp only [hp, Bool.and_eq_true, List.all_eq_true, Bool.or_eq_true, List.contains_iff_mem] at this
-  refine ⟨this.1, fun q hq r hr => ?_⟩
-  rw [List.mem_append]
-  exact this.2 q hq r hr
+  have := certAux_sound L 0 prog.toList (by simpa [certB] using h) p i (by rwa [Array.getElem?_toList])
+  simpa only [Nat.zero_add] using this
 
-/-- One backward liveness sweep, from the last pc down: forward successors use the sets
-already computed in this sweep (`acc`, headed by pc `p + 1`), backward ones the previous
-sweep's (`old`). -/
-def sweepAux (prog : Array Instr) (old : List (List Nat)) : Nat → List (List Nat) → List (List Nat)
-  | 0, acc => acc
-  | p + 1, acc =>
-    let cur := match prog[p]? with
-      | none => []
-      | some i =>
-        (srcs i ++ (succs p i).flatMap fun q =>
-          (if p < q then acc.getD (q - p - 1) [] else old.getD q []).filter
-            fun r => !(dsts i).contains r).eraseDups
-    sweepAux prog old p (cur :: acc)
+/-- One backward liveness sweep over the reversed instruction list (pc `p` down to 0):
+forward successors use the sets already computed in this sweep (`acc`, headed by pc `p + 1`),
+backward ones the previous sweep's (`old`). -/
+def sweepAux (old : List (List Nat)) : List Instr → Nat → List (List Nat) → List (List Nat)
+  | [], _, acc => acc
+  | _ :: _, 0, acc => acc
+  | i :: rev, p + 1, acc =>
+    let cur := (srcs i ++ (succs p i).flatMap fun q =>
+        (if p < q then acc.getD (q - p - 1) [] else old.getD q []).filter
+          fun r => !(dsts i).contains r).eraseDups
+    sweepAux old rev p (cur :: acc)
 
 def liveSweep (prog : Array Instr) (old : List (List Nat)) : List (List Nat) :=
-  sweepAux prog old prog.size []
+  sweepAux old prog.toList.reverse prog.size []
 
 def liveFix (prog : Array Instr) : Nat → List (List Nat) → List (List Nat)
   | 0, L => L
