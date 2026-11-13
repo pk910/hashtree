@@ -47,6 +47,9 @@ import Hashtree.Proofs.WinShaniWrite
 import Hashtree.Proofs.WinShaniExit
 import Hashtree.Proofs.WinAvxX4
 import Hashtree.Proofs.WinAvx2X8
+import Hashtree.Proofs.WinWrapperPre
+import Hashtree.Proofs.WinWrapperMach
+import Hashtree.Proofs.WinWrapper
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -318,3 +321,25 @@ import Hashtree.Proofs.WinAvx2X8
 #print axioms Hashtree.Proofs.WinShaniExit.seed_rsp
 #print axioms Hashtree.Proofs.WinShaniExit.shani_body_log
 #print axioms Hashtree.Proofs.WinShaniExit.shani_call_mem
+
+-- R5: the windows/amd64 wrapper `HashtreeHash` (Kernels/X86Win/WrapperWindows): the symbolic
+-- prefix and call state, the ANDQ alignment, the CALL marker, the epilogue, and the composition
+-- with a kernel contract at the windows call state `entryWin`.  Both the shipped frame ($1024;
+-- the text's ADDQ $2048 puts the call stack above the entry rsp, so the composition needs the
+-- kernel-write separation hD9) and the fixed frame ($2048; linux-like footprint) are proved.
+#print axioms Hashtree.Proofs.WinWrapper.slicePreW_shipped
+#print axioms Hashtree.Proofs.WinWrapper.slicePreW_fixed
+#print axioms Hashtree.Proofs.WinWrapper.KCW_shape_shipped
+#print axioms Hashtree.Proofs.WinWrapper.KCW_shape_fixed
+#print axioms Hashtree.Proofs.WinWrapper.KCW_head_shipped
+#print axioms Hashtree.Proofs.WinWrapper.KCW_mem_split_shipped
+#print axioms Hashtree.Proofs.WinWrapper.markerW_lk_shipped
+#print axioms Hashtree.Proofs.WinWrapper.bpW_lk_shipped
+#print axioms Hashtree.Proofs.WinWrapper.align_homW_shipped
+#print axioms Hashtree.Proofs.WinWrapper.align_homW_fixed
+#print axioms Hashtree.Proofs.WinWrapper.push_homW
+#print axioms Hashtree.Proofs.WinWrapper.post_runW
+#print axioms Hashtree.Proofs.WinWrapper.wrapper_kernelW_core
+#print axioms Hashtree.Proofs.WinWrapper.wrapper_kernelW_fixed
+#print axioms Hashtree.Proofs.WinWrapper.wrapper_kernelW_shipped
+#print axioms Hashtree.Proofs.WinWrapper.wrapper_correctW
