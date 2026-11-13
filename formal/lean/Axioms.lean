@@ -28,6 +28,9 @@ import Hashtree.Proofs.RvX1All
 import Hashtree.Proofs.RvZbbX1All
 import Hashtree.Proofs.RvCryptoAll
 import Hashtree.Proofs.RvRegs
+import Hashtree.Proofs.RvDispatch
+import Hashtree.Proofs.RvWrapperLinux
+import Hashtree.Proofs.RvDispatchInit
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -62,3 +65,22 @@ import Hashtree.Proofs.RvRegs
 #print axioms Hashtree.Proofs.RvRegs.all_crypto
 #print axioms Hashtree.Proofs.RvRegs.run_gpr
 #print axioms Hashtree.Proofs.RvRegs.exec_gpr
+#print axioms Hashtree.Proofs.RvDispatch.stub_correct
+#print axioms Hashtree.Proofs.RvDispatch.cmem_rel
+#print axioms Hashtree.Proofs.RvWrapperLinux.wrapper_prefix
+#print axioms Hashtree.Proofs.RvWrapperLinux.stub_at_call
+#print axioms Hashtree.Proofs.RvWrapperLinux.wrapper_epilogue
+#print axioms Hashtree.Proofs.RvWrapperLinux.b7_entry
+#print axioms Hashtree.Proofs.RvWrapperLinux.b7_callee
+#print axioms Hashtree.Proofs.RvWrapperLinux.prefixC
+#print axioms Hashtree.Proofs.RvWrapperLinux.wrapper_end2end
+#print axioms Hashtree.Proofs.RvDispatchInit.classOfNat_ext
+#print axioms Hashtree.Proofs.RvDispatchInit.selName_eq_classOf
+#print axioms Hashtree.Proofs.RvDispatchInit.ih_syscall_fail_x1
+#print axioms Hashtree.Proofs.RvDispatchInit.ih_probe_crypto
+#print axioms Hashtree.Proofs.RvDispatchInit.ih_probe_zbb
+#print axioms Hashtree.Proofs.RvDispatchInit.ih_probe_x1
+#print axioms Hashtree.Proofs.RvDispatchInit.ih_select_bits
+#print axioms Hashtree.Proofs.RvDispatchInit.hi_override
+#print axioms Hashtree.Proofs.RvDispatchInit.hi_syscall_fail_x1
+#print axioms Hashtree.Proofs.RvDispatchInit.hi_select_bits
