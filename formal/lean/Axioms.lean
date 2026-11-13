@@ -50,6 +50,7 @@ import Hashtree.Proofs.WinAvx2X8
 import Hashtree.Proofs.WinWrapperPre
 import Hashtree.Proofs.WinWrapperMach
 import Hashtree.Proofs.WinWrapper
+import Hashtree.Proofs.WinWrapperSat
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -343,3 +344,7 @@ import Hashtree.Proofs.WinWrapper
 #print axioms Hashtree.Proofs.WinWrapper.wrapper_kernelW_fixed
 #print axioms Hashtree.Proofs.WinWrapper.wrapper_kernelW_shipped
 #print axioms Hashtree.Proofs.WinWrapper.wrapper_correctW
+#print axioms Hashtree.Proofs.WinWrapper.argCells_specW
+#print axioms Hashtree.Proofs.WinWrapper.wrapper_hyps_satW
+#print axioms Hashtree.Proofs.WinWrapper.wrapper_hyps_satW_fixed
+#print axioms Hashtree.Proofs.WinWrapper.wrapper_hyps_satW_shipped
