@@ -2,6 +2,7 @@ import Hashtree.Proofs.WinShaniCall
 import Hashtree.Proofs.WinWrapperPre
 import Hashtree.Proofs.ShaniAll
 import Hashtree.Asm.X86SymW
+import Hashtree.Asm.BodyReads
 
 /-!
 # R5: the windows `shani_x2` seed versus the linux certificate start states
@@ -149,43 +150,7 @@ after the register was written. -/
 
 section ReadSet
 open Hashtree.Asm Hashtree.Asm.X86
-
-def baseOf (m : MemRef) : List Nat := match m.base with | some b => [b] | none => []
-def gsrc : GSrc → List Nat | .reg s => [s] | .imm _ => [] | .mem m => baseOf m
-def vsrc : VSrc → List Nat | .reg _ => [] | .mem m => baseOf m
-
-def srcs : Instr → List Nat
-  | .vop _ _ _ _ _ s => vsrc s
-  | .vload _ _ _ s => vsrc s
-  | .mov _ _ s => gsrc s
-  | .alu _ _ d s => d :: gsrc s
-  | .sub _ d s => d :: gsrc s
-  | .cmp _ a s => a :: gsrc s
-  | .ror _ d _ => [d]
-  | .shld _ d s _ => [d, s]
-  | .lea _ m => baseOf m
-  | .movst _ m s => s :: baseOf m
-  | .vstore _ m _ => baseOf m
-  | .inserti128 _ _ m _ => baseOf m
-  | .inserti64x4 _ _ m _ => baseOf m
-  | _ => []
-
-def dsts : Instr → List Nat
-  | .mov _ d _ => [d]
-  | .alu _ _ d _ => [d]
-  | .sub _ d _ => [d]
-  | .lea d _ => [d]
-  | .ror _ d _ => [d]
-  | .shld _ d _ _ => [d]
-  | _ => []
-
-def rbwAux : List Nat → List Instr → List Nat
-  | _, [] => []
-  | w, i :: is => (srcs i).filter (fun r => !(w.contains r)) ++ rbwAux (w ++ dsts i) is
-
-/-- The general registers read before their first write in `is` (static over-approximation;
-a superset of the registers on which a run can depend through its entry state). -/
-def rbw (is : List Instr) : List Nat := (rbwAux [] is).eraseDups
+open Hashtree.Asm.BodyReads
 
 abbrev linuxBody : List Instr := (Hashtree.Kernels.X86.Shani.prog.toList.drop 1).take 668
 abbrev winBody : List Instr := (Hashtree.Kernels.X86Win.Shani.prog.toList.drop 11).take 668
