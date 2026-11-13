@@ -22,6 +22,11 @@ verify:         ## check the restored tree against the pinned hashes
 # root module and its imports); it does not touch Hashtree.Gen.  Building every
 # module explicitly is what makes the Lean kernel re-check every certificate.
 # The list is expanded after `gen` has restored Hashtree/Gen.
+# Memory sizing (VM2, 2026-11-13): one Gen/ArmNeonX1P slice peaks at 9-12 GB inside lean, and
+# this Lake has no -j flag -- LEAN_NUM_THREADS caps how many modules build concurrently.  Keep
+# workers x 12 GB under the cgroup cap (LEAN_NUM_THREADS=6 at MemoryMax=70G, or 8 at ~110G on an
+# otherwise idle box).  An exceeded cap surfaces as a killed lean or a spurious bv_decide
+# "SAT solver timed out", not as a proof error (see formal/notes/R3R4.md, audit control).
 # Axioms.lean is a standalone script (`lake env lean Axioms.lean`, see `make audit`),
 # not a library module, so it is not a valid `lake build` target.
 PROOF_MODULES = $(shell find Hashtree/Proofs Hashtree/Gen -name '*.lean' 2>/dev/null | sed -e 's|/|.|g' -e 's|\.lean$$||')
@@ -47,7 +52,7 @@ check-models:   ## differential execution of every model against the spec
 	$(LAKE) exe armcheck mac
 	$(LAKE) exe rvcheck
 
-audit:          ## print the axioms of every final theorem
+audit:          ## print the axioms of every final theorem (after `build`; sizing note above)
 	$(LAKE) env lean Axioms.lean
 
 clean-gen:
