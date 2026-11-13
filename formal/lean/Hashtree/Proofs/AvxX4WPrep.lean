@@ -156,4 +156,50 @@ theorem mapState_entryWx (e : Key → W32) (mem0c : Addr Int → Cell W32 Int) (
     | simp [mapAddr, Lin.eval, dotC, upd15]
     | (intro a ha; repeat' (all_goals (first | constructor)); all_goals simp [E.eval, envM])
 
+
+/-- `upd15` is idempotent. -/
+theorem upd15_idem (σ : Nat → Int) : upd15 (upd15 σ) = upd15 σ := by
+  funext i
+  by_cases h : i = 15
+  · subst h; simp [upd15]
+  · simp [upd15, h]
+
+/-- `upd15` only rewrites symbol 15, so `entryW` (whose registers, vectors and memory read only
+symbols below 15) denotes the same concrete state at `upd15 σ` and at `σ`. -/
+theorem mapState_upd15_entryW (e : Key → W32) (σ : Nat → Int) :
+    mapState e (upd15 σ) entryW = mapState e σ entryW := by
+  simp [mapState, entryW, range16, mapVal, Lin.eval, Lin.sym, sAt, stkC]
+  repeat' constructor
+  all_goals
+    first
+    | rfl
+    | simp [Lin.eval, dotC, upd15]
+    | (intro a ha; repeat' (all_goals (first | constructor)); all_goals simp [E.eval])
+
+/-- The wrapper environment at `upd15 σ` realizes the caller's memory: the memory keys are
+re-read from `mem0c` at exactly the sigma the W-mode run uses. -/
+theorem envMem_envM_upd15 (e : Key → W32) (mem0c : Addr Int → Cell W32 Int) (σ : Nat → Int) :
+    EnvMem (envM e mem0c (upd15 σ)) (upd15 σ) mem0c := fun r off => rfl
+
+/-- `upd15` keeps the stack base symbol and only changes symbol 15, which the `WfMemW` clauses
+do not read (the pushed-cell clause is vacuous for `push = []`). -/
+theorem wfMemW_upd15 (rodata : List Nat) (env env' : Key → W32) (σ : Nat → Int)
+    (m : Addr Int → Cell W32 Int) (hw : WfMemW rodata [] env σ m) :
+    WfMemW rodata [] env' (upd15 σ) m := by
+  obtain ⟨hro, hret, hin, hpush⟩ := hw
+  have h9 : upd15 σ 9 = σ 9 := by simp [upd15]
+  refine ⟨hro, ?_, hin, ?_⟩
+  · intro k h0 h8
+    rw [h9]
+    exact hret k h0 h8
+  · intro k c hk
+    simp [plookup] at hk
+
+/-- The caller's `entryW` state is the explicit entry cut `entryWx` at `upd15 σ`, behind the
+wrapper environment `envM`. -/
+theorem mapState_entryW (e : Key → W32) (mem0c : Addr Int → Cell W32 Int) (σ : Nat → Int) :
+    mapState (envM e mem0c (upd15 σ)) (upd15 σ) entryWx = mapState e σ entryW := by
+  have h := mapState_entryWx (e := e) mem0c (upd15 σ)
+  rw [upd15_idem σ] at h
+  rw [h, mapState_upd15_entryW]
 end Hashtree.Proofs.AvxX4W
