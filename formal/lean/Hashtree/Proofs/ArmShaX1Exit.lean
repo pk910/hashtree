@@ -1,6 +1,7 @@
 import Hashtree.Asm.ArmCall
 import Hashtree.Asm.ArmRet
 import Hashtree.Asm.ArmShiftCall
+import Hashtree.Asm.ArmShiftMem
 import Hashtree.Gen.ArmShaX1P.Final
 
 set_option maxHeartbeats 8000000
@@ -128,6 +129,29 @@ theorem sha_x1_run_exit_sp (env0 : Key → W32) (σ : Nat → Int)
           (retOff 1 (mapState env0 σ (entryS sp0)))) := by
   have hshift := sha_x1_run_shift_sp env0 σ mem0c orcC sp0 hsp
   rw [sha_x1_run_relabeled env0 σ mem0c orcC h0 hσ] at hshift
+  exact Hashtree.Asm.ArmShift.ShaX1Exit_shift hshift (sha_x1_exit env0 σ)
+
+/-- The shifted run at the driver's own initial memory.  Instead of proving that the shifted
+initial memory `memSh sp0 mem0c` agrees with `mem0c` on the kernel's footprint, shift the base
+side backwards: `memSh sp0 (memSh (-sp0) mem0c) = mem0c`, and `Mem0Rel` is preserved by a stack
+shift (`ArmShift.Mem0Rel_memSh`), so the base side still runs to the same final state. -/
+theorem sha_x1_run_exit_sp_mem0 (env0 : Key → W32) (σ : Nat → Int)
+    (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (sp0 : Int)
+    (h0 : Mem0Rel env0 σ (mem0s 4 Hashtree.Kernels.Arm.ShaX1.rodata) mem0c)
+    (hσ : σ 2 = 2) (hsp : sp0 % 16 = 0) :
+    Hashtree.Asm.ArmCall.ShaX1Exit sp0
+      (run Hashtree.Kernels.Arm.ShaX1.prog 4 mem0c orcC fuel
+          (retOff 1 (mapState env0 σ (entryS sp0)))) := by
+  have h0' : Mem0Rel env0 σ (mem0s 4 Hashtree.Kernels.Arm.ShaX1.rodata)
+      (Hashtree.Asm.ArmShift.memSh (-sp0) mem0c) :=
+    Hashtree.Asm.ArmShift.Mem0Rel_memSh 4 Hashtree.Kernels.Arm.ShaX1.rodata
+      (by decide : (4 : Region) ≠ rStack) env0 σ mem0c (-sp0) h0
+  have hshift := sha_x1_run_shift_sp env0 σ
+    (Hashtree.Asm.ArmShift.memSh (-sp0) mem0c) orcC sp0 hsp
+  rw [Hashtree.Asm.ArmShift.memSh_comp, show sp0 + -sp0 = 0 by omega,
+    Hashtree.Asm.ArmShift.memSh_zero] at hshift
+  rw [sha_x1_run_relabeled env0 σ (Hashtree.Asm.ArmShift.memSh (-sp0) mem0c) orcC h0' hσ]
+    at hshift
   exact Hashtree.Asm.ArmShift.ShaX1Exit_shift hshift (sha_x1_exit env0 σ)
 
 end Hashtree.Proofs.ArmShaX1
