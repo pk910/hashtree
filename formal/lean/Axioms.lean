@@ -37,6 +37,8 @@ import Hashtree.Proofs.WinFrameStack
 import Hashtree.Proofs.WinSafeScan
 import Hashtree.Proofs.WinShaniTransfer
 import Hashtree.Proofs.WinShaniFront
+import Hashtree.Proofs.WinAvxX4
+import Hashtree.Proofs.WinAvx2X8
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -124,3 +126,33 @@ import Hashtree.Proofs.WinShaniFront
 #print axioms Hashtree.Proofs.WinShaniFront.mem_storeLanes
 #print axioms Hashtree.Proofs.WinShaniFront.exec_sub_rsp
 #print axioms Hashtree.Proofs.WinShaniFront.exec_vstore_rsp
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_stack_footprint
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_body_footprint
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_callee_gpr_untouched
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_rsp_balanced
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_prologue_saves
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_epilogue_restores
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_save_slots_untouched
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_callee_vec_covered
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_sites
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_targets_in_range
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_tails
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_site_pc_shifts
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_target_pairs
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_stack_footprint
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_body_footprint
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_callee_gpr_untouched
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_callee_saved_covered
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_rsp_chain
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_rsp_balanced
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_prologue_gpr_saves
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_epilogue_gpr_restores
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_prologue_vec_saves
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_epilogue_vec_restores
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_save_slots_untouched
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_callee_vec_covered
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_frame_below
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_sites
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_tails
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_site_pc_shifts
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_target_pairs
