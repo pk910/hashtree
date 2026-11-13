@@ -101,6 +101,8 @@ import Hashtree.Proofs.RvChain
 #print axioms Hashtree.Proofs.RvChain.chain_none
 #print axioms Hashtree.Proofs.RvChain.chain_zbb
 #print axioms Hashtree.Proofs.RvChain.chain_crypto
+#print axioms Hashtree.Proofs.RvChain.outOk_view
+#print axioms Hashtree.Proofs.RvChain.outOk_postMem
 #print axioms Hashtree.Proofs.RvChain.loadVal_congr
 #print axioms Hashtree.Proofs.RvChain.loadLane_congr
 #print axioms Hashtree.Proofs.RvChain.pbRest_congr

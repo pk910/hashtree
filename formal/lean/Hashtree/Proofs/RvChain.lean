@@ -495,7 +495,7 @@ second boundary (`returned`), and the wrapper's epilogue then runs on the memory
 actually left. -/
 
 section Concrete
-open Hashtree.Spec Hashtree.Asm.RiscvSym Hashtree.Kernels.Riscv.WrapperLinux
+open Hashtree.Spec Hashtree.Asm.RiscvSym Hashtree.Asm.SpecQ Hashtree.Kernels.Riscv.WrapperLinux
 open Hashtree.Proofs.RvWrapperLinux Hashtree.Proofs.RvDispatchInit Hashtree.Proofs.Rv
 
 /-- The chain's branch oracle: every undecided branch takes its fall-through. -/
@@ -1116,10 +1116,46 @@ theorem kerRun_len (p : Probe) (c : Nat) (env0 : Key → W32) (σ : Nat → Int)
   rw [kerRun, run_len]
   simp only [mapState, List.length_map, entryS, List.length_map, List.length_range]
 
+/-- Address of output byte `32*n + 4*i + b` for output base `ob`. -/
+def outAddr (ob : Int) (n i b : Nat) : Addr Int :=
+  ⟨rOut, ob + ((32 * n + 4 * i + b : Nat) : Int)⟩
+
+/-- The digest as the caller observes it in a *memory*: every output byte holds the SHA-256 value.
+`OutOk` states this about the kernel's write log; `OutOkMem` states it about the memory the caller
+actually reads. -/
+def OutOkMem (inp : Nat → Byte) (ob : Int) (nblk : Nat) (mem : Addr Int → Cell W32 Int) : Prop :=
+  ∀ n i b, n < nblk → i < 8 → b < 4 → ∃ x,
+    mem (outAddr ob n i b) = .dat x b ∧
+      byteOf x b = ((node (blk inp n)).getD (4 * i + b) 0).zeroExtend 32
+
+/-- **Transport from the log to the visible memory.**  `view` prefers the newest logged write, and
+`OutOk` says that write is the SHA-256 byte at every output address; the bytes therefore come from
+the log, so no coverage hypothesis on the base memory is needed. -/
+theorem outOk_view (inp : Nat → Byte) (ob : Int) (nblk : Nat)
+    (M : List (Addr Int × Cell W32 Int))
+    (mem0 : Addr Int → Cell W32 Int) (h : OutOk inp ob nblk M) :
+    OutOkMem inp ob nblk (view M mem0) := by
+  intro n i b hn hi hb
+  obtain ⟨x, hx, hby⟩ := h n i b hn hi hb
+  refine ⟨x, ?_, hby⟩
+  delta outAddr
+  simp only [view]
+  rw [hx]
+
+/-- **The Go caller sees the digest.**  `postMem` is the memory the wrapper's epilogue runs on
+(the kernel's write log replayed over the Go-side memory), so the kernel's output theorem holds
+there. -/
+theorem outOk_postMem (p : Probe) (c : Nat) (inp : Nat → Byte) (env0 : Key → W32)
+    (σ : Nat → Int) (kMem : Addr Int → Cell W32 Int) (orcK : Nat → Bool)
+    (h : OutOk inp (σ 1) c (kerRun p c env0 σ kMem orcK).mem) :
+    OutOkMem inp (σ 1) c (postMem p c env0 σ kMem orcK) :=
+  outOk_view inp (σ 1) c (kerRun p c env0 σ kMem orcK).mem (view (d2 p).mem chainMem) h
+
 /-- **The wrapper's post-return state, derived from the callee's run.**  Given the chain's end
 state (the selected kernel's run, with its proved halt/error/tail, its stack pointer and its
 output) and the ra slot as the Go-side path left it, the return transition plus the wrapper's
-three epilogue instructions halt with `ra` reloaded and `sp` restored to the ABI0 entry `8`. -/
+three epilogue instructions halt with `ra` reloaded, `sp` restored to the ABI0 entry `8`, and the
+digest present in the memory the epilogue runs on (`postMem`, the caller-visible memory). -/
 theorem end2end_of (p : Probe) (c : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ : Nat → Int)
     (kMem : Addr Int → Cell W32 Int) (orcK : Nat → Bool)
     (hk : (kerRun p c env0 σ kMem orcK).halted = true ∧
@@ -1141,7 +1177,8 @@ theorem end2end_of (p : Probe) (c : Nat) (inp : Nat → Byte) (env0 : Key → W3
       (Riscv.run prog wenv (postMem p c env0 σ kMem orcK) orc 3
         (sret p c env0 σ kMem orcK)).getG 2 = .ptr (⟨rStack, 8⟩ : Addr Int) ∧
       InRange (σ 1) (32 * c) (kerRun p c env0 σ kMem orcK).mem ∧
-      OutOk inp (σ 1) c (kerRun p c env0 σ kMem orcK).mem := by
+      OutOk inp (σ 1) c (kerRun p c env0 σ kMem orcK).mem ∧
+      OutOkMem inp (σ 1) c (postMem p c env0 σ kMem orcK) := by
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hk
   have hsave := ra_slot_post p c env0 σ kMem orcK h5 hgo
   have hglen : (sret p c env0 σ kMem orcK).gpr.length = 32 := by
@@ -1159,10 +1196,12 @@ theorem end2end_of (p : Probe) (c : Nat) (inp : Nat → Byte) (env0 : Key → W3
     (by show (returned (kerRun p c env0 σ kMem orcK)).getG 2 = .ptr (⟨rStack, 0⟩ : Addr Int)
         exact h4)
     hsave (by decide)
-  exact ⟨hepi.1, hepi.2.1, hepi.2.2.1, hepi.2.2.2.1, hepi.2.2.2.2, h5, h6⟩
+  exact ⟨hepi.1, hepi.2.1, hepi.2.2.1, hepi.2.2.2.1, hepi.2.2.2.2, h5, h6,
+    outOk_postMem p c inp env0 σ kMem orcK h6⟩
 
 /-- **End to end, x1 class**: the composed run (chain -> kernel -> return -> epilogue) halts with
-`ra` and `sp` restored and the kernel's proved output. -/
+`ra` and `sp` restored and the kernel's proved output, visible in the memory the caller reads
+(`postMem`). -/
 theorem end2end_none (c : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ : Nat → Int)
     (kMem : Addr Int → Cell W32 Int) (orcK : Nat → Bool)
     (hw : WfMemR 10 11 (krodata none) (kgotT none) kMem)
@@ -1180,13 +1219,15 @@ theorem end2end_none (c : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ : N
       (Riscv.run prog wenv (postMem none c env0 σ kMem orcK) orc 3
         (sret none c env0 σ kMem orcK)).getG 2 = .ptr (⟨rStack, 8⟩ : Addr Int) ∧
       InRange (σ 1) (32 * c) (kerRun none c env0 σ kMem orcK).mem ∧
-      OutOk inp (σ 1) c (kerRun none c env0 σ kMem orcK).mem :=
+      OutOk inp (σ 1) c (kerRun none c env0 σ kMem orcK).mem ∧
+      OutOkMem inp (σ 1) c (postMem none c env0 σ kMem orcK) :=
   end2end_of none c inp env0 σ kMem orcK
     (chain_none c inp env0 σ kMem orcK hw he hc hσ0 hb hin) ra_slot_go_none
 
 
 /-- **End to end, zbb class**: the composed run (chain -> kernel -> return -> epilogue) halts with
-`ra` and `sp` restored and the kernel's proved output. -/
+`ra` and `sp` restored and the kernel's proved output, visible in the memory the caller reads
+(`postMem`). -/
 theorem end2end_zbb (c : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ : Nat → Int)
     (kMem : Addr Int → Cell W32 Int) (orcK : Nat → Bool)
     (hw : WfMemR 10 11 (krodata (some 0x10)) (kgotT (some 0x10)) kMem)
@@ -1204,13 +1245,15 @@ theorem end2end_zbb (c : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ : Na
       (Riscv.run prog wenv (postMem (some 0x10) c env0 σ kMem orcK) orc 3
         (sret (some 0x10) c env0 σ kMem orcK)).getG 2 = .ptr (⟨rStack, 8⟩ : Addr Int) ∧
       InRange (σ 1) (32 * c) (kerRun (some 0x10) c env0 σ kMem orcK).mem ∧
-      OutOk inp (σ 1) c (kerRun (some 0x10) c env0 σ kMem orcK).mem :=
+      OutOk inp (σ 1) c (kerRun (some 0x10) c env0 σ kMem orcK).mem ∧
+      OutOkMem inp (σ 1) c (postMem (some 0x10) c env0 σ kMem orcK) :=
   end2end_of (some 0x10) c inp env0 σ kMem orcK
     (chain_zbb c inp env0 σ kMem orcK hw he hc hσ0 hb hin) ra_slot_go_zbb
 
 
 /-- **End to end, crypto class**: the composed run (chain -> kernel -> return -> epilogue) halts with
-`ra` and `sp` restored and the kernel's proved output. -/
+`ra` and `sp` restored and the kernel's proved output, visible in the memory the caller reads
+(`postMem`). -/
 theorem end2end_crypto (c : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ : Nat → Int)
     (kMem : Addr Int → Cell W32 Int) (orcK : Nat → Bool)
     (hw : WfMemR 10 11 (krodata (some 0x2100)) (kgotT (some 0x2100)) kMem)
@@ -1228,7 +1271,8 @@ theorem end2end_crypto (c : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ :
       (Riscv.run prog wenv (postMem (some 0x2100) c env0 σ kMem orcK) orc 3
         (sret (some 0x2100) c env0 σ kMem orcK)).getG 2 = .ptr (⟨rStack, 8⟩ : Addr Int) ∧
       InRange (σ 1) (32 * c) (kerRun (some 0x2100) c env0 σ kMem orcK).mem ∧
-      OutOk inp (σ 1) c (kerRun (some 0x2100) c env0 σ kMem orcK).mem :=
+      OutOk inp (σ 1) c (kerRun (some 0x2100) c env0 σ kMem orcK).mem ∧
+      OutOkMem inp (σ 1) c (postMem (some 0x2100) c env0 σ kMem orcK) :=
   end2end_of (some 0x2100) c inp env0 σ kMem orcK
     (chain_crypto c inp env0 σ kMem orcK hw he hc hσ0 hb hin) ra_slot_go_crypto
 
