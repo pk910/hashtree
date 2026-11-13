@@ -19,6 +19,7 @@ composition in `formal/notes/R5.md` section 6.
 open Hashtree.Asm Hashtree.Asm.X86
 set_option autoImplicit false
 set_option maxHeartbeats 0
+set_option maxRecDepth 100000
 
 namespace Hashtree.Proofs.WinShaniFront
 
@@ -89,5 +90,96 @@ theorem exec_vstore_rsp (ro : Region) (mem0 : Addr Int → Cell W32 Int) (orc : 
   simp only [exec, hh, Bool.false_eq_true, ite_false]
   rw [he, bind_ok_eq, okOr_pure, storeLanes_rec]
   simp only [State.next, hh]
+
+/-! ## The concrete prologue of the shipped stream -/
+
+abbrev winProg : Array Instr := Hashtree.Kernels.X86Win.Shani.prog
+
+/-- The `m`-th callee-save store of the prologue: `vstore 4 [rsp + 16 m] (xmm{6+m})`. -/
+def saveStep (m : Nat) : Instr := .vstore 4 { base := some rsp, disp := ((16 * m : Nat) : Int) } (6 + m)
+
+/-- Lookup check for the prologue stores, for the kernel scan. -/
+def saveLookupB (m : Nat) : Bool :=
+  match winProg[1 + m]? with
+  | some i => decide (i = saveStep m)
+  | none => false
+
+/-- Kernel-checked: the ten prologue stores are at pcs `1 … 10`, with the expected operands. -/
+theorem save_lookups : ((List.range 10).all saveLookupB) = true := by decide +kernel
+
+/-- The prologue store at index `m < 10` is `saveStep m`. -/
+theorem save_lookup (m : Nat) (hm : m < 10) : winProg[1 + m]? = some (saveStep m) := by
+  have h := List.all_eq_true.mp save_lookups m (List.mem_range.mpr hm)
+  unfold saveLookupB at h
+  split at h
+  · rename_i i hi
+    rw [hi]
+    rw [show i = saveStep m from of_decide_eq_true h]
+  · exact nomatch h
+
+/-- The first instruction of the shipped stream is the stack-pointer decrement. -/
+theorem sub_lookup : winProg[0]? = some (.sub 64 rsp (.imm 248)) := by decide
+
+/-! ## The save log -/
+
+/-- The memory log written by the ten prologue stores, newest first, over the tail `tail`. -/
+def saveLog (st : State W32 Int) (r : Addr Int) : Nat → List (Addr Int × Cell W32 Int) → List (Addr Int × Cell W32 Int)
+  | 0, tail => tail
+  | k + 1, tail => laneLog (r.plusI ((16 * k : Nat) : Int)) ((st.getV (6 + k)).take 4) ++ saveLog st r k tail
+
+/-- The state after `m` prologue stores, from an entry state whose `rsp` holds `a`: `rsp` is
+`a - 248`, the flags are those of `sub rsp, 248`, the memory holds the first `m` save slots, and
+the pc is `1 + m`. -/
+def saveSt (st : State W32 Int) (a : Addr Int) (m : Nat) : State W32 Int :=
+  { st with gpr := st.gpr.set rsp (.ptr (a.plusI (-248))), flags := some (a.off, 248), mem := saveLog st (a.plusI (-248)) m st.mem, pc := 1 + m }
+
+/-- One prologue store, from the `m`-th to the `(m+1)`-th save state. -/
+theorem exec_saveSt (ro : Region) (mem0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (st : State W32 Int) (a : Addr Int) (hh : st.halted = false) (hlen : st.gpr.length = 16) (m : Nat) :
+    exec ro mem0 orc (saveStep m) (saveSt st a m) = saveSt st a (m + 1) := by
+  have h4 : (saveSt st a m).getG rsp = .ptr (a.plusI (-248)) := by
+    simp only [saveSt, State.getG]
+    exact getD_set_self st.gpr rsp (by rw [rsp]; omega) (.ptr (a.plusI (-248))) _
+  have hh' : (saveSt st a m).halted = false := by
+    simp only [saveSt, hh]
+  rw [show saveStep m = .vstore 4 { base := some rsp, disp := ((16 * m : Nat) : Int) } (6 + m) from rfl]
+  rw [exec_vstore_rsp ro mem0 orc _ 4 (6 + m) ((16 * m : Nat) : Int) (a.plusI (-248)) hh' h4]
+  simp only [saveSt, saveLog, State.getV]
+  rw [show 1 + m + 1 = 1 + (m + 1) from by omega]
+
+/-! ## The prologue replay -/
+
+/-- `run` of one step at a known instruction. -/
+theorem run_succ_step (prog : Array Instr) (ro : Region) (mem0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (n : Nat) (s : State W32 Int) (i : Instr) (hh : s.halted = false) (hp : prog[s.pc]? = some i) :
+    run prog ro mem0 orc (n + 1) s = run prog ro mem0 orc n (exec ro mem0 orc i s) := by
+  simp only [run, hh, Bool.false_eq_true, ite_false, hp]
+
+/-- The ten stores, `k` steps at a time. -/
+theorem run_saves (ro : Region) (mem0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (st : State W32 Int) (a : Addr Int) (hh : st.halted = false) (hlen : st.gpr.length = 16) :
+    ∀ (m k : Nat), m + k ≤ 10 → run winProg ro mem0 orc k (saveSt st a m) = saveSt st a (m + k) := by
+  intro m k
+  induction k generalizing m with
+  | zero =>
+    intro _
+    exact (show run winProg ro mem0 orc 0 (saveSt st a m) = saveSt st a (m + 0) from rfl)
+  | succ k ih =>
+    intro hk
+    have hm : m < 10 := by omega
+    rw [run_succ_step winProg ro mem0 orc k (saveSt st a m) (saveStep m) (by simp only [saveSt, hh]) (by simp only [saveSt, save_lookup m hm])]
+    rw [exec_saveSt ro mem0 orc st a hh hlen m]
+    rw [ih (m + 1) (by omega)]
+    rw [show (m + 1) + k = m + (k + 1) from by omega]
+
+/-- **The `shani_x2` prologue.**  Eleven instructions carry an ABI state with `rsp = a` to the
+body-entry state of the windows stream: `rsp` is `a - 248`, the flags are those of `sub rsp, 248`,
+the ten callee-save slots hold xmm6-xmm15, and the pc is 11. -/
+theorem run_prologue (ro : Region) (mem0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (st : State W32 Int) (a : Addr Int) (hh : st.halted = false) (h4 : st.getG rsp = .ptr a) (hlen : st.gpr.length = 16) :
+    run winProg ro mem0 orc 11 { st with pc := 0 } = saveSt st a 10 := by
+  have hsub : exec ro mem0 orc (.sub 64 rsp (.imm 248)) { st with pc := 0 } = saveSt st a 0 := by
+    rw [exec_sub_rsp ro mem0 orc { st with pc := 0 } 248 a (by simp only [hh]) h4]
+    simp only [saveSt, saveLog]
+  rw [show (11 : Nat) = 10 + 1 from rfl]
+  rw [run_succ_step winProg ro mem0 orc 10 { st with pc := 0 } (.sub 64 rsp (.imm 248)) (by simp only [hh]) (by simp only [sub_lookup])]
+  rw [hsub]
+  exact run_saves ro mem0 orc st a hh hlen 0 10 (by omega)
 
 end Hashtree.Proofs.WinShaniFront
