@@ -298,10 +298,17 @@ theorem rv_loop (prog : Array Riscv.Instr) (pe : Env)
         byteOf x b = ((node (blk inp n)).getD (4 * i + b) 0).zeroExtend 32)
     (logLast : ∀ p ∈ Rlast.mem, (p.1.region = rOut ∧ p.1.off.c = [0, 1] ∧ 0 ≤ p.1.off.k ∧ p.1.off.k < 32) ∨
       (p.1.region = rStack ∧ p.1.off.c = [] ∧ -80 ≤ p.1.off.k ∧ p.1.off.k < -16))
+    (PRES : List Nat) (ENTRY : State E Lin)
+    (entrySt : ∀ (e : Key → W32) (σ' : Nat → Int) (r : Nat), r ∈ PRES →
+      (mapState (EF e) (sigmaOf tauE σ') ENTRY).getG r = (mapState e σ' ENTRY).getG r)
+    (entryComb : ∀ (e : Key → W32) (σ₁ σ₂ σ₃ : Nat → Int)
+      (m : Addr Int → Cell W32 Int) (r : Nat), r ∈ PRES →
+      (mapState (ecomb e σ₁ m) σ₂ ENTRY).getG r = (mapState e σ₃ ENTRY).getG r)
     (t0Res : ∀ (e : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool),
       Mem0Rel e σ (mem0sT 10 11 rodata gotT SAVES) mem0c → σ 2 = 0 →
         ∃ S : CState, Riscv.run prog pe mem0c orcC t0NS (mapState e σ KH) = S ∧
-          S.halted = true ∧ S.err = none ∧ S.tail = none ∧ S.mem = [])
+          S.halted = true ∧ S.err = none ∧ S.tail = none ∧ S.mem = [] ∧
+          ∀ r ∈ PRES, S.getG r = (mapState e σ ENTRY).getG r)
     (inp : Nat → Byte) (mem0c : Addr Int → Cell W32 Int)
     (hw : WfMemR 10 11 rodata gotT mem0c) (σ0 σ1 : Int)
     (hin : ∀ o : Nat, mem0c ⟨rIn, σ0 + o⟩ = .dat ((inp o).zeroExtend 32) 0)
@@ -312,25 +319,30 @@ theorem rv_loop (prog : Array Riscv.Instr) (pe : Env)
       (∀ o ∈ SAVES, ∃ x, view M mem0c ⟨rStack, o⟩ = .dat x (((o + 16) % 4).toNat)) →
       let fin := Riscv.run prog pe mem0c orcC (j * itNS + t0NS) (fr M (mapState e σ' KH))
       fin.halted = true ∧ fin.err = none ∧ fin.tail = none ∧
-        InRange σ1 (32 * k + 32 * j) fin.mem ∧ OutOk inp σ1 (k + j) fin.mem := by
+        InRange σ1 (32 * k + 32 * j) fin.mem ∧ OutOk inp σ1 (k + j) fin.mem ∧
+        ∀ r ∈ PRES, fin.getG r = (mapState e σ' ENTRY).getG r := by
   intro j
   induction j with
   | zero =>
     intro k σ' e M h0 h1 h2 hR hO hsave
     have hM : OutLog M := outLog_of _ _ M hR
     let E := ecomb e σ' (view M mem0c)
-    obtain ⟨S, hS, hhalt, herr, htail, hmem⟩ :=
+    obtain ⟨S, hS, hhalt, herr, htail, hmem, hreg⟩ :=
       t0Res E σ' (view M mem0c) orcC
         (mem0RelT0 rodata gotT SAVES e σ' mem0c M hw hM hsave) (by omega)
     simp only [Nat.zero_mul, Nat.zero_add]
     rw [Riscv.run_fr, head_ecomb e σ' (view M mem0c) KH KH_nOnly, hS]
-    refine ⟨hhalt, herr, htail, ?_, ?_⟩
+    refine ⟨hhalt, herr, htail, ?_, ?_, ?_⟩
     · show InRange σ1 (32 * k) (fr M S).mem
       simp only [fr, hmem, List.nil_append]
       exact hR
     · show OutOk inp σ1 (k + 0) (fr M S).mem
       simp only [fr, hmem, List.nil_append, Nat.add_zero]
       exact hO
+    · intro r hr
+      show (fr M S).getG r = (mapState e σ' ENTRY).getG r
+      rw [show (fr M S).getG r = S.getG r from rfl, hreg r hr]
+      exact entryComb e σ' σ' σ' (view M mem0c) r hr
   | succ j ih =>
     intro k σ' e M h0 h1 h2 hR hO hsave
     have hM : OutLog M := outLog_of _ _ M hR
@@ -387,9 +399,12 @@ theorem rv_loop (prog : Array Riscv.Instr) (pe : Env)
             · exact Or.inr (by omega)) hO
         exact this)
       hsave'
-    obtain ⟨a, b, c, d, f⟩ := this
-    refine ⟨a, b, c, ?_, ?_⟩
+    obtain ⟨a, b, c, d, f, g⟩ := this
+    refine ⟨a, b, c, ?_, ?_, ?_⟩
     · rw [show 32 * k + 32 * (j + 1) = 32 * (k + 1) + 32 * j by omega]; exact d
     · rw [show k + (j + 1) = (k + 1) + j by omega]; exact f
+    · intro r hr
+      rw [g r hr, entrySt E σ' r hr]
+      exact entryComb e σ' σ' σ' (view M mem0c) r hr
 
 end Hashtree.Proofs.Rv

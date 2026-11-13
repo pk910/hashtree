@@ -74,7 +74,8 @@ theorem correct (c : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ : Nat �
     (hin : ∀ o : Nat, mem0c ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) :
     let fin := Riscv.run prog pe mem0c orcC (steps c) (mapState env0 σ (entryS 0))
     fin.halted = true ∧ fin.err = none ∧ fin.tail = none ∧
-      InRange (σ 1) (32 * c) fin.mem ∧ OutOk inp (σ 1) c fin.mem := by
+      InRange (σ 1) (32 * c) fin.mem ∧ OutOk inp (σ 1) c fin.mem ∧
+      ∀ r ∈ [2], fin.getG r = (mapState env0 σ (entryS 0)).getG r := by
   have hrel : Mem0Rel env0 σ (mem0s 10 11 rodata gotT) mem0c :=
     mem0RelR_of_wf 10 11 rodata gotT env0 σ mem0c hw he
   have hPr := (rvSlice_sound env0 σ (mem0s 10 11 rodata gotT) mem0c hrel prog pe
@@ -105,13 +106,28 @@ theorem correct (c : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ : Nat �
   have hPr' : run prog pe mem0c orcC H (mapState env0 σ (entryS 0)) =
       mapState (envAbs env0 Rhead) σ KP := hPr
   rw [hidx, rvRun_add, hPr', KH_map (envAbs env0 Rhead) σ]
-  obtain ⟨hh, he', ht, hR', hO'⟩ :=
+  obtain ⟨hh, he', ht, hR', hO', hreg'⟩ :=
     rv_loop prog pe rodata gotT SAVES KH It.KF It.Rlast It.tauE It.EF It.E128 It.NS T0.NS
       KH_len KH_vr tau0 tau1 tau2 SAVES_lo KH_fl KH_mem KH_nOnly
       (fun e σ m o hm h2 => It.run_final e σ m o (by simpa only [M0] using hm) (by omega))
       itReach
       (fun inp e σ hm => It.out_final inp e σ hm)
       It.log_final
+      [2] (entryS 0)
+      (by
+        intro e σ r hr
+        simp only [List.mem_cons, List.mem_nil_iff, or_false] at hr
+        rw [hr, getG_hom, getG_hom]
+        simp only [State.getG, entryS, List.getD_eq_getElem?_getD, List.getElem?_map,
+          List.map_cons, List.map_nil, mapVal, mapAddr, Lin.ofInt, Lin.eval, dotC]
+        rfl)
+      (by
+        intro e σ₁ σ₂ σ₃ m r hr
+        simp only [List.mem_cons, List.mem_nil_iff, or_false] at hr
+        rw [hr, getG_hom, getG_hom]
+        simp only [State.getG, entryS, List.getD_eq_getElem?_getD, List.getElem?_map,
+          List.map_cons, List.map_nil, mapVal, mapAddr, Lin.ofInt, Lin.eval, dotC]
+        rfl)
       (fun e σ m o hm h2 =>
         ⟨_, T0.run_final e σ m o (by simpa only [T0.M0T] using hm) h2,
           by simpa only [T0.KF, mapState] using T0.KF_halted,
@@ -120,12 +136,33 @@ theorem correct (c : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ : Nat �
           by
             simp only [T0.KF, mapState]
             rw [show T0.K1.mem = [] from T0.KF_mem]
+            rfl,
+          by
+            intro r hr
+            simp only [List.mem_cons, List.mem_nil_iff, or_false] at hr
+            rw [hr, getG_hom]
+            have hk : T0.K1.getG 2 = (.ptr (⟨rStack, Lin.ofInt 0⟩ : Addr Lin)) := by rfl
+            rw [hk]
+            simp only [getG_hom, State.getG, entryS, List.getD_eq_getElem?_getD,
+              List.getElem?_map, List.map_cons, List.map_nil, mapVal, mapAddr, Lin.ofInt,
+              Lin.eval, dotC]
             rfl⟩)
       inp mem0c hw (σ 0) (σ 1) hin orcC c 0 σ (envAbs env0 Rhead)
       (KP.mem.map (fun p => (mapAddr σ p.1, mapCell (envAbs env0 Rhead) σ p.2)))
       (by omega) (by omega) hc hR hO hsave
-  refine ⟨hh, he', ht, ?_, ?_⟩
+  refine ⟨hh, he', ht, ?_, ?_, ?_⟩
   · simpa only [Nat.mul_zero, Nat.zero_add] using hR'
   · simpa only [Nat.zero_add] using hO'
+  · intro r hr
+    have h2 := hreg' r hr
+    have hmap : (mapState (envAbs env0 Rhead) σ (entryS 0)).getG 2 =
+        (mapState env0 σ (entryS 0)).getG 2 := by
+      rw [getG_hom, getG_hom]
+      simp only [State.getG, entryS, List.getD_eq_getElem?_getD, List.getElem?_map,
+        List.map_cons, List.map_nil, mapVal, mapAddr, Lin.ofInt, Lin.eval, dotC]
+      rfl
+    simp only [List.mem_cons, List.mem_nil_iff, or_false] at hr
+    subst hr
+    simpa only [Nat.zero_add] using h2.trans hmap
 
 end Hashtree.Proofs.RvCryptoL
