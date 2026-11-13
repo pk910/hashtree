@@ -32,6 +32,7 @@ import Hashtree.Proofs.WinShani
 import Hashtree.Proofs.WinSseX1
 import Hashtree.Proofs.WinAvxX1
 import Hashtree.Proofs.WinChain
+import Hashtree.Proofs.WinFrame
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -98,6 +99,8 @@ import Hashtree.Proofs.WinChain
 #print axioms Hashtree.Proofs.WinChain.win_chain_names
 #print axioms Hashtree.Proofs.WinChain.win_chain_tails
 #print axioms Hashtree.Proofs.WinChain.win_small_exit
+#print axioms Hashtree.Asm.X86.exec_shiftPc
+#print axioms Hashtree.Asm.X86.run_shift
 #print axioms Hashtree.Proofs.WinChain.win_chainRun_returns
 #print axioms Hashtree.Proofs.WinChain.win_callChain_returns
 #print axioms Hashtree.Proofs.WinChain.win_callChain_fr
