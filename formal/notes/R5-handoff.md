@@ -173,3 +173,65 @@ Design (decidable from the stream, checked by `decide +kernel`):
 If the per-pc rsp map fails to verify for a stream (an rsp write not in the list above), fall
 back to the fixed-rsp bodies first (shani done; avx512, avx_x4 next) — none of the three is
 expected to fail given sections 5/11/12 of R5.md.
+
+## avx512_x16 link proof plan (`KSpecC512_of_turnOut`, module `Proofs/WinAvx512Link.lean` to create)
+
+State of the tree: 49e49d5 (engine with flags bit + tail seed; `WinAvx512Bridge` has `KSpecC512`
+with `24 ≤ σ 9`, `TurnOut`; R2b merged at 7669e84 and built: `Avx512X16W{Entry,Body,BodyV,Turn,
+Loop}`, `Avx2X8WEntry`, `AvxX4Exit`, `AvxX4ToX1`, `AvxX1WAt`).
+
+Theorem: `KSpecC512_of_turnOut (hT : TurnOut) env σ m0 orcC c inp : KSpecC512
+Avx512X16WLoop.steps env σ m0 orcC c inp` (hypotheses of KSpecC512: WfMemW (windows rodata =
+linux rodata? CHECK `decide` as for shani: `Kernels.X86Win.Avx512X16.rodata = Kernels.X86.
+Avx512X16.rodata`; if they differ, use R2b's region machinery `x16_all_region`), EnvMem, σ 2 = c,
+24 ≤ σ 9, input bytes; then ∀ s = mapState env σ entryWin).
+
+Ingredients (all evaluated/checked this session):
+* Renaming (`WinAvx512.F`/`G`, `win_transfer hprog n s hlen herr herr'`: `run winProg n (renSt F G
+  s) = renSt F G (run linuxProg n s)`, `hprog := win_correspondence`): windows j holds linux
+  `G j`; `G 1 = 7, G 2 = 6, G 6 = 9, G 7 = 10, G 8 = 2, G 9 = 1, G 10 = 8`, identity elsewhere.
+* Linux certificate env `eL`: `eL (.n 18) := env (.n 12)`, `eL (.n 19) := env (.n 13)` (linux r9
+  = `gId 9 _` = 18/19 must carry windows rsi = `gId 6 _` = 12/13; `gId g h = 2g+h`), `eL (.n k)
+  := env (.n k)` otherwise, `eL (.m r off) := cellX (m0 ⟨r, off.eval σ'⟩)`; `σ' := fun i => if
+  i = 10 then σ 1 else σ i` (x16_loop needs `σ 10 = σ 1`; entryW does not read symbol 10).
+  `Mem0Rel eL σ' mW m0` from `mem0RelW_of_wf rodata [] eL σ' m0 (WfMemW …) (EnvMem by rfl)`.
+* Entry agreement (windows side): `Agree L0 false (mapState env σ entryWin) (renSt F G (mapState
+  eL σ' entryW))` with `L0 = WinAvx512Live.live_entry_eq = [8,4,5,6,12,13,14,15,2,1]`:
+  entryW (linux, `X86SymW.entryW`): 0 ptr(rOut,s1), 1 ptr(rNum,s2), 2 ptr(rNum,s2), 3 ptr(rStack,s5),
+  4 ptr(rStack,sAt 0), 5 ptr(rStack,s6), 6 ptr(rIn,s0), 7 ptr(rOut,s1), 8 num(16,17), 9 num(18,19),
+  10 num(20,21), 11 num(22,23), 12 ptr(rStack,s7), 13 ptr(rNum,s11), 14 ptr(rG,s8), 15 ptr(rNum,s12).
+  entryWin (windows): 1 ptr(rOut,s1), 2 ptr(rIn,s0), 8 ptr(rNum,s2), 4 ptr(rStack,sAt 0),
+  3 ptr(rStack,s5), 5 ptr(rStack,s6), 12 ptr(rNum,s7) [NB: entryW has r12 = ptr(rStack,s7) —
+  constructor differs! 12 ∈ L0: CHECK which is right; if the linux r12 is rStack-tagged and the
+  windows one rNum-tagged, the entry Agree on 12 fails and r12 must leave L0: it is only in L0
+  because avx2_x8 saves it (the push-saving link) — handle by proving the avx2 side reads r12 only
+  into its save slot (frame-slot certificate) or by tagging both the same; report if blocked],
+  13 ptr(rNum,s11), 14 ptr(rG,s8), 15 ptr(rNum,s12), 6/7/0/9/10/11 num(gId).
+  Pairs for L0: 8↔2 ✓, 4↔4 ✓, 5↔5 ✓, 6↔9 (num 12/13 vs num 18/19 — fixed by eL) ✓, 12↔12 (see NB),
+  13↔13 ✓, 14↔14 ✓, 15↔15 ✓, 2↔6 ✓, 1↔7 ✓; vr: same lanes (vId = 100+16i+l), eL = env on them;
+  flags: fl = false; mem [] both; pc 0; len 16 (`renSt_gpr_len`).
+* Then `run_agree WinAvx512Live.cert (steps c)` gives Agree at the final pc between W (windows run)
+  and `renSt F G f` (f the linux run), on `L (final pc)` ⊇ `T8` at a tail pc (`Cert.tail`) and
+  ∋ 4 at the ret pc 3 (ret reads rsp).
+* Cases (`Avx512X16WLoop.steps c = if c = 0 then 4 else if c < 16 then 8 else 8 + turnSteps*(c/16)`):
+  - c = 0: `x16_zero_run` → f = mapState e σ' KZ; KZ.pc = 3, halted, tail none, err none, mem [],
+    `KZ.gpr[4]? = ptr(rStack, sAt 8)`. PostLink D = 0: Foot/OutOk vacuous (mem = []), RegsOkW:
+    callee-saved via a never-written scan of p512 for [3,5,12,13,14,15] + `run_preserve_all`
+    (to add to RunExit: no body range, halted steps are identity), rsp = σ9+8 via Agree(final pc ∋ 4).
+  - 0 < c < 16: `x16_small_run` → f = mapState e σ' KSm, tail avx2; `KSm.gpr = entryW.gpr`,
+    `KSm.vr = entryW.vr`, mem []. PreLink d = 0, r = c, M' = [], e' := env (vector file unchanged).
+  - 16 ≤ c: `x16_loop` → f = fr M (mapState e (sIt (c/16-1) σ') KTE), OutLog M, `sIt_count`.
+    KTE (evaluated): rax ptr(rOut,s10), rcx ptr(4,0), rdx ptr(rNum, s2-16), rbx ptr(rStack,s5),
+    rsp ptr(rStack,sAt 0), rbp ptr(rStack,s6), rsi ptr(rIn, 1024+s0), rdi ptr(rOut, 512+s1),
+    r8 ptr(4,4160), r9 num(18,19), r10 num(20,21), r11 ptr(4,8256), r12 ptr(rStack,s7),
+    r13 ptr(rNum,s11), r14 ptr(rG,s8), r15 ptr(rNum,s12); KTE.mem = 512 rOut cells at s1+0..511;
+    KTE.pc = 8, halted, tail avx2. `tau = [⟨1024,[1]⟩, ⟨512,[0,1]⟩, ⟨-16,[0,0,1]⟩]`, `sIt (j+1) σ
+    = sIt j (sigmaOf tau σ)`, `sigmaOf tau σ i = (tau.getD i (Lin.sym i)).eval σ`: prove
+    `sIt j σ 0 = σ 0 + 1024 j`, `sIt j σ 1 = σ 1 + 512 j`, `sIt j σ i = σ i` for i ∉ {0,1,2}
+    (R2b has `sIt_count`, `sIt_9`). With j = c/16-1: rdi = σ1 + 32(c - c%16), rsi = σ0 + 64(c -
+    c%16), rdx = c%16. PreLink d = c - c%16, r = c%16: M' := W.mem = KTE.mem-mapped ++ M;
+    OutLogW (σ 9) M' from OutLog M (stack writes `off < 24 ≤ σ 9`) and KTE.mem all rOut; Foot and
+    OutOk from `hT` (TurnOut); vector env `e' (.n n) := if ∃ i < 32, ∃ l < 16, n = vId i l then
+    E.eval eL (KTE lane i l) else env (.n n)` (decidable bounded ∃; vId injective by omega), `e'`
+    on `.m` keys irrelevant (entryWin has no memory symbols) — SameG env e' since vId ≥ 100 > gId.
+* halted/err/tail of W from f via Agree + renSt (`renSt` keeps everything but gpr).
