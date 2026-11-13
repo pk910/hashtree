@@ -8,6 +8,9 @@ autoImplicit = false
 [[lean_lib]]
 name = "Hashtree"
 
+[[lean_lib]]
+name = "RvLib"
+
 [[lean_exe]]
 name = "x86check"
 root = "X86Check"
@@ -47,6 +50,10 @@ root = "X86Proof1"
 [[lean_exe]]
 name = "rvproof"
 root = "RvProof"
+
+[[lean_exe]]
+name = "rvloop"
+root = "RvLoop"
 
 [[lean_exe]]
 name = "x86loop1"

@@ -23,6 +23,10 @@ import Hashtree.Gen.ArmNeonX4P.Final
 import Hashtree.Gen.RvX1P.Final
 import Hashtree.Gen.RvZbbX1P.Final
 import Hashtree.Gen.RvCryptoP.Final
+/- R4: riscv64 -/
+import Hashtree.Proofs.RvX1All
+import Hashtree.Proofs.RvZbbX1All
+import Hashtree.Proofs.RvCryptoAll
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -44,3 +48,8 @@ import Hashtree.Gen.RvCryptoP.Final
 #print axioms Hashtree.Gen.RvX1P.Final.out_final
 #print axioms Hashtree.Gen.RvZbbX1P.Final.out_final
 #print axioms Hashtree.Gen.RvCryptoP.Final.out_final
+
+/- R4: riscv64 -/
+#print axioms Hashtree.Proofs.RvX1L.correct
+#print axioms Hashtree.Proofs.RvZbbX1L.correct
+#print axioms Hashtree.Proofs.RvCryptoL.correct

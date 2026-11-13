@@ -152,4 +152,27 @@ theorem hyps_satR (ro got : Region) (rodata : List Nat) (gotT : List (Region × 
   simp only [envOfMem, m, cmemR, e1, e2, ite_false, ite_true, cellX, Lin.eval, dotC]
   rw [show ((o : Int) + (1 * σ 0 + 0) - σ 0).toNat = o by omega]
 
+/-- Symbolic memory at the exit segment: like `mem0s`, except that the stack slots the prologue
+saved registers in (`saves`, byte offsets below the entry stack pointer) are read back from the
+memory keys of those addresses, so that the epilogue's loads are symbolic and `Mem0Rel` holds
+against any memory whose cells there have the saved values (the loop's accumulated log). -/
+def mem0sT (ro got : Region) (rodata : List Nat) (gotT : List (Region × Int)) (saves : List Int) :
+    Addr Lin → Cell E Lin := fun a =>
+  match a.off.asInt with
+  | some o =>
+    if a.region = rStack ∧ saves.contains o then
+      .dat (.var (.m rStack a.off)) (((o + 16) % 4).toNat)
+    else mem0s ro got rodata gotT a
+  | none => mem0s ro got rodata gotT a
+
+theorem mem0sT_keyed (ro got : Region) (rodata : List Nat) (gotT : List (Region × Int)) (saves : List Int) :
+    MemKeyed (mem0sT ro got rodata gotT saves) := by
+  intro a
+  unfold mem0sT
+  split
+  · split
+    · exact Or.inr (Or.inl ⟨_, _, _, rfl⟩)
+    · exact mem0s_keyed ro got rodata gotT a
+  · exact mem0s_keyed ro got rodata gotT a
+
 end Hashtree.Asm.RiscvSym

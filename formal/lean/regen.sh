@@ -28,7 +28,7 @@ esac
 want() { [ "$target" = all ] || [ "$target" = "$1" ]; }
 
 # Build the generators once; they are small compared with the proofs.
-lake build x86loop x86loopw x86loop1 x86loop1w x86proof1 x86proofv armproof rvproof
+lake build x86loop x86loopw x86loop1 x86loop1w x86proof1 x86proofv armproof rvproof rvloop
 
 if [ "$target" = all ]; then
   rm -rf Hashtree/Gen
@@ -43,9 +43,9 @@ else
     sha_x1)             rm -rf Hashtree/Gen/ArmShaX1P ;;
     neon_x1)            rm -rf Hashtree/Gen/ArmNeonX1P Hashtree/Gen/ArmNeonX1P0 ;;
     neon_x4)            rm -rf Hashtree/Gen/ArmNeonX4P ;;
-    riscv_x1)           rm -rf Hashtree/Gen/RvX1P ;;
-    riscv_zbb_x1)       rm -rf Hashtree/Gen/RvZbbX1P ;;
-    riscv_crypto)       rm -rf Hashtree/Gen/RvCryptoP ;;
+    riscv_x1)           rm -rf Hashtree/Gen/RvX1P Hashtree/Gen/RvX1L ;;
+    riscv_zbb_x1)       rm -rf Hashtree/Gen/RvZbbX1P Hashtree/Gen/RvZbbX1L ;;
+    riscv_crypto)       rm -rf Hashtree/Gen/RvCryptoP Hashtree/Gen/RvCryptoL ;;
     *)                  : ;;
   esac
 fi
@@ -78,9 +78,12 @@ if want neon_x1;  then lake exe armproof neon_x1 2 Hashtree/Gen/ArmNeonX1P
 if want neon_x4;  then lake exe armproof neon_x4 4 Hashtree/Gen/ArmNeonX4P; fi
 
 # linux/riscv64
-if want riscv_x1;       then lake exe rvproof x1     Hashtree/Gen/RvX1P; fi
-if want riscv_zbb_x1;   then lake exe rvproof zbb    Hashtree/Gen/RvZbbX1P; fi
-if want riscv_crypto;   then lake exe rvproof crypto Hashtree/Gen/RvCryptoP; fi
+if want riscv_x1;       then lake exe rvproof x1     Hashtree/Gen/RvX1P
+                             lake exe rvloop  x1     Hashtree/Gen/RvX1L all; fi
+if want riscv_zbb_x1;   then lake exe rvproof zbb    Hashtree/Gen/RvZbbX1P
+                             lake exe rvloop  zbb    Hashtree/Gen/RvZbbX1L all; fi
+if want riscv_crypto;   then lake exe rvproof crypto Hashtree/Gen/RvCryptoP
+                             lake exe rvloop  crypto Hashtree/Gen/RvCryptoL all; fi
 
 echo "regenerated Hashtree/Gen ($target)"
 
@@ -98,9 +101,9 @@ case "$target" in
   sha_x1)             lake build Hashtree.Gen.ArmShaX1P.Final ;;
   neon_x1)            lake build Hashtree.Gen.ArmNeonX1P.Final Hashtree.Gen.ArmNeonX1P0.Final ;;
   neon_x4)            lake build Hashtree.Gen.ArmNeonX4P.Final ;;
-  riscv_x1)           lake build Hashtree.Gen.RvX1P.Final ;;
-  riscv_zbb_x1)       lake build Hashtree.Gen.RvZbbX1P.Final ;;
-  riscv_crypto)       lake build Hashtree.Gen.RvCryptoP.Final ;;
+  riscv_x1)           lake build Hashtree.Gen.RvX1P.Final Hashtree.Proofs.RvX1All ;;
+  riscv_zbb_x1)       lake build Hashtree.Gen.RvZbbX1P.Final Hashtree.Proofs.RvZbbX1All ;;
+  riscv_crypto)       lake build Hashtree.Gen.RvCryptoP.Final Hashtree.Proofs.RvCryptoAll ;;
   wrapper_linux_amd64) lake build Hashtree.Proofs.WrapperAmd64 ;;
   go_generic)         lake build Hashtree.GoProof ;;
   go_api)             lake build Hashtree.Glue ;;
