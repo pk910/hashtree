@@ -80,16 +80,16 @@ import Hashtree.Proofs.Avx512X16WLoop
 #print axioms Hashtree.Proofs.AvxX4LoopTurn.turn_run
 #print axioms Hashtree.Proofs.AvxX4ToX1.x4_small_to_x1
 
-#print axioms Hashtree.Gen.AvxX4P.Final.out_final
-#print axioms Hashtree.Gen.Avx2X8P.Final.out_final
-#print axioms Hashtree.Gen.Avx512X16P.Final.out_final
-#print axioms Hashtree.Gen.ArmShaX1P.Final.out_final
-#print axioms Hashtree.Gen.ArmNeonX1P.Final.out_final
-#print axioms Hashtree.Gen.ArmNeonX1P0.Final.only_stack_writes_run
-#print axioms Hashtree.Gen.ArmNeonX4P.Final.out_final
-#print axioms Hashtree.Gen.RvX1P.Final.out_final
-#print axioms Hashtree.Gen.RvZbbX1P.Final.out_final
-#print axioms Hashtree.Gen.RvCryptoP.Final.out_final
+#print axioms Hashtree.Gen.AvxX4P.out_final
+#print axioms Hashtree.Gen.Avx2X8P.out_final
+#print axioms Hashtree.Gen.Avx512X16P.out_final
+#print axioms Hashtree.Gen.ArmShaX1P.out_final
+#print axioms Hashtree.Gen.ArmNeonX1P.out_final
+#print axioms Hashtree.Gen.ArmNeonX1P0.only_stack_writes_run
+#print axioms Hashtree.Gen.ArmNeonX4P.out_final
+#print axioms Hashtree.Gen.RvX1P.out_final
+#print axioms Hashtree.Gen.RvZbbX1P.out_final
+#print axioms Hashtree.Gen.RvCryptoP.out_final
 
 /- R5: windows amd64 -/
 #print axioms Hashtree.Proofs.WinAvx512.win_run
