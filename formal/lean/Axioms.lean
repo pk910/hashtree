@@ -26,6 +26,9 @@ import Hashtree.Gen.ArmNeonX4P.Final
 import Hashtree.Gen.RvX1P.Final
 import Hashtree.Gen.RvZbbX1P.Final
 import Hashtree.Gen.RvCryptoP.Final
+/- R5: windows amd64 -/
+import Hashtree.Proofs.WinAvx512
+import Hashtree.Proofs.WinShani
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -50,3 +53,17 @@ import Hashtree.Gen.RvCryptoP.Final
 #print axioms Hashtree.Gen.RvX1P.Final.out_final
 #print axioms Hashtree.Gen.RvZbbX1P.Final.out_final
 #print axioms Hashtree.Gen.RvCryptoP.Final.out_final
+
+/- R5: windows amd64 -/
+#print axioms Hashtree.Proofs.WinAvx512.win_run
+#print axioms Hashtree.Proofs.WinAvx512.win_out
+#print axioms Hashtree.Proofs.WinAvx512.win_no_rsp
+#print axioms Hashtree.Proofs.WinAvx512.win_no_stack_access
+#print axioms Hashtree.Proofs.WinAvx512.u6_witness
+#print axioms Hashtree.Proofs.WinShani.shani_body_correspondence
+#print axioms Hashtree.Proofs.WinShani.shani_stack_footprint
+#print axioms Hashtree.Proofs.WinShani.shani_callee_gpr_untouched
+#print axioms Hashtree.Proofs.WinShani.shani_rsp_balanced
+#print axioms Hashtree.Proofs.WinShani.shani_prologue_saves
+#print axioms Hashtree.Proofs.WinShani.shani_epilogue_restores
+#print axioms Hashtree.Proofs.WinShani.shani_save_slots_untouched
