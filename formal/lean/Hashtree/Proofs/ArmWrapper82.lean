@@ -52,6 +52,19 @@ theorem shaniPath82_1 : shaniPath82[1]? = some (.ins (.subi 31 31 2048)) := by d
 theorem shaniPath82_2 : shaniPath82[2]? = some (.ins .ret) := by decide
 theorem shaniPath82_size : shaniPath82.size = 3 := by decide
 
+/-- The #82 `neon_x4` leg stream, after the shared `ADD $2048` has run:
+`BL hashtree_sha256_neon_x4; SUB $2048, RSP; RET`.  The return marker `1` is the renumbered
+index of the shared `done:` `SUB`; the branch's `JMP done` is absorbed (both arms reach it).
+The `#79`-stream form `neonPath` (with the `ADD` in front) is `neonPath_82_shape` below. -/
+def neonPath82 : Array WInstr :=
+  #[.call 1 "hashtree_sha256_neon_x4", .ins (.subi 31 31 2048), .ins .ret]
+
+theorem neonPath82_0 :
+    neonPath82[0]? = some (.call 1 "hashtree_sha256_neon_x4") := by decide
+theorem neonPath82_1 : neonPath82[1]? = some (.ins (.subi 31 31 2048)) := by decide
+theorem neonPath82_2 : neonPath82[2]? = some (.ins .ret) := by decide
+theorem neonPath82_size : neonPath82.size = 3 := by decide
+
 /-- The wrapper state after the shared `ADD $2048` (`exec_addi_entry`, pc renumbered to 0 so
 the leg stream indexes from 0).  The NEON leg's `neonPath` starts one instruction earlier and
 executes the `ADD` itself; the `sha_x1` leg starts here. -/
@@ -129,40 +142,45 @@ theorem neonPath_82_shape :
       = #[.ins (.addi 31 31 2048), .call 2 "hashtree_sha256_neon_x4",
           .ins (.subi 31 31 2048), .ins .ret] := rfl
 
-/-- The #82 `sha_x1` path, with the kernel leg as hypothesis.
+/-- The #82 leg path after the shared `ADD $2048`: a `BL` (return marker `1`, the renumbered
+index of the shared `done:` `SUB`), the shared `SUB $2048, RSP`, and `RET`.
 
-`hsc` is the `sha_x1` chain from `shaEntry82` (`SP = sp0 + 2048`, `x30 = <rRet,1>`); its `ret`
+`hsc` is the callee chain from `shaEntry82` (`SP = sp0 + 2048`, `x30 = <rRet,1>`); its `ret`
 leaves `x30 = <rRet,1>` and `SP` at the moved entry `SP`.  The wrapper then executes the shared
-`SUB $2048; RET`, restoring `SP = sp0`. -/
-theorem wrapper_sha82 (progs : List Prog) (m0 : Addr Int → Cell W32 Int) (fuel hops : Nat)
-    (count : Nat) (sp0 : Int) (sc : CS) (path : List String)
-    (hsc : runChain progs m0 fuel hops "hashtree_sha256_sha_x1" (shaEntry82 count sp0)
-      = (sc, path))
+`SUB $2048; RET`, restoring `SP = sp0`.  `sha_x1` and `neon_x4` share this suffix, so the
+stream, the call name and its three instructions are parameters; `wrapper_sha82` and
+`wrapper_neon82` fix them. -/
+theorem wrapper_leg82 (progs : List Prog) (m0 : Addr Int → Cell W32 Int) (fuel hops : Nat)
+    (count : Nat) (sp0 : Int) (sc : CS) (path : List String) (wp : Array WInstr) (name : String)
+    (hp0 : wp[0]? = some (.call 1 name))
+    (hp1 : wp[1]? = some (.ins (.subi 31 31 2048)))
+    (hp2 : wp[2]? = some (.ins .ret))
+    (hsc : runChain progs m0 fuel hops name (shaEntry82 count sp0) = (sc, path))
     (herr : sc.err = none) (hHalt : sc.halted = true) (hTail : sc.tail = none)
     (h30 : sc.getG 30 = .ptr ⟨rRet, (1 : Int)⟩)
     (h31 : sc.getG 31 = .ptr ⟨rStack, sp0 + 2048⟩)
     (hgl : 31 < sc.gpr.length) :
-    ∃ sf, runCall progs shaniPath82 rNum m0 fuel hops 3 (shaWrap82 count sp0) = sf ∧
+    ∃ sf, runCall progs wp rNum m0 fuel hops 3 (shaWrap82 count sp0) = sf ∧
       sf.err = none ∧ sf.halted = true ∧ sf.tail = none ∧
       sf.getG 31 = .ptr ⟨rStack, sp0⟩ := by
   let E : CS := shaWrap82 count sp0
-  let C : CS := { setRet E 1 with halted := true, tail := some "hashtree_sha256_sha_x1" }
+  let C : CS := { setRet E 1 with halted := true, tail := some name }
   let D : CS := { sc with pc := 1, halted := false, tail := none }
   let a31 : Addr Int := ⟨rStack, sp0 + 2048⟩
   let F : CS := (State.setG D 31 (.ptr (a31.plusI (-((2048 : Nat) : Int))))).next
   let G : CS := { F with halted := true }
-  have hE : runW shaniPath82 rNum m0 (fun _ => false) 1 E = C := by
-    rw [runW_one shaniPath82 rNum m0 (fun _ => false) E (.call 1 "hashtree_sha256_sha_x1")
-      (by rfl) shaniPath82_0]
+  have hE : runW wp rNum m0 (fun _ => false) 1 E = C := by
+    rw [runW_one wp rNum m0 (fun _ => false) E (.call 1 name)
+      (by rfl) hp0]
     simp only [execW, show E.halted = false from rfl]
     rfl
   have hsha : ({ C with pc := 0, halted := false, tail := none } : CS)
       = shaEntry82 count sp0 := by
     rw [shaEntry82_callee]
-  have step1 : runCall progs shaniPath82 rNum m0 fuel hops 3 E
-      = runCall progs shaniPath82 rNum m0 fuel hops 2 D := by
-    change runCall progs shaniPath82 rNum m0 fuel hops (2 + 1) E
-      = runCall progs shaniPath82 rNum m0 fuel hops 2 D
+  have step1 : runCall progs wp rNum m0 fuel hops 3 E
+      = runCall progs wp rNum m0 fuel hops 2 D := by
+    change runCall progs wp rNum m0 fuel hops (2 + 1) E
+      = runCall progs wp rNum m0 fuel hops 2 D
     rw [runCall_succ (n := 2), hE]
     have hc : (C.halted && C.err == none && C.tail.isSome) = true := by rfl
     simp only [hc, if_true]
@@ -183,15 +201,15 @@ theorem wrapper_sha82 (progs : List Prog) (m0 : Addr Int → Cell W32 Int) (fuel
   have hDgl : 31 < D.gpr.length := by
     show 31 < sc.gpr.length
     exact hgl
-  have hD : runW shaniPath82 rNum m0 (fun _ => false) 1 D = F := by
-    rw [runW_one shaniPath82 rNum m0 (fun _ => false) D (.ins (.subi 31 31 2048))
-      (by rfl) shaniPath82_1]
+  have hD : runW wp rNum m0 (fun _ => false) 1 D = F := by
+    rw [runW_one wp rNum m0 (fun _ => false) D (.ins (.subi 31 31 2048))
+      (by rfl) hp1]
     simp only [execW, show D.halted = false from rfl]
     exact exec_subi_eq rNum m0 (fun _ => false) D a31 31 31 2048 (by rfl) hD31
-  have step2 : runCall progs shaniPath82 rNum m0 fuel hops 2 D
-      = runCall progs shaniPath82 rNum m0 fuel hops 1 F := by
-    change runCall progs shaniPath82 rNum m0 fuel hops (1 + 1) D
-      = runCall progs shaniPath82 rNum m0 fuel hops 1 F
+  have step2 : runCall progs wp rNum m0 fuel hops 2 D
+      = runCall progs wp rNum m0 fuel hops 1 F := by
+    change runCall progs wp rNum m0 fuel hops (1 + 1) D
+      = runCall progs wp rNum m0 fuel hops 1 F
     rw [runCall_succ (n := 1), hD]
     have hc : (F.halted && F.err == none && F.tail.isSome) = false := by rfl
     simp only [hc, Bool.false_eq_true, if_false]
@@ -201,14 +219,14 @@ theorem wrapper_sha82 (progs : List Prog) (m0 : Addr Int → Cell W32 Int) (fuel
       = .ptr ⟨rRet, (1 : Int)⟩
     rw [next_getG, setG_getG_ne _ 31 30 _ hne]
     exact h30
-  have hG : runW shaniPath82 rNum m0 (fun _ => false) 1 F = G := by
-    rw [runW_one shaniPath82 rNum m0 (fun _ => false) F (.ins .ret) (by rfl) shaniPath82_2]
+  have hG : runW wp rNum m0 (fun _ => false) 1 F = G := by
+    rw [runW_one wp rNum m0 (fun _ => false) F (.ins .ret) (by rfl) hp2]
     simp only [execW, show F.halted = false from rfl]
     exact exec_ret_halt rNum m0 (fun _ => false) F (1 : Int) (by rfl) hF30
-  have step3 : runCall progs shaniPath82 rNum m0 fuel hops 1 F
-      = runCall progs shaniPath82 rNum m0 fuel hops 0 G := by
-    change runCall progs shaniPath82 rNum m0 fuel hops (0 + 1) F
-      = runCall progs shaniPath82 rNum m0 fuel hops 0 G
+  have step3 : runCall progs wp rNum m0 fuel hops 1 F
+      = runCall progs wp rNum m0 fuel hops 0 G := by
+    change runCall progs wp rNum m0 fuel hops (0 + 1) F
+      = runCall progs wp rNum m0 fuel hops 0 G
     rw [runCall_succ (n := 0), hG]
     have hc : (G.halted && G.err == none && G.tail.isSome) = false := by
       rw [show G.halted = true from rfl, show G.tail = none from rfl]
@@ -232,6 +250,39 @@ theorem wrapper_sha82 (progs : List Prog) (m0 : Addr Int → Cell W32 Int) (fuel
   · rfl
   · show F.getG 31 = .ptr ⟨rStack, sp0⟩
     rw [hF31, haddr]
+
+/-- The #82 `sha_x1` leg: `BL hashtree_sha256_sha_x1; SUB $2048, RSP; RET` after the shared
+`ADD $2048` (the generic suffix is `wrapper_leg82`). -/
+theorem wrapper_sha82 (progs : List Prog) (m0 : Addr Int → Cell W32 Int) (fuel hops : Nat)
+    (count : Nat) (sp0 : Int) (sc : CS) (path : List String)
+    (hsc : runChain progs m0 fuel hops "hashtree_sha256_sha_x1" (shaEntry82 count sp0)
+      = (sc, path))
+    (herr : sc.err = none) (hHalt : sc.halted = true) (hTail : sc.tail = none)
+    (h30 : sc.getG 30 = .ptr ⟨rRet, (1 : Int)⟩)
+    (h31 : sc.getG 31 = .ptr ⟨rStack, sp0 + 2048⟩)
+    (hgl : 31 < sc.gpr.length) :
+    ∃ sf, runCall progs shaniPath82 rNum m0 fuel hops 3 (shaWrap82 count sp0) = sf ∧
+      sf.err = none ∧ sf.halted = true ∧ sf.tail = none ∧
+      sf.getG 31 = .ptr ⟨rStack, sp0⟩ :=
+  wrapper_leg82 progs m0 fuel hops count sp0 sc path shaniPath82 "hashtree_sha256_sha_x1"
+    shaniPath82_0 shaniPath82_1 shaniPath82_2 hsc herr hHalt hTail h30 h31 hgl
+
+/-- The #82 `neon_x4` leg: `BL hashtree_sha256_neon_x4; SUB $2048, RSP; RET` after the shared
+`ADD $2048`.  The chain follows `neon_x4 -> neon_x1`; both kernels' frames are balanced, so its
+`ret` leaves `SP` at the moved entry `SP` and the shared `SUB` restores `SP = sp0`. -/
+theorem wrapper_neon82 (progs : List Prog) (m0 : Addr Int → Cell W32 Int) (fuel hops : Nat)
+    (count : Nat) (sp0 : Int) (sc : CS) (path : List String)
+    (hsc : runChain progs m0 fuel hops "hashtree_sha256_neon_x4" (shaEntry82 count sp0)
+      = (sc, path))
+    (herr : sc.err = none) (hHalt : sc.halted = true) (hTail : sc.tail = none)
+    (h30 : sc.getG 30 = .ptr ⟨rRet, (1 : Int)⟩)
+    (h31 : sc.getG 31 = .ptr ⟨rStack, sp0 + 2048⟩)
+    (hgl : 31 < sc.gpr.length) :
+    ∃ sf, runCall progs neonPath82 rNum m0 fuel hops 3 (shaWrap82 count sp0) = sf ∧
+      sf.err = none ∧ sf.halted = true ∧ sf.tail = none ∧
+      sf.getG 31 = .ptr ⟨rStack, sp0⟩ :=
+  wrapper_leg82 progs m0 fuel hops count sp0 sc path neonPath82 "hashtree_sha256_neon_x4"
+    neonPath82_0 neonPath82_1 neonPath82_2 hsc herr hHalt hTail h30 h31 hgl
 
 /-- The #82 `sha_x1` path with the kernel leg as a run to its exit cut (the shared `SUB`
 restores `SP = sp0`; the exit cut is `ShaX1Exit` at the moved `SP`). -/
