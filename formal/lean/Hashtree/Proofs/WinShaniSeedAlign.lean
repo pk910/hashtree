@@ -138,7 +138,6 @@ theorem seed_ne_entryW (env : Key → W32) (σ : Nat → Int) (a : Addr Int)
 
 end EntryW
 
-end Hashtree.Proofs.WinShaniSeedAlign
 
 /-! ## The body read set: registers read before their first write
 
@@ -164,3 +163,5 @@ theorem shani_body_rbw_linux : rbw linuxBody = [2, 6, 4, 7] := by decide +kernel
 theorem shani_body_rbw_windows : rbw winBody = [8, 2, 4, 1] := by decide +kernel
 
 end ReadSet
+
+end Hashtree.Proofs.WinShaniSeedAlign
