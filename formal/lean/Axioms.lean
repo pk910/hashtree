@@ -53,6 +53,7 @@ import Hashtree.Proofs.WinWrapper
 import Hashtree.Proofs.WinWrapperSat
 import Hashtree.Proofs.WinShippedClobber
 import Hashtree.Proofs.WinShaniSeedAlign
+import Hashtree.Asm.RunAgree
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -387,3 +388,21 @@ import Hashtree.Proofs.WinShaniSeedAlign
 #print axioms Hashtree.Proofs.WinShaniSeedAlign.seed_ne_entryW
 #print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_body_rbw_linux
 #print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_body_rbw_windows
+
+-- R5: the run-invariance engine (Asm/RunAgree).  `Agree R s1 s2`: equal on everything but the
+-- general registers outside R and the branch assumptions; `exec_agree` is the one-step lemma over
+-- the completed `srcs`/`dsts` scan of Asm/BodyReads (every Instr constructor), `run_agree` the
+-- fetch-execute lift with a per-pc live-set certificate `Cert` (decided by `certB`, computed by
+-- `live`).  The shani instances: both programs certified, and the body entry live sets are the
+-- rbw tables ([2,6,4,7] linux pc 1, [8,2,4,1] windows pc 11).
+#print axioms Hashtree.Asm.RunAgree.exec_agree
+#print axioms Hashtree.Asm.RunAgree.run_agree
+#print axioms Hashtree.Asm.RunAgree.Cert_of_certB
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_linux_certB
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_windows_certB
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_linux_cert
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_windows_cert
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_linux_live_entry
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_windows_live_entry
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_linux_live_entry_eq
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_windows_live_entry_eq

@@ -3,6 +3,7 @@ import Hashtree.Proofs.WinWrapperPre
 import Hashtree.Proofs.ShaniAll
 import Hashtree.Asm.X86SymW
 import Hashtree.Asm.BodyReads
+import Hashtree.Asm.RunAgree
 
 /-!
 # R5: the windows `shani_x2` seed versus the linux certificate start states
@@ -163,5 +164,48 @@ theorem shani_body_rbw_linux : rbw linuxBody = [2, 6, 4, 7] := by decide +kernel
 theorem shani_body_rbw_windows : rbw winBody = [8, 2, 4, 1] := by decide +kernel
 
 end ReadSet
+
+/-! ## The run-invariance certificates
+
+`rbw` is the read set of the straight-line stream; the body loops (windows pc 445 `jmp 14`, 15
+`jl 446`, 447 `je 679`), so the per-pc sets the engine of `Asm/RunAgree` consumes are the
+live-variable fixpoints `linuxLive`/`winLive`, certified by `certB` (`decide +kernel`).  The entry
+live sets are exactly the `rbw` tables above: linux pc 1 (after `sub rsp, 88`) reads
+`[2, 6, 4, 7]`, windows pc 11 (after the prologue) reads `[8, 2, 4, 1]`. -/
+
+section Live
+open Hashtree.Asm.BodyReads Hashtree.Asm.RunAgree
+
+abbrev linuxProg : Array Instr := Hashtree.Kernels.X86.Shani.prog
+abbrev winProg : Array Instr := Hashtree.Kernels.X86Win.Shani.prog
+
+/-- Per-pc live register sets of the linux `shani_x2` program. -/
+def linuxLive : List (List Nat) := live linuxProg
+/-- Per-pc live register sets of the windows `shani_x2` program. -/
+def winLive : List (List Nat) := live winProg
+
+theorem shani_linux_certB : certB linuxProg linuxLive = true := by decide +kernel
+theorem shani_windows_certB : certB winProg winLive = true := by decide +kernel
+
+/-- The certificate `run_agree` consumes for the linux program. -/
+theorem shani_linux_cert : Cert linuxProg (fun p => linuxLive.getD p []) :=
+  Cert_of_certB shani_linux_certB
+
+/-- The certificate `run_agree` consumes for the windows program. -/
+theorem shani_windows_cert : Cert winProg (fun p => winLive.getD p []) :=
+  Cert_of_certB shani_windows_certB
+
+/-- Closure: the linux body entry live set (pc 1) is inside the read set `[2, 6, 4, 7]`. -/
+theorem shani_linux_live_entry_eq : linuxLive.getD 1 [] = [2, 6, 4, 7] := by decide +kernel
+theorem shani_windows_live_entry_eq : winLive.getD 11 [] = [8, 2, 4, 1] := by decide +kernel
+
+theorem shani_linux_live_entry : ∀ r, r ∈ linuxLive.getD 1 [] → r ∈ [2, 6, 4, 7] := by
+  rw [shani_linux_live_entry_eq]; exact fun _ h => h
+
+/-- Closure: the windows body entry live set (pc 11) is inside the read set `[8, 2, 4, 1]`. -/
+theorem shani_windows_live_entry : ∀ r, r ∈ winLive.getD 11 [] → r ∈ [8, 2, 4, 1] := by
+  rw [shani_windows_live_entry_eq]; exact fun _ h => h
+
+end Live
 
 end Hashtree.Proofs.WinShaniSeedAlign
