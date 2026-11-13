@@ -101,6 +101,34 @@ theorem sh_gpr_length (k : Int) (s : CS) :
     (Hashtree.Asm.ArmShift.sh k s).gpr.length = s.gpr.length := by
   simp [Hashtree.Asm.ArmShift.sh, Hashtree.Asm.ArmShift.shLog, List.length_map]
 
+/-- Renumber a wrapper state to the leg-stream convention: the model's per-path streams start
+at `pc = 0`, while the real #82 code has the shared `ADD $2048` at the top of the path and the
+leg after it (so the leg's first instruction sits at a positive pc there).  This reset is the
+explicit seam between "execute the shared `ADD`" and "run the leg stream". -/
+def renum (s : CS) : CS := { s with pc := 0, halted := false, tail := none }
+
+/-- The `ADD $2048` -> renumber -> `sha_x1` leg seam, explicitly: the shared `ADD` from the
+wrapper entry lands at `(shaWrap82 count sp0).next` (`pc = 1` in the pre-branch numbering), and
+resetting the pc to the leg convention gives the leg entry `shaWrap82 count sp0` whose stream is
+`shaniPath82`.  This is not an equality of pcs: the leg entry has `pc = 0` and the ADD ran at
+`pc = 0` before it; only the renumbering makes the leg stream index from 0. -/
+theorem renum_addi_shaWrap82 (m0 : Addr Int → Cell W32 Int) (count : Nat) (sp0 : Int) :
+    renum (Arm.exec rNum m0 (fun _ => false) (.addi 31 31 2048) (entry count sp0))
+      = shaWrap82 count sp0 := by
+  rw [exec_addi_shaWrap82]
+  rfl
+
+/-- The modeled #82 NEON path is the renumbered `[ADD; BL neon_x4; SUB; RET]`: the branch's
+unconditional `JMP done` is absorbed (both targets reach the same shared `done:`), and the call
+marker `2` is the index of the shared `SUB $2048` (the real `done:`) in that renumbered stream.
+This is `ArmCall.neonPath`, so `wrapper_neon` / `wrapper_neon_of_cut` apply to the #82 shape
+without a new proof; the only renumbering on this path is the callee-entry pc reset that
+`wrapper_neon` already performs explicitly (`{ C with pc := 0, ... } = neonEntry`, by `rfl`). -/
+theorem neonPath_82_shape :
+    (neonPath : Array WInstr)
+      = #[.ins (.addi 31 31 2048), .call 2 "hashtree_sha256_neon_x4",
+          .ins (.subi 31 31 2048), .ins .ret] := rfl
+
 /-- The #82 `sha_x1` path, with the kernel leg as hypothesis.
 
 `hsc` is the `sha_x1` chain from `shaEntry82` (`SP = sp0 + 2048`, `x30 = <rRet,1>`); its `ret`
@@ -296,5 +324,25 @@ theorem sha_x1_wrapper_82 (progs : List Prog) (m0 : Addr Int → Cell W32 Int)
     rw [hcode, hro, hentry, hrel.gpr, sh_gpr_length, sha_x1_run_final_gpr_length]
     decide
   exact wrapper_sha82_of_run progs m0 fuel count sp0 sha sc hf hrun hfin hgl
+
+/-- The #82 `sha_x1` leg from the wrapper entry, with the shared `ADD $2048` executed and the
+pc renumbered explicitly (`renum_addi_shaWrap82`): the top-level assembly should use this form
+rather than silently equating the post-ADD `pc = 1` state with the leg's `pc = 0` state. -/
+theorem sha_x1_wrapper_82_entry (progs : List Prog) (m0 : Addr Int → Cell W32 Int)
+    (σ : Nat → Int) (count : Nat) (sp0 : Int) (sha : Prog)
+    (hf : progs.find? (·.name = "hashtree_sha256_sha_x1") = some sha)
+    (hcode : sha.code = Hashtree.Kernels.Arm.ShaX1.prog)
+    (hro : sha.ro = 4)
+    (h0 : Mem0Rel (bridgeEnv σ m0) σ
+      (mem0s 4 Hashtree.Kernels.Arm.ShaX1.rodata) m0)
+    (hσ0 : σ 0 = 0) (hσ1 : σ 1 = 0) (hσ : σ 2 = (2 : Int))
+    (hcount : count = 2) (hsp : sp0 % 16 = 0) :
+    ∃ sf,
+      runCall progs shaniPath82 rNum m0 fuel 1 3
+        (renum (Arm.exec rNum m0 (fun _ => false) (.addi 31 31 2048) (entry count sp0))) = sf ∧
+      sf.err = none ∧ sf.halted = true ∧ sf.tail = none ∧
+      sf.getG 31 = .ptr ⟨rStack, sp0⟩ := by
+  rw [renum_addi_shaWrap82]
+  exact sha_x1_wrapper_82 progs m0 σ count sp0 sha hf hcode hro h0 hσ0 hσ1 hσ hcount hsp
 
 end Hashtree.Proofs.ArmShaX1
