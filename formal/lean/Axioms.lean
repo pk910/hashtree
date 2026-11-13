@@ -385,3 +385,5 @@ import Hashtree.Proofs.WinShaniSeedAlign
 #print axioms Hashtree.Proofs.WinShaniSeedAlign.entryW_getG5
 #print axioms Hashtree.Proofs.WinShaniSeedAlign.entryW_getG8
 #print axioms Hashtree.Proofs.WinShaniSeedAlign.seed_ne_entryW
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_body_rbw_linux
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.shani_body_rbw_windows
