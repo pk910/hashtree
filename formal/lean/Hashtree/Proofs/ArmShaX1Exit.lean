@@ -1,5 +1,6 @@
 import Hashtree.Asm.ArmCall
 import Hashtree.Asm.ArmRet
+import Hashtree.Asm.ArmShiftCall
 import Hashtree.Gen.ArmShaX1P.Final
 
 set_option maxHeartbeats 8000000
@@ -87,5 +88,46 @@ theorem sha_x1_run_exit (env0 : Key → W32) (σ : Nat → Int)
         = retOff 1 (mapState (E193 env0) σ K193) ∧
       Hashtree.Asm.ArmCall.ShaX1Exit 0 (retOff 1 (mapState (E193 env0) σ K193)) :=
   ⟨sha_x1_run_relabeled env0 σ mem0c orcC h0 hσ, sha_x1_exit env0 σ⟩
+
+/-- Stack-shift step at the entry and through the whole run: entering the tree with `SP = sp0`
+(a multiple of 16) is the `sp0`-shift of entering it with `SP = 0`, at the same return marker
+`x30 = 1` and with the initial memory shifted by `sp0` on the stack region.  The final states
+are related by `ArmShift.Rel sp0` (same registers/vr/mem after the shift, no flag requirement).
+
+The initial memory on the shifted side is `memSh sp0 mem0c`; relating that to `mem0c` is the
+memory-footprint step, not proved here. -/
+theorem sha_x1_run_shift_sp (env0 : Key → W32) (σ : Nat → Int)
+    (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (sp0 : Int)
+    (hsp : sp0 % 16 = 0) :
+    Hashtree.Asm.ArmShift.Rel sp0
+      (run Hashtree.Kernels.Arm.ShaX1.prog 4
+          (Hashtree.Asm.ArmShift.memSh sp0 mem0c) orcC fuel
+          (retOff 1 (mapState env0 σ (entryS sp0))))
+      (run Hashtree.Kernels.Arm.ShaX1.prog 4 mem0c orcC fuel
+          (retOff 1 (mapState env0 σ (entryS 0)))) := by
+  have hcanon : Hashtree.Kernels.Arm.ShaX1.prog.all Hashtree.Asm.ArmShift.Canon = true := by
+    rw [← Array.all_toList]
+    decide
+  have hrel : Hashtree.Asm.ArmShift.Rel sp0
+      (retOff 1 (mapState env0 σ (entryS sp0)))
+      (retOff 1 (mapState env0 σ (entryS 0))) := by
+    rw [Hashtree.Asm.ArmShift.entryS_map_sh, Hashtree.Asm.ArmShift.retOff_sh]
+    exact Hashtree.Asm.ArmShift.rel_sh sp0 _
+  exact Hashtree.Asm.ArmShift.run_rel Hashtree.Kernels.Arm.ShaX1.prog 4 orcC mem0c sp0
+    (by decide : (4 : Region) ≠ rStack) hsp hcanon fuel hrel
+
+/-- The shift relation composed with the known base run and base exit cut: the run entered at
+`SP = sp0` (on the `sp0`-shifted initial memory) satisfies `ShaX1Exit sp0`. -/
+theorem sha_x1_run_exit_sp (env0 : Key → W32) (σ : Nat → Int)
+    (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (sp0 : Int)
+    (h0 : Mem0Rel env0 σ (mem0s 4 Hashtree.Kernels.Arm.ShaX1.rodata) mem0c)
+    (hσ : σ 2 = 2) (hsp : sp0 % 16 = 0) :
+    Hashtree.Asm.ArmCall.ShaX1Exit sp0
+      (run Hashtree.Kernels.Arm.ShaX1.prog 4
+          (Hashtree.Asm.ArmShift.memSh sp0 mem0c) orcC fuel
+          (retOff 1 (mapState env0 σ (entryS sp0)))) := by
+  have hshift := sha_x1_run_shift_sp env0 σ mem0c orcC sp0 hsp
+  rw [sha_x1_run_relabeled env0 σ mem0c orcC h0 hσ] at hshift
+  exact Hashtree.Asm.ArmShift.ShaX1Exit_shift hshift (sha_x1_exit env0 σ)
 
 end Hashtree.Proofs.ArmShaX1
