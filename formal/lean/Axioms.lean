@@ -156,3 +156,19 @@ import Hashtree.Proofs.WinAvx2X8
 #print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_tails
 #print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_site_pc_shifts
 #print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_target_pairs
+-- R5: body correspondence of the windows avx_x4 / avx2_x8 streams (the linux body under a
+-- register substitution and the non-constant pc / target maps).
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_bodyTgt_values
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_bodyPc_values
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_body_lo_scan
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_body_hi_scan
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_body_correspondence_lo
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_body_correspondence_hi
+#print axioms Hashtree.Proofs.WinAvxX4.avx_x4_body_correspondence
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_bodyTgt_values
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_bodyPc_values
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_body_lo_scan
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_body_hi_scan
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_body_correspondence_lo
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_body_correspondence_hi
+#print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_body_correspondence

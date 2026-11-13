@@ -35,10 +35,14 @@ The frame is entered with `rsp` restored from `rbp`, so the alignment `and rsp,-
 only residue is that the frame base is the aligned value `A = (entry_rsp - 16) & -32`, which is
 below the pushed words whenever the stack has room for the frame (`avx2x8_frame_below`).
 
-As for `avx_x4`, the windows stream is **not** a renaming of the linux stream
-(`Hashtree.Kernels.X86.Avx2X8`): the register allocation and the `rip`-relative `.rodata`
-offsets differ instruction by instruction, so `avx2x8_site_pc_shifts` records the pc map as
-data instead of deriving it from a constant shift.
+As for `avx_x4`, the windows body **is** the linux body under a general-register substitution
+and a *non-constant* pc map: `avx2x8_body_correspondence` proves that every body instruction of
+the windows stream is the paired linux instruction renamed by `bodyI`, with the pairing given by
+`bodyPc` (`w - 11` up to the inserted alignment `nop` at windows pc 3728, `w - 12` after it).
+The `.rodata` offsets of the two streams are identical, and the branch targets are mapped by
+`bodyTgt`.  Because the pc map is not a constant shift, there is no single `shiftPc p` that
+describes the stream; `avx2x8_site_pc_shifts` and `avx2x8_target_pairs` record the control-flow
+site map as data, and `avx2x8_body_correspondence` covers the remaining 6060 instructions.
 
 Everything here is a kernel-checked scan of the shipped arrays (`decide +kernel`, one 2048-
 instruction slice at a time; no `native_decide`).
@@ -353,5 +357,103 @@ theorem avx2x8_target_pairs :
       [(some 4, some 4), (none, none), (some 6074, some 6086), (some 12, some 23),
         (none, none)] := by
   decide +kernel
+
+/-! ## The body correspondence of the two shipped streams
+
+Every one of the 6060 body instructions of the windows stream (pcs `25..6084`) is the linux
+instruction of the paired pc under `bodyI`.  The windows body inserts one `nop` (alignment
+padding) at pc 3728, after which the pc pairing shifts by one more: `bodyPc` is `w - 11` up to
+pc 3727 and `w - 12` after it, so the body is covered by two zipped scans (windows pcs
+`25..3727` against linux pcs `14..3716`, and windows pcs `3728..6084` against linux pcs
+`3716..6072`). -/
+
+/-- linux -> windows general register substitution of the `avx2_x8` body, recovered from the two
+streams: the linux argument/scratch `rcx`, `rdx`, `rsi`, `rdi`, `r8` become the windows
+`rsi`, `r8`, `rdx`, `rcx`, `rdi` (1->6, 2->8, 6->2, 7->1, 8->7); `rsp`, `rbx`, `rbp`, `r9`-`r15`
+are fixed.  (As for `avx_x4` this is a substitution, not a permutation of the register file.) -/
+def bodyReg : Nat → Nat
+  | 1 => 6 | 2 => 8 | 6 => 2 | 7 => 1 | 8 => 7 | j => j
+
+/-- The **non-constant target map** of the body: the linux early-return target 4 is unchanged,
+the linux loop-back target 12 becomes the windows loop head 23, and the linux loop-exit target
+6074 becomes the windows epilogue head 6086. -/
+def bodyTgt (t : Nat) : Nat :=
+  if t = 4 then 4 else if t = 12 then 23 else if t = 6074 then 6086 else t
+
+/-- linux body instruction -> the corresponding windows body instruction. -/
+def bodyI (i : Instr) : Instr :=
+  match i with
+  | .jcc c t => .jcc c (bodyTgt t)
+  | .jmp t => .jmp (bodyTgt t)
+  | i => rlI bodyReg i
+
+/-- The piecewise linux pc of a windows body pc: `w - 11` up to the inserted padding `nop` at
+windows pc 3728, `w - 12` after it. -/
+def bodyPc (w : Nat) : Nat := if w < 3728 then w - 11 else w - 12
+
+/-- The target map realizes exactly the site pairing of `avx2x8_target_pairs`. -/
+theorem avx2x8_bodyTgt_values :
+    bodyTgt 4 = 4 ∧ bodyTgt 12 = 23 ∧ bodyTgt 6074 = 6086 := by decide
+
+/-- The pc map realizes exactly the site pairing of `avx2x8_site_pc_shifts`, and it is not a
+constant shift: `bodyPc` is `w - 11` at the windows loop-guard branch pc 24 and `w - 12` at the
+loop-back pc 6085.  The single inserted padding `nop` makes pc 3727 and pc 3728 both pair with
+linux pc 3716. -/
+theorem avx2x8_bodyPc_values :
+    bodyPc 24 = 13 ∧ bodyPc 6085 = 6073 ∧ bodyPc 3727 = 3716 ∧ bodyPc 3728 = 3716
+      ∧ bodyPc 6084 = 6072 := by decide
+
+def bodyZipLo : List (Instr × Instr) :=
+  ((winProg.toList.drop 25).take 3703).zip ((linuxProg.toList.drop 14).take 3703)
+
+def bodyZipHi : List (Instr × Instr) :=
+  ((winProg.toList.drop 3728).take 2357).zip ((linuxProg.toList.drop 3716).take 2357)
+
+/-- Machine-checked: windows pcs `25..3727` are linux pcs `14..3716` renamed by `bodyI`. -/
+theorem avx2x8_body_lo_scan : bodyZipLo.all (fun p => decide (p.1 = bodyI p.2)) = true := by
+  change (((winProg.toList.drop 25).take 3703).zip
+    ((linuxProg.toList.drop 14).take 3703)).all (fun p => decide (p.1 = bodyI p.2)) = true
+  decide +kernel
+
+/-- Machine-checked: windows pcs `3728..6084` are linux pcs `3716..6072` renamed by `bodyI`. -/
+theorem avx2x8_body_hi_scan : bodyZipHi.all (fun p => decide (p.1 = bodyI p.2)) = true := by
+  change (((winProg.toList.drop 3728).take 2357).zip
+    ((linuxProg.toList.drop 3716).take 2357)).all (fun p => decide (p.1 = bodyI p.2)) = true
+  decide +kernel
+
+/-- Pointwise form of the lower half of the body correspondence. -/
+theorem avx2x8_body_correspondence_lo :
+    ∀ j, j < 3703 → winProg[25 + j]? = (linuxProg[14 + j]?).map bodyI := by
+  have hz : bodyZipLo.all (fun p => decide (p.1 = bodyI p.2)) = true := avx2x8_body_lo_scan
+  have h := of_zip_scan (l1 := winProg.toList) (l2 := linuxProg.toList)
+    (o1 := 25) (o2 := 14) (n := 3703) (f := bodyI) (by decide) (by decide) hz
+  intro j hj
+  have := h j hj
+  simpa using this
+
+/-- Pointwise form of the upper half of the body correspondence. -/
+theorem avx2x8_body_correspondence_hi :
+    ∀ j, j < 2357 → winProg[3728 + j]? = (linuxProg[3716 + j]?).map bodyI := by
+  have hz : bodyZipHi.all (fun p => decide (p.1 = bodyI p.2)) = true := avx2x8_body_hi_scan
+  have h := of_zip_scan (l1 := winProg.toList) (l2 := linuxProg.toList)
+    (o1 := 3728) (o2 := 3716) (n := 2357) (f := bodyI) (by decide) (by decide) hz
+  intro j hj
+  have := h j hj
+  simpa using this
+
+/-- **The body correspondence of the windows `avx2_x8` stream**: every body instruction of the
+windows stream is the paired linux instruction under `bodyI`, and the pairing is given by
+`bodyPc` (piecewise, not a constant shift). -/
+theorem avx2x8_body_correspondence :
+    ∀ w, 25 ≤ w → w < 6085 → winProg[w]? = (linuxProg[bodyPc w]?).map bodyI := by
+  intro w h1 h2
+  by_cases hw : w < 3728
+  · rw [bodyPc, ite_eq_left hw]
+    have h := avx2x8_body_correspondence_lo (w - 25) (by omega)
+    rwa [show 25 + (w - 25) = w from by omega, show 14 + (w - 25) = w - 11 from by omega] at h
+  · rw [bodyPc, ite_eq_right hw]
+    have h := avx2x8_body_correspondence_hi (w - 3728) (by omega)
+    rwa [show 3728 + (w - 3728) = w from by omega, show 3716 + (w - 3728) = w - 12 from by omega]
+      at h
 
 end Hashtree.Proofs.WinAvx2X8

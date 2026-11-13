@@ -35,7 +35,10 @@ The **target map** (`avx_x4_sites`) is recorded explicitly because it is *not* a
 of the linux stream: the body is re-based by 10 (`linux pc 7 -> windows pc 17`) up to the
 `jmp` at windows pc 704, and by 9 after it (`linux pc 1726 -> windows pc 1735`), and the
 windows stream has its own loop head (15), exit (4151) and tail target
-(`hashtree_sha256_avx_x1`).
+(`hashtree_sha256_avx_x1`).  `avx_x4_body_correspondence` proves the pointwise form: every body
+instruction of the windows stream is the paired linux instruction renamed by `bodyI` (general
+registers by `bodyReg`, branch targets by `bodyTgt`), with the pairing `bodyPc`; the two halves
+of the piecewise pc map are the two zipped scans `avx_x4_body_lo_scan` / `avx_x4_body_hi_scan`.
 -/
 
 open Hashtree.Asm Hashtree.Asm.X86
@@ -239,5 +242,112 @@ theorem avx_x4_target_pairs :
       [(some 4, some 4), (none, none), (some 4142, some 4151), (some 697, some 706),
         (some 697, some 706), (some 1729, some 1738), (some 5, some 15), (none, none)] := by
   decide +kernel
+
+/-! ## The body correspondence of the two shipped streams
+
+The site pairing above compares the two streams only at their control-flow sites.  The theorem
+below covers the rest: every one of the 4134 body instructions of the windows stream (pcs
+`17..4150`) is the linux instruction of the paired pc, with general registers relabelled by
+`bodyReg` and branch targets mapped by `bodyTgt`.  Because the windows prologue is shorter by
+one instruction before the body and the linux `jmp` at pc 694 is one instruction shorter than
+its windows counterpart at 704, the pc pairing is piecewise (`bodyPc`): `w - 10` up to pc 704,
+`w - 9` after it; that is why the body is covered by two zipped scans instead of one. -/
+
+/-- linux -> windows general register substitution of the `avx_x4` body, recovered from the two
+streams: the linux scratch `rcx`, `rdx`, `rsi`, `rdi` are the windows `rax`, `r8`, `rdx`, `rcx`
+(1->0, 2->8, 6->2, 7->1); `rsp`, `rbx`, `rbp`, `r8`, `r9` are fixed.  (Both streams use
+different scratch allocations, so this is a substitution, not a permutation of the register
+file.) -/
+def bodyReg : Nat → Nat
+  | 1 => 0 | 2 => 8 | 6 => 2 | 7 => 1 | j => j
+
+/-- The **non-constant target map** of the body, as a function of the linux target: the linux
+`jmp` at 5 (loop tail) becomes the windows loop head 15, and the linux body targets 697, 1729,
+4142 become the windows 706, 1738, 4151 (+9, the shift of the body after the linux `jmp` at
+pc 694); the linux early-return target 4 is unchanged. -/
+def bodyTgt (t : Nat) : Nat :=
+  if t = 4 then 4
+  else if t = 5 then 15
+  else if t = 697 then 706
+  else if t = 1729 then 1738
+  else if t = 4142 then 4151
+  else t
+
+/-- linux body instruction -> the corresponding windows body instruction. -/
+def bodyI (i : Instr) : Instr :=
+  match i with
+  | .jcc c t => .jcc c (bodyTgt t)
+  | .jmp t => .jmp (bodyTgt t)
+  | i => rlI bodyReg i
+
+/-- The piecewise linux pc of a windows body pc: `w - 10` up to the windows `jmp` at pc 704
+(linux pc 694), `w - 9` after it. -/
+def bodyPc (w : Nat) : Nat := if w < 705 then w - 10 else w - 9
+
+/-- The target map realizes exactly the site pairing of `avx_x4_target_pairs`. -/
+theorem avx_x4_bodyTgt_values :
+    bodyTgt 4 = 4 ∧ bodyTgt 5 = 15 ∧ bodyTgt 697 = 706 ∧ bodyTgt 1729 = 1738
+      ∧ bodyTgt 4142 = 4151 := by decide
+
+/-- The pc map realizes exactly the site pairing of `avx_x4_site_pc_shifts`, and it is not a
+constant shift: `bodyPc` is `w - 10` at the windows `jmp` pc 704 and `w - 9` at the loop head's
+branch pc 1715. -/
+theorem avx_x4_bodyPc_values :
+    bodyPc 704 = 694 ∧ bodyPc 1715 = 1706 ∧ bodyPc 1735 = 1726 ∧ bodyPc 4150 = 4141
+      ∧ bodyPc 705 = 696 := by decide
+
+def bodyZipLo : List (Instr × Instr) :=
+  ((winProg.toList.drop 17).take 688).zip ((linuxProg.toList.drop 7).take 688)
+
+def bodyZipHi : List (Instr × Instr) :=
+  ((winProg.toList.drop 705).take 3446).zip ((linuxProg.toList.drop 696).take 3446)
+
+/-- Machine-checked: windows pcs `17..704` are linux pcs `7..694` renamed by `bodyI`. -/
+theorem avx_x4_body_lo_scan : bodyZipLo.all (fun p => decide (p.1 = bodyI p.2)) = true := by
+  change (((winProg.toList.drop 17).take 688).zip
+    ((linuxProg.toList.drop 7).take 688)).all (fun p => decide (p.1 = bodyI p.2)) = true
+  decide +kernel
+
+/-- Machine-checked: windows pcs `705..4150` are linux pcs `696..4141` renamed by `bodyI`. -/
+theorem avx_x4_body_hi_scan : bodyZipHi.all (fun p => decide (p.1 = bodyI p.2)) = true := by
+  change (((winProg.toList.drop 705).take 3446).zip
+    ((linuxProg.toList.drop 696).take 3446)).all (fun p => decide (p.1 = bodyI p.2)) = true
+  decide +kernel
+
+/-- Pointwise form of the lower half of the body correspondence. -/
+theorem avx_x4_body_correspondence_lo :
+    ∀ j, j < 688 → winProg[17 + j]? = (linuxProg[7 + j]?).map bodyI := by
+  have hz : bodyZipLo.all (fun p => decide (p.1 = bodyI p.2)) = true := avx_x4_body_lo_scan
+  have h := of_zip_scan (l1 := winProg.toList) (l2 := linuxProg.toList)
+    (o1 := 17) (o2 := 7) (n := 688) (f := bodyI) (by decide) (by decide) hz
+  intro j hj
+  have := h j hj
+  simpa using this
+
+/-- Pointwise form of the upper half of the body correspondence. -/
+theorem avx_x4_body_correspondence_hi :
+    ∀ j, j < 3446 → winProg[705 + j]? = (linuxProg[696 + j]?).map bodyI := by
+  have hz : bodyZipHi.all (fun p => decide (p.1 = bodyI p.2)) = true := avx_x4_body_hi_scan
+  have h := of_zip_scan (l1 := winProg.toList) (l2 := linuxProg.toList)
+    (o1 := 705) (o2 := 696) (n := 3446) (f := bodyI) (by decide) (by decide) hz
+  intro j hj
+  have := h j hj
+  simpa using this
+
+/-- **The body correspondence of the windows `avx_x4` stream**: every body instruction of the
+windows stream is the paired linux instruction under `bodyI`, and the pairing is given by
+`bodyPc` (piecewise, not a constant shift). -/
+theorem avx_x4_body_correspondence :
+    (∀ w, 17 ≤ w → w < 705 → winProg[w]? = (linuxProg[bodyPc w]?).map bodyI)
+      ∧ (∀ w, 705 ≤ w → w < 4151 → winProg[w]? = (linuxProg[bodyPc w]?).map bodyI) := by
+  refine ⟨fun w h1 h2 => ?_, fun w h1 h2 => ?_⟩
+  · have hw : w < 705 := h2
+    rw [bodyPc, ite_eq_left hw]
+    have h := avx_x4_body_correspondence_lo (w - 17) (by omega)
+    rwa [show 17 + (w - 17) = w from by omega, show 7 + (w - 17) = w - 10 from by omega] at h
+  · have hw : ¬ w < 705 := by omega
+    rw [bodyPc, ite_eq_right hw]
+    have h := avx_x4_body_correspondence_hi (w - 705) (by omega)
+    rwa [show 705 + (w - 705) = w from by omega, show 696 + (w - 705) = w - 9 from by omega] at h
 
 end Hashtree.Proofs.WinAvxX4
