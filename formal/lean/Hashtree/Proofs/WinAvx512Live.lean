@@ -19,24 +19,28 @@ open Hashtree.Asm Hashtree.Asm.X86 Hashtree.Asm.RunAgree
 
 abbrev prog : Array Instr := Hashtree.Kernels.X86Win.Avx512X16.prog
 
-/-- Per-pc live register sets (the fixpoint). -/
-def liveT : List (List Nat) := live prog
+/-- The tail seed: the entry live set of the avx2_x8 link (`WinAvx2X8Live.live_entry_eq`). -/
+def T8 : List Nat := [8, 4, 5, 6, 12, 13, 14, 15, 2, 1]
+
+/-- Per-pc live register sets (the fixpoint), seeded with `T8` at the tail. -/
+def liveT : List (List Nat) := live prog T8
 
 /-- Per-pc flags live-in bits. -/
 def liveFT : List Bool := liveF prog
 
-theorem certB_ok : certB prog liveT liveFT = true := by decide +kernel
+theorem certB_ok : certB prog liveT liveFT T8 = true := by decide +kernel
 
 /-- The certificate `run_agree` consumes. -/
-theorem cert : Cert prog (fun p => liveT.getD p []) (fun p => liveFT.getD p false) := Cert_of_certB certB_ok
+theorem cert : Cert prog (fun p => liveT.getD p []) (fun p => liveFT.getD p false) T8 := Cert_of_certB certB_ok
 
 /-- The flags are not live at entry. -/
 theorem liveF_entry : liveFT.getD 0 false = false := by decide +kernel
 
-theorem live_entry_eq : liveT.getD 0 [] = [8, 4, 2, 1] := by decide +kernel
+/-- With the tail seed the entry set gains the callee-saved registers the next link reads
+(never written here); the kernel's own reads are `[8, 4, 2, 1]`. -/
+theorem live_entry_eq : liveT.getD 0 [] = [8, 4, 5, 6, 12, 13, 14, 15, 2, 1] := by decide +kernel
 
-/-- Closure: the entry live set is inside the read set `[8, 4, 2, 1]`. -/
-theorem live_entry : ∀ r, r ∈ liveT.getD 0 [] → r ∈ [8, 4, 2, 1] := by
+theorem live_entry : ∀ r, r ∈ liveT.getD 0 [] → r ∈ [8, 4, 5, 6, 12, 13, 14, 15, 2, 1] := by
   rw [live_entry_eq]; exact fun _ h => h
 
 end Hashtree.Proofs.WinAvx512Live

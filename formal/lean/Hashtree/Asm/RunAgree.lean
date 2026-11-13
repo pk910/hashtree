@@ -579,16 +579,22 @@ theorem exec_agree (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat → 
 
 /-- A per-pc read-set certificate: the sources of the instruction at `p` are in `L p`, and the
 registers of a static successor's set that `p` does not write are in `L p`. -/
-def Cert (prog : Array Instr) (L : Nat → List Nat) (LF : Nat → Bool) : Prop :=
+def Cert (prog : Array Instr) (L : Nat → List Nat) (LF : Nat → Bool) (T : List Nat) : Prop :=
   ∀ p i, prog[p]? = some i →
     (∀ r, r ∈ srcs i → r ∈ L p) ∧ (readsF i = true → LF p = true) ∧
+    (tails i = true → ∀ r, r ∈ T → r ∈ L p) ∧
     ∀ q, q ∈ succs p i →
       (∀ r, r ∈ L q → r ∈ dsts i ++ L p) ∧ (LF q = true → (writesF i || LF p) = true)
+
+/-- At a tail pc the certificate carries the seed `T` (the next link's entry set). -/
+theorem Cert.tail {prog : Array Instr} {L : Nat → List Nat} {LF : Nat → Bool} {T : List Nat}
+    (hc : Cert prog L LF T) {p : Nat} {i : Instr} (hp : prog[p]? = some i) (ht : tails i = true) :
+    ∀ r, r ∈ T → r ∈ L p := (hc p i hp).2.2.1 ht
 
 /-- Runs from states agreeing on the certificate's set at their pc agree on everything but the
 general registers (and on the general registers of the final pc's set). -/
 theorem run_agree (prog : Array Instr) (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat → Bool)
-    {L : Nat → List Nat} {LF : Nat → Bool} (hc : Cert prog L LF) (n : Nat) {s1 s2 : State α γ}
+    {L : Nat → List Nat} {LF : Nat → Bool} {T : List Nat} (hc : Cert prog L LF T) (n : Nat) {s1 s2 : State α γ}
     (h : Agree (L s1.pc) (LF s1.pc) s1 s2) :
     Agree (L (run prog ro mem0 orc n s1).pc) (LF (run prog ro mem0 orc n s1).pc)
       (run prog ro mem0 orc n s1) (run prog ro mem0 orc n s2) := by
@@ -607,7 +613,7 @@ theorem run_agree (prog : Array Instr) (ro : Region) (mem0 : Addr γ → Cell α
       exact fail_ag h _
     | some i =>
       apply ih
-      obtain ⟨hsrc, hsrcF, hsucc⟩ := hc s1.pc i hp
+      obtain ⟨hsrc, hsrcF, _, hsucc⟩ := hc s1.pc i hp
       obtain ⟨h1, h2⟩ := exec_agree ro mem0 orc i h hsrc hsrcF
       rcases h2 with h2 | ⟨hq, h3⟩
       · rw [h2]; exact h1
@@ -621,7 +627,8 @@ end Engine
 
 /-- The per-pc check, walking the instruction list and the certificate in step (`Ls` is
 `L.drop p`); only jump targets look `L` up by index. -/
-def certAux (L : List (List Nat)) (LF : List Bool) : Nat → List Instr → List (List Nat) → List Bool → Bool
+def certAux (L : List (List Nat)) (LF : List Bool) (T : List Nat) :
+    Nat → List Instr → List (List Nat) → List Bool → Bool
   | _, [], _, _ => true
   | p, i :: is, Ls, Fs =>
     let Lp := Ls.headD []
@@ -629,15 +636,17 @@ def certAux (L : List (List Nat)) (LF : List Bool) : Nat → List Instr → List
     let Fp := Fs.headD false
     let restF := Fs.drop 1
     (srcs i).all (fun r => Lp.contains r) && (!readsF i || Fp) &&
+      (!tails i || T.all (fun r => Lp.contains r)) &&
       (succs p i).all (fun q =>
         (if q = p + 1 then rest.headD [] else L.getD q []).all (fun r =>
           (dsts i).contains r || Lp.contains r) &&
         (!(if q = p + 1 then restF.headD false else LF.getD q false) || writesF i || Fp)) &&
-      certAux L LF (p + 1) is rest restF
+      certAux L LF T (p + 1) is rest restF
 
-/-- The certificate check on a program, with `L`/`LF` as lists of per-pc register sets / flag bits. -/
-def certB (prog : Array Instr) (L : List (List Nat)) (LF : List Bool) : Bool :=
-  certAux L LF 0 prog.toList L LF
+/-- The certificate check on a program, with `L`/`LF` as lists of per-pc register sets / flag bits
+and `T` the tail seed. -/
+def certB (prog : Array Instr) (L : List (List Nat)) (LF : List Bool) (T : List Nat) : Bool :=
+  certAux L LF T 0 prog.toList L LF
 
 theorem headD_drop {β : Type} (d : β) (L : List β) (p : Nat) : (L.drop p).headD d = L.getD p d := by
   induction p generalizing L with
@@ -646,10 +655,11 @@ theorem headD_drop {β : Type} (d : β) (L : List β) (p : Nat) : (L.drop p).hea
     | nil => rfl
     | cons x xs => exact ih xs
 
-theorem certAux_sound (L : List (List Nat)) (LF : List Bool) : ∀ (p : Nat) (is : List Instr),
-    certAux L LF p is (L.drop p) (LF.drop p) = true →
+theorem certAux_sound (L : List (List Nat)) (LF : List Bool) (T : List Nat) : ∀ (p : Nat) (is : List Instr),
+    certAux L LF T p is (L.drop p) (LF.drop p) = true →
     ∀ k i, is[k]? = some i →
       (∀ r, r ∈ srcs i → r ∈ L.getD (p + k) []) ∧ (readsF i = true → LF.getD (p + k) false = true) ∧
+        (tails i = true → ∀ r, r ∈ T → r ∈ L.getD (p + k) []) ∧
         ∀ q, q ∈ succs (p + k) i →
           (∀ r, r ∈ L.getD q [] → r ∈ dsts i ++ L.getD (p + k) []) ∧
           (LF.getD q false = true → (writesF i || LF.getD (p + k) false) = true)
@@ -659,9 +669,12 @@ theorem certAux_sound (L : List (List Nat)) (LF : List Bool) : ∀ (p : Nat) (is
     subst hk
     simp only [certAux, Bool.and_eq_true, List.all_eq_true, Bool.or_eq_true, Bool.not_eq_eq_eq_not,
       Bool.not_true, List.contains_iff_mem, headD_drop] at h
-    obtain ⟨⟨⟨h1, h2⟩, h3⟩, _⟩ := h
-    refine ⟨fun r hr => h1 r hr, fun hrf => ?_, fun q hq => ⟨fun r hr => ?_, fun hf => ?_⟩⟩
+    obtain ⟨⟨⟨⟨h1, h2⟩, h2t⟩, h3⟩, _⟩ := h
+    refine ⟨fun r hr => h1 r hr, fun hrf => ?_, fun ht r hr => ?_, fun q hq => ⟨fun r hr => ?_, fun hf => ?_⟩⟩
     · rcases h2 with h2 | h2 <;> first | (rw [hrf] at h2; cases h2) | simpa using h2
+    · rcases h2t with h2t | h2t
+      · rw [ht] at h2t; cases h2t
+      · exact h2t r hr
     · rw [List.mem_append]
       apply (h3 q hq).1 r
       split
@@ -680,34 +693,34 @@ theorem certAux_sound (L : List (List Nat)) (LF : List Bool) : ∀ (p : Nat) (is
   | p, j :: js, h, k + 1, i, hk => by
     simp only [List.getElem?_cons_succ] at hk
     simp only [certAux, Bool.and_eq_true] at h
-    have h2 : certAux L LF (p + 1) js (L.drop (p + 1)) (LF.drop (p + 1)) = true := by
+    have h2 : certAux L LF T (p + 1) js (L.drop (p + 1)) (LF.drop (p + 1)) = true := by
       have := h.2
       simp only [List.drop_drop] at this
       first | exact this | (rw [Nat.add_comm 1 p] at this; exact this)
-    have := certAux_sound L LF (p + 1) js h2 k i hk
+    have := certAux_sound L LF T (p + 1) js h2 k i hk
     rwa [Nat.add_right_comm, Nat.add_assoc] at this
 
-theorem Cert_of_certB {prog : Array Instr} {L : List (List Nat)} {LF : List Bool}
-    (h : certB prog L LF = true) :
-    Cert prog (fun p => L.getD p []) (fun p => LF.getD p false) := by
+theorem Cert_of_certB {prog : Array Instr} {L : List (List Nat)} {LF : List Bool} {T : List Nat}
+    (h : certB prog L LF T = true) :
+    Cert prog (fun p => L.getD p []) (fun p => LF.getD p false) T := by
   intro p i hp
-  have := certAux_sound L LF 0 prog.toList (by simpa [certB] using h) p i (by rwa [Array.getElem?_toList])
+  have := certAux_sound L LF T 0 prog.toList (by simpa [certB] using h) p i (by rwa [Array.getElem?_toList])
   simpa only [Nat.zero_add] using this
 
 /-- One backward liveness sweep over the reversed instruction list (pc `p` down to 0):
 forward successors use the sets already computed in this sweep (`acc`, headed by pc `p + 1`),
 backward ones the previous sweep's (`old`). -/
-def sweepAux (old : List (List Nat)) : List Instr → Nat → List (List Nat) → List (List Nat)
+def sweepAux (old : List (List Nat)) (T : List Nat) : List Instr → Nat → List (List Nat) → List (List Nat)
   | [], _, acc => acc
   | _ :: _, 0, acc => acc
   | i :: rev, p + 1, acc =>
-    let cur := (srcs i ++ (succs p i).flatMap fun q =>
+    let cur := (srcs i ++ (if tails i then T else []) ++ (succs p i).flatMap fun q =>
         (if p < q then acc.getD (q - p - 1) [] else old.getD q []).filter
           fun r => !(dsts i).contains r).eraseDups
-    sweepAux old rev p (cur :: acc)
+    sweepAux old T rev p (cur :: acc)
 
-def liveSweep (prog : Array Instr) (old : List (List Nat)) : List (List Nat) :=
-  sweepAux old prog.toList.reverse prog.size []
+def liveSweep (prog : Array Instr) (T : List Nat) (old : List (List Nat)) : List (List Nat) :=
+  sweepAux old T prog.toList.reverse prog.size []
 
 /-- The flags-liveness sweep (same shape as `sweepAux`, one bit per pc). -/
 def sweepFAux (old : List Bool) : List Instr → Nat → List Bool → List Bool
@@ -731,15 +744,15 @@ def liveFFix (prog : Array Instr) : Nat → List Bool → List Bool
 def liveF (prog : Array Instr) (fuel : Nat := 16) : List Bool :=
   liveFFix prog fuel (List.replicate prog.size false)
 
-def liveFix (prog : Array Instr) : Nat → List (List Nat) → List (List Nat)
+def liveFix (prog : Array Instr) (T : List Nat) : Nat → List (List Nat) → List (List Nat)
   | 0, L => L
   | n + 1, L =>
-    let L' := liveSweep prog L
-    if L' = L then L else liveFix prog n L'
+    let L' := liveSweep prog T L
+    if L' = L then L else liveFix prog T n L'
 
 /-- The live-in sets of a program (a fixpoint reached within `fuel` sweeps; otherwise the
 partial iterate, which `certB` then rejects). -/
-def live (prog : Array Instr) (fuel : Nat := 16) : List (List Nat) :=
-  liveFix prog fuel (List.replicate prog.size [])
+def live (prog : Array Instr) (T : List Nat := []) (fuel : Nat := 16) : List (List Nat) :=
+  liveFix prog T fuel (List.replicate prog.size [])
 
 end Hashtree.Asm.RunAgree

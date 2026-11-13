@@ -187,15 +187,15 @@ def winLive : List (List Nat) := live winProg
 def linuxLiveF : List Bool := liveF linuxProg
 def winLiveF : List Bool := liveF winProg
 
-theorem shani_linux_certB : certB linuxProg linuxLive linuxLiveF = true := by decide +kernel
-theorem shani_windows_certB : certB winProg winLive winLiveF = true := by decide +kernel
+theorem shani_linux_certB : certB linuxProg linuxLive linuxLiveF [] = true := by decide +kernel
+theorem shani_windows_certB : certB winProg winLive winLiveF [] = true := by decide +kernel
 
 /-- The certificate `run_agree` consumes for the linux program. -/
-theorem shani_linux_cert : Cert linuxProg (fun p => linuxLive.getD p []) (fun p => linuxLiveF.getD p false) :=
+theorem shani_linux_cert : Cert linuxProg (fun p => linuxLive.getD p []) (fun p => linuxLiveF.getD p false) [] :=
   Cert_of_certB shani_linux_certB
 
 /-- The certificate `run_agree` consumes for the windows program. -/
-theorem shani_windows_cert : Cert winProg (fun p => winLive.getD p []) (fun p => winLiveF.getD p false) :=
+theorem shani_windows_cert : Cert winProg (fun p => winLive.getD p []) (fun p => winLiveF.getD p false) [] :=
   Cert_of_certB shani_windows_certB
 
 /-- The flags are not live at the body entries (each body compares before it branches). -/

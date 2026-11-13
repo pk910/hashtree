@@ -25,10 +25,10 @@ def liveT : List (List Nat) := live prog
 /-- Per-pc flags live-in bits. -/
 def liveFT : List Bool := liveF prog
 
-theorem certB_ok : certB prog liveT liveFT = true := by decide +kernel
+theorem certB_ok : certB prog liveT liveFT [] = true := by decide +kernel
 
 /-- The certificate `run_agree` consumes. -/
-theorem cert : Cert prog (fun p => liveT.getD p []) (fun p => liveFT.getD p false) := Cert_of_certB certB_ok
+theorem cert : Cert prog (fun p => liveT.getD p []) (fun p => liveFT.getD p false) [] := Cert_of_certB certB_ok
 
 /-- The flags are not live at entry. -/
 theorem liveF_entry : liveFT.getD 0 false = false := by decide +kernel

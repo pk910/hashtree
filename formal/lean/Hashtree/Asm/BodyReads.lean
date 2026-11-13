@@ -75,6 +75,12 @@ def readsF : Instr → Bool
   | .jccTail _ _ => true
   | _ => false
 
+/-- Tail calls (`jmpTail`/`jccTail`): the certificate seeds their pc with the next link's entry set. -/
+def tails : Instr → Bool
+  | .jmpTail _ => true
+  | .jccTail _ _ => true
+  | _ => false
+
 /-- Writes the flags: the comparisons and the flag-clobbering data operations (every branch of
 their `exec` ends in `setFlags`/`clearFlags`). -/
 def writesF : Instr → Bool
