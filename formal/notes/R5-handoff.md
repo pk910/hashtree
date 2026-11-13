@@ -21,7 +21,18 @@ over ssh, push to GitHub); the VM has no GitHub credentials.  Logs: `results/r5-
   `run_nowrite` (non-writing segment keeps the log).  These give `shani_call`'s `hcond`/`hpc`/`hnh`,
   `RegsOkW`'s callee-saved preservation, and the linux tail `add rsp,88; ret` leaving `mem` alone.
 
-## Checkpoint (a) status — module `Proofs/WinShaniBridge.lean`
+## Checkpoint (a): DONE — module `Proofs/WinShaniBridge.lean`
+
+`shani_KSpecW : KSpecW winProg Kernels.X86Win.Shani.rodata stepsW 248` and `fitsW_shani : FitsW
+.shani` (stepsW c = ShaniW.steps c + 22).  `call` instantiates `WinShaniCall.shani_call` (hv via
+`loadLanes_ok` on rodata, hx, hvlen, hret via `loadVal_marker` on the return marker, hW/hmem from
+`InRange` + the save-log bounds, hcond/hpc/hnh/hrsp from `exit`).  Axioms: standard + the
+certificate's allowlisted bv_decide axioms (inherited from ShaniW.correctW / run_hom).
+
+Next (thread 2): chain-aware `KSpecC` for avx512_x16 and avx_x4 via `X86Chain` with the same
+recipe (their `Live` certificates exist); then avx2_x8 (push-saving, frame-slot design first).
+
+## Checkpoint (a) history — module `Proofs/WinShaniBridge.lean`
 
 Landed: `seed_agree` (Agree [2,6,4,7] between `s0` = seed without the save log and the
 certificate's one-step state, via `run_hom` on the symbolic `E1`), `cert` (correctW at `view M m`

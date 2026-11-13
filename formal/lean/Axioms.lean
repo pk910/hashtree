@@ -436,3 +436,11 @@ import Hashtree.Proofs.WinAvxX4Live
 #print axioms Hashtree.Proofs.WinShaniBridge.seed_agree
 #print axioms Hashtree.Proofs.WinShaniBridge.cert
 #print axioms Hashtree.Proofs.WinShaniBridge.exit
+
+-- R5: checkpoint (a) closed -- shani_x2 meets the windows kernel contract at the wrapper call
+-- state: `call` (WinShaniCall.shani_call instantiated from the bridge), `shani_KSpecW`
+-- (KSpecW winProg rodata stepsW 248, stepsW c = ShaniW.steps c + 22) and `fitsW_shani`
+-- (FitsW .shani), the first windows kernel instance for WinWrapper.wrapper_correctW.
+#print axioms Hashtree.Proofs.WinShaniBridge.call
+#print axioms Hashtree.Proofs.WinShaniBridge.shani_KSpecW
+#print axioms Hashtree.Proofs.WinShaniBridge.fitsW_shani

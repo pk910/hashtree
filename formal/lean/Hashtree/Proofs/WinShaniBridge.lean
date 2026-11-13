@@ -491,4 +491,262 @@ theorem exit (hw : WfMemW rodata [] env σ m) (hc : σ 2 = c)
 end Main
 
 
+/-! ## The windows call -/
+
+section Call
+open Hashtree.Proofs.WinShaniCall (shani_call bodyExit bodyExit_getG bodyExit_mem bodyExit_gpr_len saveSt_getG fg16 g_lt)
+open Hashtree.Proofs.WinShaniEpi (epiFinal epiFinal_halted epiFinal_mem epiFinal_getG_rsp epiFinal_getG_ne Outside)
+open Hashtree.Proofs.WinShaniFlags (m256)
+open Hashtree.Proofs.WinWrapper (KSpecW Foot RegsOkW FitsW readCell_none)
+
+variable (env : Key → W32) (σ : Nat → Int) (m : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
+  (c : Nat) (inp : Nat → Spec.Byte)
+
+theorem stW_pc0 : ({ stW env σ with pc := 0 } : State W32 Int) = stW env σ := rfl
+
+theorem entryWin_gpr3 : entryWin.gpr[3]? = some (.ptr ⟨rStack, Lin.sym 5⟩) := by decide +kernel
+theorem entryWin_gpr5 : entryWin.gpr[5]? = some (.ptr ⟨rStack, Lin.sym 6⟩) := by decide +kernel
+theorem entryWin_gpr12 : entryWin.gpr[12]? = some (.ptr ⟨rNum, Lin.sym 7⟩) := by decide +kernel
+theorem entryWin_gpr13 : entryWin.gpr[13]? = some (.ptr ⟨rNum, Lin.sym 11⟩) := by decide +kernel
+theorem entryWin_gpr14 : entryWin.gpr[14]? = some (.ptr ⟨rG, Lin.sym 8⟩) := by decide +kernel
+theorem entryWin_gpr15 : entryWin.gpr[15]? = some (.ptr ⟨rNum, Lin.sym 12⟩) := by decide +kernel
+
+theorem stW_getG8 : (stW env σ).getG 8 = .ptr ⟨rNum, σ 2⟩ := by
+  show (mapState env σ entryWin).getG 8 = _
+  rw [mapState_getG entryWin_gpr8]; simp only [mapVal, mapAddr, Lin.eval_sym]
+
+theorem saveSt_mem : (saveSt (stW env σ) (aW σ) 10).mem = M env σ := rfl
+
+theorem hx_ok : gCtl (saveSt (stW env σ) (aW σ) 10) (.reg 8) = .ok ⟨rNum, σ 2⟩ := by
+  simp only [gCtl, saveSt_getG _ _ (stW_len env σ) 8 (by omega), ite_eq_right (show (8 : Nat) ≠ 4 by decide),
+    stW_getG8]
+  rfl
+
+theorem hv_ok (hw : WfMemW rodata [] env σ m) :
+    ∃ v, readVSrc 4 m (saveSt (stW env σ) (aW σ) 10) 4 m256 = .ok v := by
+  have heff : effAddr 4 (saveSt (stW env σ) (aW σ) 10) { ro := some 256 } = .ok ⟨4, 256⟩ := by
+    simp [effAddr, baseAddr, Addr.plusI, Addr.plus, Ctl.add, Ctl.ofInt]
+  obtain ⟨v, hv⟩ := loadLanes_ok m (saveSt (stW env σ) (aW σ) 10) 4 4 256 (fun k _ _ => by
+    have hr : readCell m (saveSt (stW env σ) (aW σ) 10) ⟨4, 256 + k⟩ = .ok (m ⟨4, 256 + k⟩) := by
+      apply readCell_none
+      apply lookup_none_ne
+      rw [saveSt_mem]
+      exact M_ne env σ _ (Or.inl (show (4 : Region) ≠ rStack by decide))
+    rw [hr, hw.1]
+    exact ⟨_, rfl⟩)
+  refine ⟨v, ?_⟩
+  show (match effAddr 4 (saveSt (stW env σ) (aW σ) 10) { ro := some 256 } with
+    | Except.error e => Except.error e
+    | Except.ok a => loadLanes m (saveSt (stW env σ) (aW σ) 10) a 4) = Except.ok v
+  rw [heff]; exact hv
+
+theorem hvlen_ok : ∀ k, k < 10 → 4 ≤ ((stW env σ).getV (6 + k)).length := by
+  intro k hk
+  show 4 ≤ ((mapState env σ entryWin).getV (6 + k)).length
+  rw [getV_hom, List.length_map, entryWin_getV_len k hk]; omega
+
+/-- The addresses of the return marker are outside the body's log and the save log. -/
+theorem marker_lookup (W : CLog) (hW : Hashtree.Proofs.ShaniW.InRange (σ 9) (σ 1) (32 * c) W) (k : Int)
+    (hk0 : 0 ≤ k) (hk : k < 8) : lookup (⟨rStack, σ 9 + k⟩ : Addr Int) (W ++ M env σ) = .ok none := by
+  apply lookup_none_ne
+  intro p hp
+  rw [List.mem_append] at hp
+  rcases hp with hp | hp
+  · intro heq
+    rcases hW p hp with ⟨h1, _, _⟩ | ⟨_, _, h3⟩
+    · rw [heq] at h1; exact absurd h1 (show rStack ≠ rOut by decide)
+    · rw [heq] at h3; simp only at h3; omega
+  · exact M_ne env σ _ (Or.inr (Or.inr (by simp only; omega))) p hp
+
+theorem haddr : ((aW σ).plusI (-248)).plusI 248 = (⟨rStack, σ 9⟩ : Addr Int) := by
+  simp only [aW, Addr.plusI, Addr.plus, Ctl.add, Ctl.ofInt, id_eq]
+  congr 1; omega
+
+/-- The seed run on the call memory is the viewed run with the save log underneath. -/
+theorem seed_run_fr (n : Nat) :
+    run linuxProg 4 m orcC n (seedSt (stW env σ) (aW σ))
+      = fr (M env σ) (run linuxProg 4 (mV env σ m) orcC n (s0 env σ)) := by
+  rw [seed_fr, run_fr]
+
+theorem hret_ok (hw : WfMemW rodata [] env σ m) (n : Nat)
+    (hIR : Hashtree.Proofs.ShaniW.InRange (σ 9) (σ 1) (32 * c)
+      (run linuxProg 4 (mV env σ m) orcC n (s0 env σ)).mem) :
+    loadVal m (run linuxProg 4 m orcC n (seedSt (stW env σ) (aW σ))) (((aW σ).plusI (-248)).plusI 248)
+      = .ok (.ptr (⟨rRet, Ctl.ofInt 0⟩ : Addr Int)) := by
+  rw [haddr, seed_run_fr]
+  have hmem : (fr (M env σ) (run linuxProg 4 (mV env σ m) orcC n (s0 env σ))).mem
+      = (run linuxProg 4 (mV env σ m) orcC n (s0 env σ)).mem ++ M env σ := rfl
+  have hl0 : lookup (⟨rStack, σ 9⟩ : Addr Int)
+      ((run linuxProg 4 (mV env σ m) orcC n (s0 env σ)).mem ++ M env σ) = .ok none := by
+    have := marker_lookup env σ c _ hIR 0 (by decide) (by decide)
+    rwa [Int.add_zero] at this
+  have hlk : ∀ k : Nat, k < 8 → lookup ((⟨rStack, σ 9⟩ : Addr Int).plusI k)
+      ((run linuxProg 4 (mV env σ m) orcC n (s0 env σ)).mem ++ M env σ) = .ok none := by
+    intro k hk
+    rw [plusI_nat']
+    exact marker_lookup env σ c _ hIR k (by omega) (by omega)
+  apply loadVal_marker
+  · rw [readCell_none m _ _ (by rw [hmem]; exact hl0)]
+    have := hw.2.1 0 (by decide) (by decide)
+    rw [Int.add_zero] at this
+    rw [this]; rfl
+  · intro k hk
+    rw [readCell_none m _ _ (by rw [hmem]; exact hlk k hk), plusI_nat']
+    have := hw.2.1 k (by omega) (by omega)
+    rw [this]
+    simp
+
+/-- The whole windows call, from the linux certificate. -/
+theorem call (hw : WfMemW rodata [] env σ m) (hc : σ 2 = c)
+    (hin : ∀ o : Nat, m ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) :
+    ∃ n, n ≤ N c ∧
+      run winProg 4 m orcC (11 + (n + 12)) (stW env σ)
+        = epiFinal (bodyExit (run linuxProg 4 m orcC n (seedSt (stW env σ) (aW σ)))) (stW env σ)
+            ((aW σ).plusI (-248)) ∧
+      (run linuxProg 4 m orcC n (seedSt (stW env σ) (aW σ))).err = none ∧
+      (run linuxProg 4 m orcC n (seedSt (stW env σ) (aW σ))).tail = none ∧
+      (run linuxProg 4 m orcC n (seedSt (stW env σ) (aW σ))).mem
+        = (finS env σ m orcC c).mem ++ M env σ ∧
+      (∀ r, r ∈ [4, 8, 3, 12, 13, 14, 15] →
+        (run linuxProg 4 m orcC n (seedSt (stW env σ) (aW σ))).getG r = (s0 env σ).getG r) := by
+  obtain ⟨n, hn, hk, hpc, hnh, herr, htail, hpres, hmemN⟩ := exit env σ m orcC c inp hw hc hin
+  obtain ⟨_, _, _, hIR, _⟩ := cert env σ m orcC c inp hw hc hin
+  have hIRn : Hashtree.Proofs.ShaniW.InRange (σ 9) (σ 1) (32 * c)
+      (run linuxProg 4 (mV env σ m) orcC n (s0 env σ)).mem := by rw [← hmemN]; exact hIR
+  obtain ⟨v, hv⟩ := hv_ok env σ m hw
+  have hfr := seed_run_fr env σ m orcC
+  refine ⟨n, hn, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [← stW_pc0]
+    refine shani_call (stW env σ) (aW σ) n [] (run linuxProg 4 (mV env σ m) orcC n (s0 env σ)).mem v _
+      (stW_len env σ) (stW_halted env σ) (stW_rsp env σ) hv (hx_ok env σ) ?_ ?_ ?_ ?_ ?_ ?_
+      (hvlen_ok env σ) (hret_ok env σ m orcC c hw n hIRn)
+    · intro k hk'
+      rw [hfr k]
+      exact Or.inr ⟨(hk k hk').1, (hk k hk').2.1⟩
+    · rw [hfr n]; exact hpc
+    · rw [hfr n]; exact hnh
+    · rw [hfr n]
+      show (run linuxProg 4 (mV env σ m) orcC n (s0 env σ)).getG 4 = _
+      rw [hpres 4 (by simp)]
+      show (seedSt (stW env σ) (aW σ)).getG 4 = _
+      rw [seedSt_getG _ _ 4 (by omega), ite_eq_left rfl]
+    · intro p hp
+      rcases hIRn p hp with ⟨h1, _, _⟩ | ⟨h1, h2, _⟩
+      · exact Or.inr (Or.inr (by rw [h1]; show rOut ≠ rStack; decide))
+      · exact Or.inr (Or.inl (by simp only [aW, Addr.plusI, Addr.plus, Ctl.add, Ctl.ofInt, id_eq]; omega))
+    · rw [hfr n]; rfl
+  · rw [hfr n]; exact herr
+  · rw [hfr n]; exact htail
+  · rw [hfr n, hmemN]; rfl
+  · intro r hr; rw [hfr n]; exact hpres r hr
+
+/-! ## KSpecW and FitsW -/
+
+/-- The windows kernel's step budget: the certificate's count plus the windows prologue and
+epilogue (`11 + 12`), minus the certificate's `sub rsp, 88`. -/
+def stepsW (c : Nat) : Nat := Hashtree.Proofs.ShaniW.steps c + 22
+
+theorem bodyExit_err (S : State W32 Int) : (bodyExit S).err = S.err := rfl
+theorem bodyExit_tail (S : State W32 Int) : (bodyExit S).tail = S.tail := rfl
+
+theorem kspec_body (hw : WfMemW Hashtree.Kernels.X86Win.Shani.rodata [] env σ m) (hc : σ 2 = c)
+    (hin : ∀ o : Nat, m ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) :
+    (run winProg 4 m orcC (stepsW c) (mapState env σ entryWin)).halted = true ∧
+    (run winProg 4 m orcC (stepsW c) (mapState env σ entryWin)).err = none ∧
+    (run winProg 4 m orcC (stepsW c) (mapState env σ entryWin)).tail = none ∧
+    Foot (σ 9) 248 (σ 1) (32 * c) (run winProg 4 m orcC (stepsW c) (mapState env σ entryWin)).mem ∧
+    Hashtree.Proofs.WinWrapper.OutOk inp (σ 1) c (run winProg 4 m orcC (stepsW c) (mapState env σ entryWin)).mem ∧
+    RegsOkW σ (run winProg 4 m orcC (stepsW c) (mapState env σ entryWin)) := by
+  rw [rodata_eq] at hw
+  obtain ⟨n, hn, hcall, herr, htail, hmem, hpres⟩ := call env σ m orcC c inp hw hc hin
+  obtain ⟨_, _, _, hIR, hOO⟩ := cert env σ m orcC c inp hw hc hin
+  have hfuel : stepsW c = (11 + (n + 12)) + (N c - n) := by
+    have h4 : 4 ≤ Hashtree.Proofs.ShaniW.steps c := Nat.le_add_right 4 _
+    have hn' : n ≤ Hashtree.Proofs.ShaniW.steps c - 1 := hn
+    show Hashtree.Proofs.ShaniW.steps c + 22 = (11 + (n + 12)) + (Hashtree.Proofs.ShaniW.steps c - 1 - n)
+    omega
+  have hrun : run winProg 4 m orcC (stepsW c) (mapState env σ entryWin)
+      = epiFinal (bodyExit (run linuxProg 4 m orcC n (seedSt (stW env σ) (aW σ)))) (stW env σ)
+          ((aW σ).plusI (-248)) := by
+    show run winProg 4 m orcC (stepsW c) (stW env σ) = _
+    rw [hfuel, run_add, hcall, run_halted_eq _ _ _ _ _ _ (epiFinal_halted _ _ _)]
+  rw [hrun]
+  generalize hS : run linuxProg 4 m orcC n (seedSt (stW env σ) (aW σ)) = S at herr htail hmem hpres
+  have hlenS : (bodyExit S).gpr.length = 16 := bodyExit_gpr_len S
+  have hfinmem : (epiFinal (bodyExit S) (stW env σ) ((aW σ).plusI (-248))).mem
+      = (finS env σ m orcC c).mem ++ M env σ := by rw [epiFinal_mem, bodyExit_mem, hmem]
+  refine ⟨epiFinal_halted _ _ _, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [epiFinal_err, bodyExit_err, herr]
+  · rw [epiFinal_tail, bodyExit_tail, htail]
+  · rw [hfinmem]
+    intro p hp
+    rw [List.mem_append] at hp
+    rcases hp with hp | hp
+    · rcases hIR p hp with ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩
+      · exact Or.inl ⟨h1, h2, h3⟩
+      · exact Or.inr ⟨h1, by omega, h3⟩
+    · have := M_bounds env σ p hp
+      exact Or.inr ⟨this.1, by omega, by omega⟩
+  · rw [hfinmem]
+    intro n' i b hn' hi hb
+    obtain ⟨x, hx1, hx2⟩ := hOO n' i b hn' hi hb
+    refine ⟨x, ?_, hx2⟩
+    rw [lookup_append, hx1]
+  · -- callee-saved registers and rsp
+    have hcs : ∀ j, j ∈ [3, 5, 12, 13, 14, 15] →
+        (epiFinal (bodyExit S) (stW env σ) ((aW σ).plusI (-248))).getG j = (stW env σ).getG j := by
+      intro j hj
+      have hj16 : j < 16 := by simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hj; omega
+      have hj4 : j ≠ rsp := by
+        show j ≠ 4
+        simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hj; omega
+      rw [epiFinal_getG_ne _ _ _ j hj4, bodyExit_getG S j hj16]
+      have hGj : G j ∈ [4, 8, 3, 12, 13, 14, 15] ∧ G j ≠ 4 := by
+        simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hj
+        rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
+      have hsp : (Hashtree.Asm.X86.spSt (-160) S).getG (G j) = S.getG (G j) := by
+        show (S.gpr.set 4 _).getD (G j) _ = S.gpr.getD (G j) _
+        rw [getD_set_ne _ _ _ (Ne.symm hGj.2)]
+      rw [hsp, hpres (G j) hGj.1]
+      show (seedSt (stW env σ) (aW σ)).getG (G j) = _
+      rw [seedSt_getG _ _ (G j) (g_lt j hj16), ite_eq_right hGj.2, fg16 j hj16]
+    have hlen : (epiFinal (bodyExit S) (stW env σ) ((aW σ).plusI (-248))).gpr.length = 16 := by
+      rw [epiFinal_gpr_len, hlenS]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · rw [getElem?_of_getG _ 3 (by omega), hcs 3 (by simp),
+        show (stW env σ).getG 3 = _ from mapState_getG entryWin_gpr3]
+      simp only [mapVal, mapAddr, Lin.eval_sym]
+    · rw [getElem?_of_getG _ 5 (by omega), hcs 5 (by simp),
+        show (stW env σ).getG 5 = _ from mapState_getG entryWin_gpr5]
+      simp only [mapVal, mapAddr, Lin.eval_sym]
+    · rw [getElem?_of_getG _ 12 (by omega), hcs 12 (by simp),
+        show (stW env σ).getG 12 = _ from mapState_getG entryWin_gpr12]
+      simp only [mapVal, mapAddr, Lin.eval_sym]
+    · rw [getElem?_of_getG _ 13 (by omega), hcs 13 (by simp),
+        show (stW env σ).getG 13 = _ from mapState_getG entryWin_gpr13]
+      simp only [mapVal, mapAddr, Lin.eval_sym]
+    · rw [getElem?_of_getG _ 14 (by omega), hcs 14 (by simp),
+        show (stW env σ).getG 14 = _ from mapState_getG entryWin_gpr14]
+      simp only [mapVal, mapAddr, Lin.eval_sym]
+    · rw [getElem?_of_getG _ 15 (by omega), hcs 15 (by simp),
+        show (stW env σ).getG 15 = _ from mapState_getG entryWin_gpr15]
+      simp only [mapVal, mapAddr, Lin.eval_sym]
+    · rw [getElem?_of_getG _ 4 (by omega)]
+      show some ((epiFinal (bodyExit S) (stW env σ) ((aW σ).plusI (-248))).getG rsp) = _
+      rw [epiFinal_getG_rsp _ _ _ (by omega)]
+      simp [aW, Addr.plusI, Addr.plus, Ctl.add, Ctl.ofInt]
+      omega
+
+/-- **`shani_x2` meets the windows kernel contract** at the wrapper's call state, with stack
+depth 248 (the prologue's `sub rsp, 248`). -/
+theorem shani_KSpecW : KSpecW winProg Hashtree.Kernels.X86Win.Shani.rodata stepsW 248 := by
+  intro c inp env σ m orcC hw _ hc hin
+  exact kspec_body env σ m orcC c inp hw hc hin
+
+/-- `FitsW .shani`: the shani_x2 contract fits the windows wrapper's fixed frame. -/
+theorem fitsW_shani : FitsW .shani := ⟨stepsW, 248, by omega, shani_KSpecW⟩
+
+end Call
+
+
 end Hashtree.Proofs.WinShaniBridge
