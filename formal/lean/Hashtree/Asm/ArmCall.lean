@@ -497,4 +497,111 @@ theorem wrapper_sha (progs : List Prog) (m0 : Addr Int → Cell W32 Int) (fuel h
   · show sc.getG 31 = .ptr ⟨rStack, sp0⟩
     exact h31
 
+/-! ## Chain contracts: the x4 tail cut and the x1 exit cut -/
+
+/-- One hop of `runChain`: when the program's own `run` ends with a tail call to `t` and no
+error, the chain continues in `t` from the tail-entry state, with the program's name prepended
+to the path.  This is the glue that turns a per-kernel exit cut into a chain premise. -/
+theorem runChain_tail (progs : List Prog) (m0 : Addr Int → Cell W32 Int)
+    (fuel hops : Nat) (name t : String) (p : Prog) (s scut : CS)
+    (hf : progs.find? (·.name = name) = some p)
+    (hrun : run p.code p.ro m0 (fun _ => false) fuel s = scut)
+    (htail : scut.tail = some t) (herr : scut.err = none) :
+    runChain progs m0 fuel (hops + 1) name s
+      = ((runChain progs m0 fuel hops t
+            { scut with pc := 0, halted := false, tail := none }).1,
+         name :: (runChain progs m0 fuel hops t
+            { scut with pc := 0, halted := false, tail := none }).2) := by
+  simp only [runChain, hf, hrun, htail, herr]
+
+/-- A chain of one hop: a program that returns (no pending tail) finishes its own chain. -/
+theorem runChain_single (progs : List Prog) (m0 : Addr Int → Cell W32 Int) (fuel : Nat)
+    (name : String) (p : Prog) (s sc : CS)
+    (hf : progs.find? (·.name = name) = some p)
+    (hrun : run p.code p.ro m0 (fun _ => false) fuel s = sc)
+    (htail : sc.tail = none) :
+    runChain progs m0 fuel 1 name s = (sc, [name]) := by
+  simp only [runChain, hf, hrun, htail]
+
+/-- The exit cut of `hashtree_sha256_neon_x4`: the state its `bTail hashtree_sha256_neon_x1`
+leaves behind.  The x4 frame is balanced before the branch (the `ADD $1024` at the exit), so
+the newly entered `neon_x1` sees the same `SP` the wrapper handed `neon_x4` (`sp0 + 2048`), and
+`x30` still holds the wrapper's return marker. -/
+structure NeonX4Cut (sp0 : Int) (scut : CS) : Prop where
+  halted : scut.halted = true
+  /-- the x4 leaves itself for the x1 kernel -/
+  tail : scut.tail = some "hashtree_sha256_neon_x1"
+  err : scut.err = none
+  /-- the x4 frame is balanced at the cut: `SP` is the x4 entry `SP` -/
+  sp : scut.getG 31 = .ptr ⟨rStack, sp0 + 2048⟩
+
+/-- The exit cut of the `neon_x1` leg entered from the x4 cut: the NEON chain finished cleanly
+with the wrapper's return marker and `SP` back at the moved (x4 entry) `SP`. -/
+structure NeonChainExit (sp0 : Int) (sc : CS) : Prop where
+  err : sc.err = none
+  halted : sc.halted = true
+  tail : sc.tail = none
+  ret : sc.getG 30 = .ptr ⟨rRet, (2 : Int)⟩
+  sp : sc.getG 31 = .ptr ⟨rStack, sp0 + 2048⟩
+  frame : 31 < sc.gpr.length
+
+/-- The x4-tail contract: the `neon_x4` chain splits at its tail cut into the `neon_x1` chain
+run from that cut.  This is the `neon_x4 -> neon_x1` composition, with the cut state supplied
+by the x4 stream proof and the x1 tree instantiated from the fixed cut. -/
+theorem neon_x4_chain_of_cut (progs : List Prog) (m0 : Addr Int → Cell W32 Int)
+    (fuel hops : Nat) (count : Nat) (sp0 : Int) (x4 : Prog) (scut sc : CS) (path : List String)
+    (hf : progs.find? (·.name = "hashtree_sha256_neon_x4") = some x4)
+    (hrun : run x4.code x4.ro m0 (fun _ => false) fuel (neonEntry count sp0) = scut)
+    (hcut : NeonX4Cut sp0 scut)
+    (hx1 : runChain progs m0 fuel hops "hashtree_sha256_neon_x1"
+             { scut with pc := 0, halted := false, tail := none } = (sc, path)) :
+    runChain progs m0 fuel (hops + 1) "hashtree_sha256_neon_x4" (neonEntry count sp0)
+      = (sc, "hashtree_sha256_neon_x4" :: path) := by
+  rw [runChain_tail progs m0 fuel hops "hashtree_sha256_neon_x4"
+    "hashtree_sha256_neon_x1" x4 (neonEntry count sp0) scut hf hrun hcut.tail hcut.err, hx1]
+
+/-- The NEON path of #79 with the chain split at the kernels' cut.  Premises: the x4 stream runs
+from `neonEntry` to its exit cut (frame balanced at `sp0 + 2048`), and the `neon_x1` leg runs
+from that cut to the clean chain exit.  Conclusion: the shipped wrapper completes with `SP`
+restored to `sp0` by its own `SUB $2048`. -/
+theorem wrapper_neon_of_cut (progs : List Prog) (m0 : Addr Int → Cell W32 Int)
+    (fuel hops : Nat) (count : Nat) (sp0 : Int) (x4 : Prog) (scut sc : CS)
+    (path : List String)
+    (hf : progs.find? (·.name = "hashtree_sha256_neon_x4") = some x4)
+    (hrun : run x4.code x4.ro m0 (fun _ => false) fuel (neonEntry count sp0) = scut)
+    (hcut : NeonX4Cut sp0 scut)
+    (hx1 : runChain progs m0 fuel hops "hashtree_sha256_neon_x1"
+             { scut with pc := 0, halted := false, tail := none } = (sc, path))
+    (hexit : NeonChainExit sp0 sc) :
+    ∃ sf, runCall progs neonPath rNum m0 fuel (hops + 1) 4 (entry count sp0) = sf ∧
+      sf.err = none ∧ sf.halted = true ∧ sf.tail = none ∧
+      sf.getG 31 = .ptr ⟨rStack, sp0⟩ :=
+  wrapper_neon progs m0 fuel (hops + 1) count sp0 sc
+    ("hashtree_sha256_neon_x4" :: path)
+    (neon_x4_chain_of_cut progs m0 fuel hops count sp0 x4 scut sc path hf hrun hcut hx1)
+    hexit.err hexit.halted hexit.tail hexit.ret hexit.sp hexit.frame
+
+/-- The exit cut of the `sha_x1` leg: a clean single-leg finish at the unmoved `SP`, with the
+wrapper's return marker 1 in `x30`. -/
+structure ShaX1Exit (sp0 : Int) (sc : CS) : Prop where
+  err : sc.err = none
+  halted : sc.halted = true
+  tail : sc.tail = none
+  ret : sc.getG 30 = .ptr ⟨rRet, (1 : Int)⟩
+  sp : sc.getG 31 = .ptr ⟨rStack, sp0⟩
+
+/-- The `sha_x1` path of #79 with the kernel leg as a run to its exit cut. -/
+theorem wrapper_sha_of_run (progs : List Prog) (m0 : Addr Int → Cell W32 Int)
+    (fuel : Nat) (count : Nat) (sp0 : Int) (sha : Prog) (sc : CS)
+    (hf : progs.find? (·.name = "hashtree_sha256_sha_x1") = some sha)
+    (hrun : run sha.code sha.ro m0 (fun _ => false) fuel (shaEntry count sp0) = sc)
+    (hfin : ShaX1Exit sp0 sc) :
+    ∃ sf, runCall progs shaniPath rNum m0 fuel 1 2 (entry count sp0) = sf ∧
+      sf.err = none ∧ sf.halted = true ∧ sf.tail = none ∧
+      sf.getG 31 = .ptr ⟨rStack, sp0⟩ :=
+  wrapper_sha progs m0 fuel 1 count sp0 sc ["hashtree_sha256_sha_x1"]
+    (runChain_single progs m0 fuel "hashtree_sha256_sha_x1" sha (shaEntry count sp0) sc
+      hf hrun hfin.tail)
+    hfin.err hfin.halted hfin.tail hfin.ret hfin.sp
+
 end Hashtree.Asm.ArmCall
