@@ -54,6 +54,7 @@ import Hashtree.Proofs.WinWrapperSat
 import Hashtree.Proofs.WinShippedClobber
 import Hashtree.Proofs.WinShaniSeedAlign
 import Hashtree.Asm.RunAgree
+import Hashtree.Asm.RunExit
 import Hashtree.Proofs.WinAvx512Live
 import Hashtree.Proofs.WinAvxX4Live
 
@@ -415,3 +416,13 @@ import Hashtree.Proofs.WinAvxX4Live
 #print axioms Hashtree.Proofs.WinAvx512Live.live_entry
 #print axioms Hashtree.Proofs.WinAvxX4Live.cert
 #print axioms Hashtree.Proofs.WinAvxX4Live.live_entry
+
+-- R5: single-state step shape and body exit (Asm/RunExit): exec_shape (a step fails leaving
+-- pc/gprs/mem alone, or keeps err, keeps halted unless ret/tail, writes only dsts, keeps mem
+-- unless vstore/movst/push), run_err_none (err sticky), run_exit (a body run that halts without
+-- error reaches the exit pc unhalted, inside before), run_preserve, run_nowrite.
+#print axioms Hashtree.Asm.RunExit.exec_shape
+#print axioms Hashtree.Asm.RunExit.run_err_none
+#print axioms Hashtree.Asm.RunExit.run_exit
+#print axioms Hashtree.Asm.RunExit.run_preserve
+#print axioms Hashtree.Asm.RunExit.run_nowrite
