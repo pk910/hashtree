@@ -52,6 +52,7 @@ import Hashtree.Proofs.WinWrapperMach
 import Hashtree.Proofs.WinWrapper
 import Hashtree.Proofs.WinWrapperSat
 import Hashtree.Proofs.WinShippedClobber
+import Hashtree.Proofs.WinShaniSeedAlign
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -364,3 +365,23 @@ import Hashtree.Proofs.WinShippedClobber
 #print axioms Hashtree.Proofs.WinShippedClobber.shippedBodyRsp_store_covers_go_frame
 #print axioms Hashtree.Proofs.WinShippedClobber.shipped_avx2x8_store_clobbers_go_frame
 #print axioms Hashtree.Proofs.WinShippedClobber.shipped_avx2x8_store_clobbers_go_frame_sigma
+
+-- R5: seed alignment against the linux certificates.  The windows shani_x2 body run starts from
+-- WinShaniCall.seedSt; a linux functional certificate would have to start from that same state.
+-- The seed at the windows call state entryWin has rbx = ptr (rStack, sigma 6) (the Win64 rbp),
+-- rbp = a number (the Win64 rdi), r8 = ptr (rStack, sigma 5) (the Win64 rbx), while
+-- X86Sym.entryS (ShaniAll) has rbx a number and X86SymW.entryW (ShaniW) has rbp a stack pointer
+-- and r8 a number; mapVal preserves the constructor, so no symbol choice aligns the states.
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.mapState_getG
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.entryWin_gpr5
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.seed_gpr3
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.entryS24_gpr3
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.entryS_gpr3
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.seed_ne_entryS
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.entryW_gpr5
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.entryW_gpr8
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.seed_gpr5
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.seed_gpr8
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.entryW_getG5
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.entryW_getG8
+#print axioms Hashtree.Proofs.WinShaniSeedAlign.seed_ne_entryW
