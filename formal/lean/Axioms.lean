@@ -33,6 +33,9 @@ import Hashtree.Proofs.WinSseX1
 import Hashtree.Proofs.WinAvxX1
 import Hashtree.Proofs.WinChain
 import Hashtree.Proofs.WinFrame
+import Hashtree.Proofs.WinFrameStack
+import Hashtree.Proofs.WinSafeScan
+import Hashtree.Proofs.WinShaniTransfer
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -105,3 +108,14 @@ import Hashtree.Proofs.WinFrame
 #print axioms Hashtree.Proofs.WinChain.win_callChain_returns
 #print axioms Hashtree.Proofs.WinChain.win_callChain_fr
 #print axioms Hashtree.Proofs.WinAvxX1.renPerm
+
+/- R5: windows amd64 -/
+#print axioms Hashtree.Asm.X86.effAddr_mv
+#print axioms Hashtree.Asm.X86.exec_frame
+#print axioms Hashtree.Asm.X86.run_comb
+#print axioms Hashtree.Asm.X86.frameSafeB_iff
+#print axioms Hashtree.Asm.X86.safeB_and
+#print axioms Hashtree.Proofs.WinShaniTransfer.body_safe
+#print axioms Hashtree.Proofs.WinShaniTransfer.body_hmap
+#print axioms Hashtree.Proofs.WinShaniTransfer.body_hside
+#print axioms Hashtree.Proofs.WinShaniTransfer.shani_body_transfer

@@ -198,11 +198,28 @@ def mSafe (m : MemRef) : Prop :=
     | none => True
     | some i => i ≠ 4) ∧ (m.base = some (4 : Nat) → m.ro = none ∧ m.index = none)
 
-instance instDecMSafe (m : MemRef) : Decidable (mSafe m) := by
-  unfold mSafe
-  cases m.index with
-  | none => simp only; infer_instance
-  | some i => simp only; infer_instance
+/-- Boolean form of `mSafe`, for kernel-checked scans. -/
+def mSafeB (m : MemRef) : Bool :=
+  (match m.index with
+    | none => true
+    | some i => decide (i ≠ 4)) &&
+  (!(m.base == some (4 : Nat)) || (m.ro.isNone && m.index.isNone))
+
+theorem mSafeB_iff (m : MemRef) : (mSafeB m = true) ↔ mSafe m := by
+  unfold mSafeB mSafe
+  rcases m with ⟨base, index, scale, disp, ro⟩
+  cases index <;> cases ro <;> cases base <;>
+    simp [Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true, beq_iff_eq, Option.isNone_iff_eq_none]
+
+/-- Kernel-reducible `Decidable` instance: it matches on the Boolean `mSafeB` instead of
+transporting an instance along the equivalence (`▸` would block kernel reduction). -/
+instance instDecMSafe (m : MemRef) : Decidable (mSafe m) :=
+  match hm : mSafeB m with
+  | true => isTrue ((mSafeB_iff m).mp hm)
+  | false => isFalse (fun h => by
+      have h1 : mSafeB m = true := (mSafeB_iff m).mpr h
+      rw [h1] at hm
+      exact nomatch hm)
 
 /-- Safe general-register operands: never `rsp`. -/
 def gsSafe : GSrc → Prop
@@ -216,15 +233,10 @@ def vsSafe : VSrc → Prop
   | .mem m => mSafe m
 
 instance instDecGSafe (s : GSrc) : Decidable (gsSafe s) := by
-  cases s with
-  | reg r => simp only [gsSafe]; infer_instance
-  | imm v => simp only [gsSafe]; infer_instance
-  | mem m => simp only [gsSafe]; infer_instance
+  cases s <;> dsimp only [gsSafe] <;> infer_instance
 
 instance instDecVSafe (s : VSrc) : Decidable (vsSafe s) := by
-  cases s with
-  | reg i => simp only [vsSafe]; infer_instance
-  | mem m => simp only [vsSafe]; infer_instance
+  cases s <;> dsimp only [vsSafe] <;> infer_instance
 
 /-- Re-associating the two address offsets: lowering by `δ` and then adding `x + d` is adding
 `x`, when `δ + d = 0`. -/
@@ -409,7 +421,7 @@ def frameSafe : Instr → Prop
   | .ret => False
 
 instance instDecFrameSafe (i : Instr) : Decidable (frameSafe i) := by
-  cases i <;> simp only [frameSafe] <;> infer_instance
+  cases i <;> dsimp only [frameSafe] <;> infer_instance
 
 /-- `frameSafe` implies `trOk` (it excludes every tail call). -/
 theorem frameSafe_trOk (i : Instr) (h : frameSafe i) : trOk i := by
@@ -837,15 +849,18 @@ variable {prog winProg : Array Instr} {p : Nat}
 
 /-- **The composed run transfer** over a slice of the two programs: `n` steps of the windows
 program from the fully translated state are the translations of the `n` linux steps, provided
-each linux instruction sits at windows index `p + j` as its full translation (`hmap`), every
-linux instruction of the slice is `frameSafe` and `okI` (`hside`), and the linux run stays inside
-the slice until it halts or returns (`hcond`). -/
-theorem run_comb (hFG : RenPerm F G) (δ d : Int) (hδ : δ + d = 0)
-    (hmap : ∀ j, j < prog.size → winProg[p + j]? = (prog[j]?).map (bodyI F d p))
-    (hside : ∀ (pc : Nat) (x : Instr), prog[pc]? = some x → okI x ∧ frameSafe x) :
+each linux instruction of the slice `[lo, prog.size)` sits at windows index `p + j` as its full
+translation (`hmap`), every linux instruction of the slice is `okI` and `frameSafe` (`hside`),
+and the linux run stays inside the slice until it halts or returns
+(`hcond`, which also supplies the lower bound for the first step). -/
+theorem run_comb (hFG : RenPerm F G) (δ d : Int) (hδ : δ + d = 0) (lo hi : Nat)
+    (hhi : hi ≤ prog.size)
+    (hmap : ∀ j, lo ≤ j → j < hi → winProg[p + j]? = (prog[j]?).map (bodyI F d p))
+    (hside : ∀ (pc : Nat), lo ≤ pc → pc < hi → ∀ (x : Instr), prog[pc]? = some x →
+      okI x ∧ frameSafe x) :
     ∀ (n : Nat) (s : State W32 Int), s.gpr.length = 16 →
       (∀ k, k < n → (run prog ro mem0 orc k s).halted = true ∨
-        (run prog ro mem0 orc k s).pc < prog.size) →
+        (lo ≤ (run prog ro mem0 orc k s).pc ∧ (run prog ro mem0 orc k s).pc < hi)) →
       run winProg ro mem0 orc n (shiftPc p (renSt F G (spSt δ s)))
         = shiftPc p (renSt F G (spSt δ (run prog ro mem0 orc n s))) := by
   intro n
@@ -858,18 +873,19 @@ theorem run_comb (hFG : RenPerm F G) (δ d : Int) (hδ : δ + d = 0)
       rw [run_halted prog ro mem0 orc (n+1) s hh,
           run_halted winProg ro mem0 orc (n+1) (shiftPc p (renSt F G (spSt δ s))) hsh]
     · have hf : s.halted = false := by simpa using hh
-      have h0 : s.halted = true ∨ s.pc < prog.size := by
+      have h0 : s.halted = true ∨ (lo ≤ s.pc ∧ s.pc < hi) := by
         have h := hcond 0 (Nat.zero_lt_succ n)
         simpa only [run] using h
-      have hpc : s.pc < prog.size := by
+      have hpcl : lo ≤ s.pc ∧ s.pc < hi := by
         rcases h0 with h' | h'
         · simp [hf] at h'
         · exact h'
-      have hx : prog[s.pc]? = some prog[s.pc] := Array.getElem?_eq_getElem hpc
-      have hside' := hside s.pc prog[s.pc] hx
+      have hsz : s.pc < prog.size := Nat.lt_of_lt_of_le hpcl.2 hhi
+      have hx : prog[s.pc]? = some prog[s.pc] := Array.getElem?_eq_getElem hsz
+      have hside' := hside s.pc hpcl.1 hpcl.2 prog[s.pc] hx
       have hwx : winProg[(shiftPc p (renSt F G (spSt δ s))).pc]? =
           some (bodyI F d p prog[s.pc]) := by
-        rw [shiftPc_pc, renSt_pc, spSt_pc, Nat.add_comm s.pc p, hmap s.pc hpc, hx]
+        rw [shiftPc_pc, renSt_pc, spSt_pc, Nat.add_comm s.pc p, hmap s.pc hpcl.1 hpcl.2, hx]
         rfl
       have hshf : (renSt F G (spSt δ s)).halted = false := by simp [hf]
       have e1 : run winProg ro mem0 orc (n+1) (shiftPc p (renSt F G (spSt δ s)))
