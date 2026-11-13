@@ -27,6 +27,7 @@ import Hashtree.Gen.RvCryptoP.Final
 import Hashtree.Proofs.RvX1All
 import Hashtree.Proofs.RvZbbX1All
 import Hashtree.Proofs.RvCryptoAll
+import Hashtree.Proofs.RvRegs
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -53,3 +54,11 @@ import Hashtree.Proofs.RvCryptoAll
 #print axioms Hashtree.Proofs.RvX1L.correct
 #print axioms Hashtree.Proofs.RvZbbX1L.correct
 #print axioms Hashtree.Proofs.RvCryptoL.correct
+#print axioms Hashtree.Proofs.RvRegs.correct_regs_x1
+#print axioms Hashtree.Proofs.RvRegs.correct_regs_zbb
+#print axioms Hashtree.Proofs.RvRegs.correct_regs_crypto
+#print axioms Hashtree.Proofs.RvRegs.all_x1
+#print axioms Hashtree.Proofs.RvRegs.all_zbb
+#print axioms Hashtree.Proofs.RvRegs.all_crypto
+#print axioms Hashtree.Proofs.RvRegs.run_gpr
+#print axioms Hashtree.Proofs.RvRegs.exec_gpr
