@@ -14,6 +14,7 @@ import Hashtree.Proofs.WrapperAmd64
 import Hashtree.Proofs.Avx2X8Body
 import Hashtree.Proofs.Avx512X16Body
 import Hashtree.Proofs.AvxX4LoopTurn
+import Hashtree.Proofs.AvxX4ToX1
 import Hashtree.GoProof
 import Hashtree.Glue
 import Hashtree.Gen.AvxX4P.Final
@@ -39,6 +40,7 @@ import Hashtree.Gen.RvCryptoP.Final
 #print axioms Hashtree.Proofs.Avx2X8Body.body_run
 #print axioms Hashtree.Proofs.Avx512X16Body.body_run
 #print axioms Hashtree.Proofs.AvxX4LoopTurn.turn_run
+#print axioms Hashtree.Proofs.AvxX4ToX1.x4_small_to_x1
 
 #print axioms Hashtree.Gen.AvxX4P.out_final
 #print axioms Hashtree.Gen.Avx2X8P.out_final
