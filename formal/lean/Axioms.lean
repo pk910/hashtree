@@ -24,23 +24,23 @@ import Hashtree.Gen.RvX1P.Final
 import Hashtree.Gen.RvZbbX1P.Final
 import Hashtree.Gen.RvCryptoP.Final
 
-#print axioms Hashtree.Proofs.ShaniAll.shani_correct
+#print axioms Hashtree.Proofs.Shani.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
-#print axioms Hashtree.Proofs.SseX1All.correct
-#print axioms Hashtree.Proofs.AvxX1All.correct
+#print axioms Hashtree.Proofs.SseX1L.correct
+#print axioms Hashtree.Proofs.AvxX1L.correct
 #print axioms Hashtree.Proofs.AvxX1W.correctW
 #print axioms Hashtree.Proofs.WrapperAmd64.wrapper_correct
-#print axioms Hashtree.GoProof.sha256_1_generic_eq
+#print axioms Hashtree.Go.sha256_1_generic_eq
 #print axioms Hashtree.Glue.Hash_spec
 #print axioms Hashtree.Glue.HashByteSlice_spec
 
-#print axioms Hashtree.Gen.AvxX4P.Final.out_final
-#print axioms Hashtree.Gen.Avx2X8P.Final.out_final
-#print axioms Hashtree.Gen.Avx512X16P.Final.out_final
-#print axioms Hashtree.Gen.ArmShaX1P.Final.out_final
-#print axioms Hashtree.Gen.ArmNeonX1P.Final.out_final
-#print axioms Hashtree.Gen.ArmNeonX1P0.Final.only_stack_writes_run
-#print axioms Hashtree.Gen.ArmNeonX4P.Final.out_final
-#print axioms Hashtree.Gen.RvX1P.Final.out_final
-#print axioms Hashtree.Gen.RvZbbX1P.Final.out_final
-#print axioms Hashtree.Gen.RvCryptoP.Final.out_final
+#print axioms Hashtree.Gen.AvxX4P.out_final
+#print axioms Hashtree.Gen.Avx2X8P.out_final
+#print axioms Hashtree.Gen.Avx512X16P.out_final
+#print axioms Hashtree.Gen.ArmShaX1P.out_final
+#print axioms Hashtree.Gen.ArmNeonX1P.out_final
+#print axioms Hashtree.Gen.ArmNeonX1P0.only_stack_writes_run
+#print axioms Hashtree.Gen.ArmNeonX4P.out_final
+#print axioms Hashtree.Gen.RvX1P.out_final
+#print axioms Hashtree.Gen.RvZbbX1P.out_final
+#print axioms Hashtree.Gen.RvCryptoP.out_final
