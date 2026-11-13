@@ -36,6 +36,7 @@ import Hashtree.Proofs.WinFrame
 import Hashtree.Proofs.WinFrameStack
 import Hashtree.Proofs.WinSafeScan
 import Hashtree.Proofs.WinShaniTransfer
+import Hashtree.Proofs.WinShaniFront
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -119,3 +120,7 @@ import Hashtree.Proofs.WinShaniTransfer
 #print axioms Hashtree.Proofs.WinShaniTransfer.body_hmap
 #print axioms Hashtree.Proofs.WinShaniTransfer.body_hside
 #print axioms Hashtree.Proofs.WinShaniTransfer.shani_body_transfer
+#print axioms Hashtree.Proofs.WinShaniFront.storeLanes_rec
+#print axioms Hashtree.Proofs.WinShaniFront.mem_storeLanes
+#print axioms Hashtree.Proofs.WinShaniFront.exec_sub_rsp
+#print axioms Hashtree.Proofs.WinShaniFront.exec_vstore_rsp
