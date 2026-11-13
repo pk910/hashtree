@@ -51,6 +51,7 @@ import Hashtree.Proofs.WinWrapperPre
 import Hashtree.Proofs.WinWrapperMach
 import Hashtree.Proofs.WinWrapper
 import Hashtree.Proofs.WinWrapperSat
+import Hashtree.Proofs.WinShippedClobber
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -348,3 +349,18 @@ import Hashtree.Proofs.WinWrapperSat
 #print axioms Hashtree.Proofs.WinWrapper.wrapper_hyps_satW
 #print axioms Hashtree.Proofs.WinWrapper.wrapper_hyps_satW_fixed
 #print axioms Hashtree.Proofs.WinWrapper.wrapper_hyps_satW_shipped
+
+-- R5: the concrete corruption witness for the shipped $1024 frame.  The avx2_x8 loop body is
+-- sequential from the guard (pc 24) to the loop-back (pc 6085), so it executes the input-derived
+-- 32-byte store at pc 442; with the shipped frame the body rsp is E-264 or E-280, so the store
+-- interval covers the Go saved-BP word [E-8,E) and return address [E,E+8) that post F reads.
+#print axioms Hashtree.Proofs.WinShippedClobber.avx2x8_input_load_pc
+#print axioms Hashtree.Proofs.WinShippedClobber.avx2x8_store_pc
+#print axioms Hashtree.Proofs.WinShippedClobber.avx2x8_loop_guard
+#print axioms Hashtree.Proofs.WinShippedClobber.avx2x8_body_sequential_scan
+#print axioms Hashtree.Proofs.WinShippedClobber.avx2x8_body_sequential
+#print axioms Hashtree.Proofs.WinShippedClobber.shippedCallRsp_cases
+#print axioms Hashtree.Proofs.WinShippedClobber.shippedBodyRsp_cases
+#print axioms Hashtree.Proofs.WinShippedClobber.shippedBodyRsp_store_covers_go_frame
+#print axioms Hashtree.Proofs.WinShippedClobber.shipped_avx2x8_store_clobbers_go_frame
+#print axioms Hashtree.Proofs.WinShippedClobber.shipped_avx2x8_store_clobbers_go_frame_sigma
