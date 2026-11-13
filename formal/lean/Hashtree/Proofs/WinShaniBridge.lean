@@ -34,7 +34,8 @@ open Hashtree.Proofs.WinWrapper (entryWin)
 open Hashtree.Proofs.WinShaniCall (seedSt seedSt_getG seedSt_gpr_len)
 open Hashtree.Proofs.WinShani (F G)
 open Hashtree.Proofs.WinShaniFront (saveLog laneLog saveSt)
-open Hashtree.Proofs.WinShaniSeedAlign (mapState_getG linuxLive shani_linux_cert shani_linux_live_entry_eq)
+open Hashtree.Proofs.WinShaniSeedAlign (mapState_getG linuxLive linuxLiveF shani_linux_cert
+  shani_linux_live_entry_eq shani_linux_liveF_entry)
 open Hashtree.Proofs.WrapperAmd64 (sAt_eval)
 
 abbrev linuxProg : Array Instr := Hashtree.Kernels.X86.Shani.prog
@@ -198,7 +199,7 @@ theorem vr_eq (m : Addr Int → Cell W32 Int) :
 
 theorem seed_agree (m : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     (h0 : Mem0Rel (eOf env σ m) σ mem0S m) :
-    Agree [2, 6, 4, 7] (s0 env σ) (run linuxProg 4 m orcC 1 (mapState (eOf env σ m) σ entryW)) := by
+    Agree [2, 6, 4, 7] false (s0 env σ) (run linuxProg 4 m orcC 1 (mapState (eOf env σ m) σ entryW)) := by
   rw [run1_eq _ _ _ _ h0]
   have hs0 : ∀ j, (s0 env σ).getG j = (seedSt (stW env σ) (aW σ)).getG j := fun _ => rfl
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -222,7 +223,8 @@ theorem seed_agree (m : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     rw [seedSt_gpr_len, List.length_map, E1_len]
   · show (entryWin.vr.map _) = E1.vr.map _
     exact (vr_eq env σ m).symm
-  · have h1 : (s0 env σ).flags = some ((aW σ).off, (88 : Int)) := rfl
+  · intro _
+    have h1 : (s0 env σ).flags = some ((aW σ).off, (88 : Int)) := rfl
     have h2 : (mapState (eOf env σ m) σ E1).flags =
         E1.flags.map (fun p => (p.1.eval σ, p.2.eval σ)) := rfl
     rw [h1, h2, E1_flags]
@@ -369,12 +371,13 @@ theorem steps_pos : Hashtree.Proofs.ShaniW.steps c = 1 + N c := by
 /-- The agreement of the seed run with the certificate run, every fuel. -/
 theorem run_agree_fuel (hw : WfMemW rodata [] env σ m) (k : Nat) :
     Agree (linuxLive.getD (run linuxProg 4 (mV env σ m) orcC k (s0 env σ)).pc [])
+      (linuxLiveF.getD (run linuxProg 4 (mV env σ m) orcC k (s0 env σ)).pc false)
       (run linuxProg 4 (mV env σ m) orcC k (s0 env σ))
       (run linuxProg 4 (mV env σ m) orcC k
         (run linuxProg 4 (mV env σ m) orcC 1 (mapState (eV env σ m) σ entryW))) := by
   apply run_agree linuxProg 4 (mV env σ m) orcC shani_linux_cert k
-  show Agree (linuxLive.getD 1 []) _ _
-  rw [shani_linux_live_entry_eq]
+  show Agree (linuxLive.getD 1 []) (linuxLiveF.getD 1 false) _ _
+  rw [shani_linux_live_entry_eq, shani_linux_liveF_entry]
   exact seed_agree env σ (mV env σ m) orcC
     (mem0RelW_of_wf rodata [] _ σ _ (wf_view env σ m hw) (envMem_eOf env σ _))
 

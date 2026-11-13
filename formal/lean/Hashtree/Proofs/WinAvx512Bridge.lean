@@ -19,10 +19,11 @@ increment and depends on the linux per-link certificate of the avx512 loop).
   wrapper call state `entryWin` with the symbols advanced (`shift`), under some vector
   environment (U6: the vector file is whatever the previous link left — `entryWin`'s lanes are
   distinct symbols, so every vector file is an instance), on top of the previous links' output
-  log `M'` (output-only, the first `d` blocks correct).  The flags are not constrained: every
-  kernel sets them before reading them.  (In the implementation the flags become the
-  pseudo-register `FL` of the liveness certificate, so that `Agree L` compares them iff `FL ∈ L`;
-  the `{ s with flags := none }` below is the pre-generalisation form of that statement.)
+  log `M'` (output-only, the first `d` blocks correct).  The flags are not constrained (`Agree L
+  false`): every kernel sets them before reading them, which the flags bit of its liveness
+  certificate records (`liveF_entry`).  **U6**: the vector environment `e'` is free on the
+  vector symbols — the avx512 link clobbers `xmm6`-`xmm15` and nothing here assumes their
+  preservation.
 -/
 
 set_option autoImplicit false
@@ -49,7 +50,7 @@ def PostLink (σ : Nat → Int) (c : Nat) (inp : Nat → Spec.Byte) (D : Nat) (f
 def PreLink (env : Key → W32) (σ : Nat → Int) (c d r : Nat) (inp : Nat → Spec.Byte) (L : List Nat)
     (s : CS) : Prop :=
   ∃ (e' : Key → W32) (M' : CLog), SameG env e' ∧
-    Agree L { s with flags := none } (fr M' (mapState e' (shift σ d r) entryWin)) ∧
+    Agree L false s (fr M' (mapState e' (shift σ d r) entryWin)) ∧
     OutLogW (σ 9) M' ∧ Foot (σ 9) 0 (σ 1) (32 * c) M' ∧ OutOk inp (σ 1) d M'
 
 /-- The entry live set of the avx2_x8 link (`[8, 4, 5, 6, 12, 13, 14, 15, 2, 1]`). -/

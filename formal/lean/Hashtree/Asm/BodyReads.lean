@@ -69,6 +69,24 @@ def dsts : Instr → List Nat
   | .ret => [rsp]
   | _ => []
 
+/-- Reads the flags (`jcc`/`jccTail`). -/
+def readsF : Instr → Bool
+  | .jcc _ _ => true
+  | .jccTail _ _ => true
+  | _ => false
+
+/-- Writes the flags: the comparisons and the flag-clobbering data operations (every branch of
+their `exec` ends in `setFlags`/`clearFlags`). -/
+def writesF : Instr → Bool
+  | .alu _ _ _ _ => true
+  | .sub _ _ _ => true
+  | .cmp _ _ _ => true
+  | .test _ _ _ => true
+  | .ror _ _ _ => true
+  | .shld _ _ _ _ => true
+  | .shl _ _ _ => true
+  | _ => false
+
 def rbwAux : List Nat → List Instr → List Nat
   | _, [] => []
   | w, i :: is => (srcs i).filter (fun r => !(w.contains r)) ++ rbwAux (w ++ dsts i) is

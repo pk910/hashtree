@@ -183,17 +183,24 @@ abbrev winProg : Array Instr := Hashtree.Kernels.X86Win.Shani.prog
 def linuxLive : List (List Nat) := live linuxProg
 /-- Per-pc live register sets of the windows `shani_x2` program. -/
 def winLive : List (List Nat) := live winProg
+/-- Per-pc flags live-in bits. -/
+def linuxLiveF : List Bool := liveF linuxProg
+def winLiveF : List Bool := liveF winProg
 
-theorem shani_linux_certB : certB linuxProg linuxLive = true := by decide +kernel
-theorem shani_windows_certB : certB winProg winLive = true := by decide +kernel
+theorem shani_linux_certB : certB linuxProg linuxLive linuxLiveF = true := by decide +kernel
+theorem shani_windows_certB : certB winProg winLive winLiveF = true := by decide +kernel
 
 /-- The certificate `run_agree` consumes for the linux program. -/
-theorem shani_linux_cert : Cert linuxProg (fun p => linuxLive.getD p []) :=
+theorem shani_linux_cert : Cert linuxProg (fun p => linuxLive.getD p []) (fun p => linuxLiveF.getD p false) :=
   Cert_of_certB shani_linux_certB
 
 /-- The certificate `run_agree` consumes for the windows program. -/
-theorem shani_windows_cert : Cert winProg (fun p => winLive.getD p []) :=
+theorem shani_windows_cert : Cert winProg (fun p => winLive.getD p []) (fun p => winLiveF.getD p false) :=
   Cert_of_certB shani_windows_certB
+
+/-- The flags are not live at the body entries (each body compares before it branches). -/
+theorem shani_linux_liveF_entry : linuxLiveF.getD 1 false = false := by decide +kernel
+theorem shani_windows_liveF_entry : winLiveF.getD 11 false = false := by decide +kernel
 
 /-- Closure: the linux body entry live set (pc 1) is inside the read set `[2, 6, 4, 7]`. -/
 theorem shani_linux_live_entry_eq : linuxLive.getD 1 [] = [2, 6, 4, 7] := by decide +kernel

@@ -383,19 +383,17 @@ theorem run_exit (prog : Array Instr) (ro : Region) (mem0 : Addr γ → Cell α 
       rw [hstep] at hN herr
       obtain ⟨hhalts, hsucc⟩ := hb s.pc i hlo hhi hi'
       have herr0 := run_err_none prog ro mem0 orc N _ herr 0 (Nat.zero_le _)
-      rcases exec_shape ro mem0 orc i s hh with ⟨h1, _⟩ | ⟨_, h2, _⟩
+      rcases exec_shape ro mem0 orc i s hh with ⟨h1, _⟩ | ⟨_, h2, _, _, _, _, hpcs⟩
       · exact absurd herr0 h1
       have hnh : (exec ro mem0 orc i s).halted = false := by
         rcases h2 with h2 | h2
         · rwa [hh] at h2
         · rw [hhalts] at h2; cases h2
-      have hpc := (exec_agree ro mem0 orc i (R := srcs i) (s1 := s) (s2 := s)
-        ⟨fun _ _ => rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ (fun _ h => h)).2
       have hin : (lo ≤ (exec ro mem0 orc i s).pc ∧ (exec ro mem0 orc i s).pc < hi) ∨
           (exec ro mem0 orc i s).pc = hi := by
-        rcases hpc with hpc | ⟨hpc, _⟩
-        · exact Or.inl (by rw [hpc]; exact ⟨hlo, hhi⟩)
+        rcases hpcs with hpc | hpc
         · exact hsucc _ hpc
+        · rw [hnh] at hpc; cases hpc
       rcases hin with ⟨hlo', hhi'⟩ | hexit
       · obtain ⟨n, hn, hk, hpcn, hhn⟩ := run_exit prog ro mem0 orc hb N _ hlo' hhi' hnh hN herr
         refine ⟨n + 1, Nat.succ_le_succ hn, fun k hk' => ?_, ?_, ?_⟩
