@@ -435,6 +435,43 @@ theorem run_preserve (prog : Array Instr) (ro : Region) (mem0 : Addr γ → Cell
             rw [← run_succ prog ro mem0 orc k s hh i hi']; exact hk (k + 1) (Nat.succ_lt_succ hk')) herr]
       exact h3 r (hw s.pc i hlo hhi hi')
 
+/-- A register no instruction of the program writes keeps its value through any run that ends
+without error (halted steps are the identity). -/
+theorem run_preserve_all (prog : Array Instr) (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat → Bool)
+    (r : Nat) (hw : ∀ (p : Nat) (i : Instr), prog[p]? = some i → r ∉ dsts i) :
+    ∀ (n : Nat) (s : State α γ), (run prog ro mem0 orc n s).err = none →
+      (run prog ro mem0 orc n s).getG r = s.getG r
+  | 0, _, _ => rfl
+  | n + 1, s, herr => by
+    by_cases hh : s.halted = true
+    · rw [run_halted_eq _ _ _ _ _ _ hh]
+    · have hh' : s.halted = false := by simpa using hh
+      cases hi : prog[s.pc]? with
+      | none =>
+        exfalso
+        simp only [run, hh', Bool.false_eq_true, ite_false, hi] at herr
+        exact fail_err s _ herr
+      | some i =>
+        rw [run_succ prog ro mem0 orc n s hh' i hi] at herr ⊢
+        have herr0 := run_err_none prog ro mem0 orc n _ herr 0 (Nat.zero_le _)
+        rcases exec_shape ro mem0 orc i s hh' with ⟨h1, _⟩ | ⟨_, _, h3, _⟩
+        · exact absurd herr0 h1
+        rw [run_preserve_all prog ro mem0 orc r hw n _ herr]
+        exact h3 r (hw s.pc i hi)
+
+/-- The decidable never-written scan. -/
+def unwrittenScan (prog : Array Instr) (regs : List Nat) : Bool :=
+  prog.toList.all fun i => regs.all fun r => !(dsts i).contains r
+
+theorem unwrittenScan_sound {prog : Array Instr} {regs : List Nat} (h : unwrittenScan prog regs = true)
+    (r : Nat) (hr : r ∈ regs) : ∀ (p : Nat) (i : Instr), prog[p]? = some i → r ∉ dsts i := by
+  intro p i hp
+  have hi : i ∈ prog.toList := by
+    rw [List.mem_iff_getElem?]; exact ⟨p, by rwa [Array.getElem?_toList]⟩
+  have := (List.all_eq_true.mp h) i hi
+  have := (List.all_eq_true.mp this) r hr
+  simpa [List.contains_iff_mem] using this
+
 /-- A run whose executed instructions do not write memory leaves the log alone (failures keep it
 too). -/
 theorem run_nowrite (prog : Array Instr) (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat → Bool) :

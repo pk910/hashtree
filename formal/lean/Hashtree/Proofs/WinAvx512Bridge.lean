@@ -17,9 +17,8 @@ increment and depends on the linux per-link certificate of the avx512 loop).
   conclusion shape, with its own stack depth `D`).
 * `PreLink env σ c d r L s`: the state handed to a link after `d` blocks are done and `r`
   remain: on the registers the link reads before writing (its entry live set `L`) it is the
-  wrapper call state `entryWin` with the symbols advanced (`shift`), under some vector
-  environment (U6: the vector file is whatever the previous link left — `entryWin`'s lanes are
-  distinct symbols, so every vector file is an instance), on top of the previous links' output
+  wrapper call state `entryWin` with the symbols advanced (`shift`), under some vector file `V`
+  (U6: the vector registers are whatever the previous link left), on top of the previous links' output
   log `M'` (output-only, the first `d` blocks correct).  The flags are not constrained (`Agree L
   false`): every kernel sets them before reading them, which the flags bit of its liveness
   certificate records (`liveF_entry`).  **U6**: the vector environment `e'` is free on the
@@ -40,18 +39,18 @@ open Hashtree.Proofs.ShaniW (OutLogW)
 def shift (σ : Nat → Int) (d r : Nat) : Nat → Int := fun i =>
   if i = 0 then σ 0 + 64 * d else if i = 1 then σ 1 + 32 * d else if i = 2 then r else σ i
 
-/-- The vector environment is free, the general-register and memory symbols are the wrapper's. -/
-def SameG (env e' : Key → W32) : Prop := ∀ i j, e' (.n (gId i j)) = env (.n (gId i j))
-
 /-- A returning link meets the windows kernel contract with stack depth `D`. -/
 def PostLink (σ : Nat → Int) (c : Nat) (inp : Nat → Spec.Byte) (D : Nat) (f : CS) : Prop :=
   f.halted = true ∧ Foot (σ 9) D (σ 1) (32 * c) f.mem ∧ OutOk inp (σ 1) c f.mem ∧ RegsOkW σ f
 
-/-- The entry state of a link with `d` blocks done and `r` remaining, on its entry live set `L`. -/
+/-- The entry state of a link with `d` blocks done and `r` remaining, on its entry live set `L`:
+the wrapper call state with the symbols advanced, **under some vector file `V`** (U6: the vector
+registers are whatever the previous link left; `entryWin`'s symbolic lanes are not assumed), over
+the previous links' output log `M'`. -/
 def PreLink (env : Key → W32) (σ : Nat → Int) (c d r : Nat) (inp : Nat → Spec.Byte) (L : List Nat)
     (s : CS) : Prop :=
-  ∃ (e' : Key → W32) (M' : CLog), SameG env e' ∧
-    Agree L false s (fr M' (mapState e' (shift σ d r) entryWin)) ∧
+  ∃ (V : List (List W32)) (M' : CLog), (V.length = 32 ∧ ∀ v ∈ V, v.length = 16) ∧
+    Agree L false s (fr M' { mapState env (shift σ d r) entryWin with vr := V }) ∧
     OutLogW (σ 9) M' ∧ Foot (σ 9) 0 (σ 1) (32 * c) M' ∧ OutOk inp (σ 1) d M'
 
 /-- The entry live set of the avx2_x8 link (`[8, 4, 5, 6, 12, 13, 14, 15, 2, 1]`). -/

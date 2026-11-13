@@ -1,4 +1,5 @@
 import Hashtree.Asm.RunAgree
+import Hashtree.Asm.RunExit
 import Hashtree.Kernels.X86Win.Avx512X16
 
 /-!
@@ -19,8 +20,10 @@ open Hashtree.Asm Hashtree.Asm.X86 Hashtree.Asm.RunAgree
 
 abbrev prog : Array Instr := Hashtree.Kernels.X86Win.Avx512X16.prog
 
-/-- The tail seed: the entry live set of the avx2_x8 link (`WinAvx2X8Live.live_entry_eq`). -/
-def T8 : List Nat := [8, 4, 5, 6, 12, 13, 14, 15, 2, 1]
+/-- The tail seed: the registers of the avx2_x8 entry set (`WinAvx2X8Live.live_entry_eq`,
+`[8,4,5,6,12,13,14,15,2,1]`) that this program writes; the others (`[5,6,12,13,14,15]`) it never
+writes (`unwritten`), so they reach the tail by preservation. -/
+def T8 : List Nat := [8, 4, 2, 1]
 
 /-- Per-pc live register sets (the fixpoint), seeded with `T8` at the tail. -/
 def liveT : List (List Nat) := live prog T8
@@ -36,11 +39,14 @@ theorem cert : Cert prog (fun p => liveT.getD p []) (fun p => liveFT.getD p fals
 /-- The flags are not live at entry. -/
 theorem liveF_entry : liveFT.getD 0 false = false := by decide +kernel
 
-/-- With the tail seed the entry set gains the callee-saved registers the next link reads
-(never written here); the kernel's own reads are `[8, 4, 2, 1]`. -/
-theorem live_entry_eq : liveT.getD 0 [] = [8, 4, 5, 6, 12, 13, 14, 15, 2, 1] := by decide +kernel
+theorem live_entry_eq : liveT.getD 0 [] = [8, 4, 2, 1] := by decide +kernel
 
-theorem live_entry : ∀ r, r ∈ liveT.getD 0 [] → r ∈ [8, 4, 5, 6, 12, 13, 14, 15, 2, 1] := by
+/-- Closure: the entry live set is inside the read set `[8, 4, 2, 1]`. -/
+theorem live_entry : ∀ r, r ∈ liveT.getD 0 [] → r ∈ [8, 4, 2, 1] := by
   rw [live_entry_eq]; exact fun _ h => h
+
+/-- The stream never writes the Win64 callee-saved general registers (nor `rsi`/`rdi`). -/
+theorem unwritten : Hashtree.Asm.RunExit.unwrittenScan prog [3, 5, 6, 7, 12, 13, 14, 15] = true := by
+  decide +kernel
 
 end Hashtree.Proofs.WinAvx512Live

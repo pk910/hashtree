@@ -174,7 +174,18 @@ If the per-pc rsp map fails to verify for a stream (an rsp write not in the list
 back to the fixed-rsp bodies first (shani done; avx512, avx_x4 next) — none of the three is
 expected to fail given sections 5/11/12 of R5.md.
 
-## avx512_x16 link proof plan (`KSpecC512_of_turnOut`, module `Proofs/WinAvx512Link.lean` to create)
+## avx512_x16 link: DONE (`Proofs/WinAvx512Link.lean`, `KSpecC512_of_turnOut`)
+
+Proved as planned below, with two deviations: the tail seed is `T8 := [8,4,2,1]` (the registers
+the avx512 stream writes among avx2's entry set; the others `[5,6,12,13,14,15]` are never written
+— `WinAvx512Live.unwritten` + `RunExit.run_preserve_all` — which also sidesteps the r12 region-tag
+mismatch between `entryWin` and `entryW`), and `PreLink` quantifies the vector *file* (`∃ V`,
+32 × 16 lanes) instead of a vector environment.  TRAP (cost 20 min): never `show`/`rfl`/`exact`
+against a computed cut state (`KZ`/`KSm`/`KTE`, `sIt`-applied states) — the unifier re-runs the
+symbolic execution; close projections with the generic `fr_*'`/`mapState_*'`/`renSt_*` lemmas
+and rewrite syntactically.  Build 51 s.
+
+## avx512_x16 link proof plan (as executed)
 
 State of the tree: 49e49d5 (engine with flags bit + tail seed; `WinAvx512Bridge` has `KSpecC512`
 with `24 ≤ σ 9`, `TurnOut`; R2b merged at 7669e84 and built: `Avx512X16W{Entry,Body,BodyV,Turn,
