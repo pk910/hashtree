@@ -37,12 +37,13 @@ structure Link where
   prog : Array Instr
   /-- The region holding this kernel's rodata. -/
   ro : Region
-  steps : Nat
+  /-- Step count as a function of the block count (the kernels loop). -/
+  steps : Nat → Nat
   deriving Inhabited
 
 /-- One run of a link's program. -/
-def step (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (l : Link) (s : CS) : CS :=
-  run l.prog l.ro m0 orc l.steps s
+def step (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (c : Nat) (l : Link) (s : CS) : CS :=
+  run l.prog l.ro m0 orc (l.steps c) s
 
 /-- A link with the pre- and post-condition used by the chain composition. -/
 structure Spec where
@@ -56,60 +57,60 @@ def resume (f : CS) : CS := { f with pc := 0, halted := false, tail := none }
 
 /-- Run a linear chain, following a tail `name` into the following link.  The memory is
 shared: a tail call keeps the caller's stack and return marker. -/
-def chainRun (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) : List Spec → CS → CS
+def chainRun (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (c : Nat) : List Spec → CS → CS
   | [], s => s
-  | [sp], s => step m0 orc sp.link s
+  | [sp], s => step m0 orc c sp.link s
   | sp :: sp' :: rest, s =>
-    let f := step m0 orc sp.link s
+    let f := step m0 orc c sp.link s
     match f.tail with
-    | some t => if t = sp'.link.name then chainRun m0 orc (sp' :: rest) (resume f) else f
+    | some t => if t = sp'.link.name then chainRun m0 orc c (sp' :: rest) (resume f) else f
     | none => f
 
 /-- The chain-aware call: start the first link at pc 0 (the caller has pushed its return
 marker) and resume the caller after the chain returns.  This is the tail-following
 replacement for `callK`, which discarded a tail. -/
-def callChain (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (specs : List Spec)
+def callChain (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (c : Nat) (specs : List Spec)
     (s : CS) : CS :=
-  let r := chainRun m0 orc specs { s with pc := 0 }
+  let r := chainRun m0 orc c specs { s with pc := 0 }
   { r with pc := 0, halted := false, tail := none }
 
 /-- A chain run commutes with a memory log frame: the writes made before the call act as
 initial memory for the whole chain, and are appended to its log.  Needed by the wrapper,
 whose call state is `fr L` of the kernel entry. -/
-theorem chainRun_fr (L : CLog) (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) :
+theorem chainRun_fr (L : CLog) (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (c : Nat) :
     ∀ (specs : List Spec) (s : CS),
-      chainRun m0 orc specs (fr L s) = fr L (chainRun (view L m0) orc specs s)
+      chainRun m0 orc c specs (fr L s) = fr L (chainRun (view L m0) orc c specs s)
   | [], _ => rfl
   | [sp], s => by
     simp only [chainRun, step, run_fr]
   | sp :: sp' :: rest, s => by
     simp only [chainRun, step, run_fr, fr_tail]
-    cases htail : (run sp.link.prog sp.link.ro (view L m0) orc sp.link.steps s).tail with
+    cases htail : (run sp.link.prog sp.link.ro (view L m0) orc (sp.link.steps c) s).tail with
     | none => simp only [htail]
     | some t =>
       by_cases ht : t = sp'.link.name
       · simp only [htail, ht, if_pos]
-        rw [show resume (fr L (run sp.link.prog sp.link.ro (view L m0) orc sp.link.steps s)) =
-          fr L (resume (run sp.link.prog sp.link.ro (view L m0) orc sp.link.steps s)) from rfl]
-        rw [chainRun_fr L m0 orc (sp' :: rest) (resume (run sp.link.prog sp.link.ro (view L m0)
-          orc sp.link.steps s))]
+        rw [show resume (fr L (run sp.link.prog sp.link.ro (view L m0) orc (sp.link.steps c) s)) =
+          fr L (resume (run sp.link.prog sp.link.ro (view L m0) orc (sp.link.steps c) s)) from rfl]
+        rw [chainRun_fr L m0 orc c (sp' :: rest) (resume (run sp.link.prog sp.link.ro (view L m0)
+          orc (sp.link.steps c) s))]
       · simp [htail, ht]
 
 /-- Per-link obligation of the chain contract.  Every link is checked from its own
 pre-condition; a return must meet the post-condition, a tail must name the next link and
 hand it a state satisfying its pre-condition. -/
-def KSpecC (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) : List Spec → Prop
+def KSpecC (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (c : Nat) : List Spec → Prop
   | [] => True
   | [sp] => ∀ s, sp.pre s →
-      let f := step m0 orc sp.link s
+      let f := step m0 orc c sp.link s
       f.err = none ∧ f.tail = none ∧ sp.post f
   | sp :: sp' :: rest =>
     (∀ s, sp.pre s →
-      let f := step m0 orc sp.link s
+      let f := step m0 orc c sp.link s
       f.err = none ∧
         ((f.tail = none ∧ sp.post f) ∨
          (f.tail = some sp'.link.name ∧ sp'.pre (resume f)))) ∧
-    KSpecC m0 orc (sp' :: rest)
+    KSpecC m0 orc c (sp' :: rest)
 
 /-- The end state of a chain: the last link's post-condition, or the post-condition of a
 link that returned before the chain was exhausted. -/
@@ -123,9 +124,9 @@ def FirstPre : List Spec → CS → Prop
   | [] => fun _ => False
   | sp :: _ => sp.pre
 
-theorem chain_sound (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) :
-    ∀ (specs : List Spec) (s : CS), KSpecC m0 orc specs → FirstPre specs s →
-      let f := chainRun m0 orc specs s
+theorem chain_sound (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) (c : Nat) :
+    ∀ (specs : List Spec) (s : CS), KSpecC m0 orc c specs → FirstPre specs s →
+      let f := chainRun m0 orc c specs s
       f.err = none ∧ f.tail = none ∧ ChainPost specs f
   | [], _, _, hpre => by
     simp only [FirstPre] at hpre
@@ -136,8 +137,8 @@ theorem chain_sound (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) :
     simp only [KSpecC] at hok
     obtain ⟨hhead, hrest⟩ := hok
     have hstep := hhead s hpre
-    by_cases hret : (step m0 orc sp.link s).tail = none
-    · have hpost : sp.post (step m0 orc sp.link s) := by
+    by_cases hret : (step m0 orc c sp.link s).tail = none
+    · have hpost : sp.post (step m0 orc c sp.link s) := by
         rcases hstep.2 with ⟨h1, h2⟩ | ⟨h1, h2⟩
         · exact h2
         · rw [hret] at h1
@@ -148,7 +149,7 @@ theorem chain_sound (m0 : Addr Int → Cell W32 Int) (orc : Nat → Bool) :
       · exact absurd h1 hret
       · simp only [chainRun, h1]
         obtain ⟨he, htl, hp⟩ :=
-          chain_sound m0 orc (sp' :: rest) (resume (step m0 orc sp.link s)) hrest h2
+          chain_sound m0 orc c (sp' :: rest) (resume (step m0 orc c sp.link s)) hrest h2
         exact ⟨he, htl, Or.inr hp⟩
 
 end Hashtree.Proofs.X86Chain
