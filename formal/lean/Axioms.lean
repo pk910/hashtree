@@ -40,6 +40,7 @@ import Hashtree.Proofs.WinFrameStack
 import Hashtree.Proofs.WinSafeScan
 import Hashtree.Proofs.WinShaniTransfer
 import Hashtree.Proofs.WinShaniFront
+import Hashtree.Proofs.WinShaniFlags
 import Hashtree.Proofs.WinAvxX4
 import Hashtree.Proofs.WinAvx2X8
 
@@ -256,3 +257,10 @@ import Hashtree.Proofs.WinAvx2X8
 #print axioms Hashtree.Asm.X86.run_wx_body
 #print axioms Hashtree.Proofs.WinSseBody.sse_body_run
 #print axioms Hashtree.Proofs.WinAvxBody.avx_body_run
+
+-- R5: flags-insensitivity of the shani_x2 body entry (linux sub rsp,88 vs windows sub rsp,248)
+#print axioms Hashtree.Proofs.WinShaniFlags.exec_vload_ok
+#print axioms Hashtree.Proofs.WinShaniFlags.exec_lea_ok
+#print axioms Hashtree.Proofs.WinShaniFlags.exec_cmp64_ok
+#print axioms Hashtree.Proofs.WinShaniFlags.run_four_flags
+#print axioms Hashtree.Proofs.WinShaniFlags.run_flags
