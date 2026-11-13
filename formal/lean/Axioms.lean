@@ -1,3 +1,4 @@
+import Hashtree.Proofs.WinSseShift
 -- Axiom audit for every final theorem.
 --
 -- `lake env lean Axioms.lean` after a full build prints the axioms each
@@ -172,3 +173,7 @@ import Hashtree.Proofs.WinAvx2X8
 #print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_body_correspondence_lo
 #print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_body_correspondence_hi
 #print axioms Hashtree.Proofs.WinAvx2X8.avx2x8_body_correspondence
+
+-- R5: the stack-memory shift of the sse_x1/avx_x1 frame transfer (foundation)
+#print axioms Hashtree.Asm.X86.shAddr_region
+#print axioms Hashtree.Asm.X86.shAddr_plusI
