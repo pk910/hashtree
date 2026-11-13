@@ -1,4 +1,4 @@
-import Hashtree.Proofs.WinSseExec
+import Hashtree.Proofs.WinSseRun
 -- Axiom audit for every final theorem.
 --
 -- `lake env lean Axioms.lean` after a full build prints the axioms each
@@ -236,3 +236,13 @@ import Hashtree.Proofs.WinAvx2X8
 #print axioms Hashtree.Asm.X86.okOr_throw_sh
 #print axioms Hashtree.Asm.X86.okOr_bind_err_sh
 #print axioms Hashtree.Asm.X86.exec_sh
+
+-- R5: the windows body run (renaming + pc re-basing + stack shift compose)
+#print axioms Hashtree.Asm.X86.shSt_shiftPc
+#print axioms Hashtree.Asm.X86.shSt_renSt
+#print axioms Hashtree.Asm.X86.hns_ren
+#print axioms Hashtree.Asm.X86.hns_shiftPc
+#print axioms Hashtree.Asm.X86.frameSafe_shiftTgt
+#print axioms Hashtree.Asm.X86.okI_shiftTgt
+#print axioms Hashtree.Asm.X86.exec_wx
+#print axioms Hashtree.Asm.X86.run_wx
