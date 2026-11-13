@@ -43,6 +43,8 @@ import Hashtree.Proofs.WinShaniFront
 import Hashtree.Proofs.WinShaniFlags
 import Hashtree.Proofs.WinShaniEpi
 import Hashtree.Proofs.WinShaniCall
+import Hashtree.Proofs.WinShaniWrite
+import Hashtree.Proofs.WinShaniExit
 import Hashtree.Proofs.WinAvxX4
 import Hashtree.Proofs.WinAvx2X8
 
@@ -298,3 +300,21 @@ import Hashtree.Proofs.WinAvx2X8
 #print axioms Hashtree.Proofs.WinShaniCall.shani_call_getV
 #print axioms Hashtree.Proofs.WinShaniCall.shani_call_halted
 #print axioms Hashtree.Proofs.WinShaniCall.shani_call_rsp
+
+-- R5: the body-exit stack footprint of the windows shani_x2 body (write log outside the save
+-- area, rsp invariance, kernel scans of the linux body) and the call composition with
+-- hW/hmem/hrsp discharged.  U6 (avx512_x16 xmm6-xmm15 clobbers) is still deferred.
+#print axioms Hashtree.Proofs.WinShaniWrite.wSafeB_iff
+#print axioms Hashtree.Proofs.WinShaniWrite.exec_write_log
+#print axioms Hashtree.Proofs.WinShaniWrite.run_write_log
+#print axioms Hashtree.Proofs.WinShaniExit.exec_rsp_ns
+#print axioms Hashtree.Proofs.WinShaniExit.run_rsp
+#print axioms Hashtree.Proofs.WinShaniExit.shani_linux_ns
+#print axioms Hashtree.Proofs.WinShaniExit.shani_linux_ws
+#print axioms Hashtree.Proofs.WinShaniExit.shani_hnsI
+#print axioms Hashtree.Proofs.WinShaniExit.shani_hwsI
+#print axioms Hashtree.Proofs.WinShaniExit.f_ne4
+#print axioms Hashtree.Proofs.WinShaniExit.seed_ns
+#print axioms Hashtree.Proofs.WinShaniExit.seed_rsp
+#print axioms Hashtree.Proofs.WinShaniExit.shani_body_log
+#print axioms Hashtree.Proofs.WinShaniExit.shani_call_mem
