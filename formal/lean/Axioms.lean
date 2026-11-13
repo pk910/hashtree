@@ -41,6 +41,7 @@ import Hashtree.Proofs.WinSafeScan
 import Hashtree.Proofs.WinShaniTransfer
 import Hashtree.Proofs.WinShaniFront
 import Hashtree.Proofs.WinShaniFlags
+import Hashtree.Proofs.WinShaniEpi
 import Hashtree.Proofs.WinAvxX4
 import Hashtree.Proofs.WinAvx2X8
 
@@ -264,3 +265,22 @@ import Hashtree.Proofs.WinAvx2X8
 #print axioms Hashtree.Proofs.WinShaniFlags.exec_cmp64_ok
 #print axioms Hashtree.Proofs.WinShaniFlags.run_four_flags
 #print axioms Hashtree.Proofs.WinShaniFlags.run_flags
+
+-- R5: shani epilogue replay (12 exec steps: 10 vload restores, add rsp, ret) and the
+-- save-log readback used to identify what each restore loads.
+#print axioms Hashtree.Proofs.WinShaniEpi.lookup_laneLog_lane
+#print axioms Hashtree.Proofs.WinShaniEpi.readCell_laneLog_pre
+#print axioms Hashtree.Proofs.WinShaniEpi.loadLane_laneLog
+#print axioms Hashtree.Proofs.WinShaniEpi.loadLanes_laneLog
+#print axioms Hashtree.Proofs.WinShaniEpi.lookup_saveLog_from
+#print axioms Hashtree.Proofs.WinShaniEpi.loadLanes_save
+#print axioms Hashtree.Proofs.WinShaniEpi.readVSrc_save
+#print axioms Hashtree.Proofs.WinShaniEpi.epi_lookup
+#print axioms Hashtree.Proofs.WinShaniEpi.exec_add64_rsp
+#print axioms Hashtree.Proofs.WinShaniEpi.exec_ret_ok
+#print axioms Hashtree.Proofs.WinShaniEpi.loadVal_mem_eq
+#print axioms Hashtree.Proofs.WinShaniEpi.epiSt_getV_after
+#print axioms Hashtree.Proofs.WinShaniEpi.run_epi
+#print axioms Hashtree.Proofs.WinShaniEpi.run_epilogue
+#print axioms Hashtree.Proofs.WinShaniEpi.run_epilogue_getV
+#print axioms Hashtree.Proofs.WinShaniEpi.epiFinal_getG_rsp
