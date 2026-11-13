@@ -67,3 +67,7 @@ root = "X86Loop1W"
 [[lean_exe]]
 name = "armproof"
 root = "ArmProof"
+
+[[lean_exe]]
+name = "armloop1"
+root = "ArmLoop1"

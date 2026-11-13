@@ -28,7 +28,7 @@ esac
 want() { [ "$target" = all ] || [ "$target" = "$1" ]; }
 
 # Build the generators once; they are small compared with the proofs.
-lake build x86loop x86loopw x86loop1 x86loop1w x86proof1 x86proofv armproof rvproof
+lake build x86loop x86loopw x86loop1 x86loop1w x86proof1 x86proofv armproof rvproof armloop1
 
 if [ "$target" = all ]; then
   rm -rf Hashtree/Gen

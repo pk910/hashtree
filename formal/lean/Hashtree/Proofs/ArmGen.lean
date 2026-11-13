@@ -35,6 +35,8 @@ structure Cfg where
   maxLen : Nat := 40
   /-- bound on the total tree size of a slice's end state (adaptive cuts) -/
   maxSize : Nat := 40000
+  /-- the loop is headed by a comparison of the count register `x2` with `4` (multi-lane kernel) -/
+  countHead : Bool := false
 
 def isSha : Option Instr → Bool
   | some (.sha256h _ _ _) | some (.sha256h2 _ _ _) => true
@@ -47,11 +49,11 @@ def progsLinux : List Hashtree.Asm.ArmRun.Prog := [
 
 def cfgs : List (String × Cfg) := [
   ("sha_x1", ⟨"hashtree_sha256_sha_x1", "ShaX1", "ArmShaX1P", Hashtree.Kernels.Arm.ShaX1.prog, 4,
-    Hashtree.Kernels.Arm.ShaX1.rodata, fun a b => isSha a || isSha b, false, 40, 40000⟩),
+    Hashtree.Kernels.Arm.ShaX1.rodata, fun a b => isSha a || isSha b, false, 40, 40000, false⟩),
   ("neon_x1", ⟨"hashtree_sha256_neon_x1", "NeonX1", "ArmNeonX1P", Hashtree.Kernels.Arm.NeonX1.prog, 7,
-    Hashtree.Kernels.Arm.NeonX1.rodata, fun _ _ => false, true, 40, 40000⟩),
+    Hashtree.Kernels.Arm.NeonX1.rodata, fun _ _ => false, true, 40, 40000, false⟩),
   ("neon_x4", ⟨"hashtree_sha256_neon_x4", "NeonX4", "ArmNeonX4P", Hashtree.Kernels.Arm.NeonX4.prog, 6,
-    Hashtree.Kernels.Arm.NeonX4.rodata, fun _ _ => false, true, 40, 40000⟩)]
+    Hashtree.Kernels.Arm.NeonX4.rodata, fun _ _ => false, true, 40, 40000, true⟩)]
 
 def randInput (seed n : Nat) : Array Nat := Id.run do
   let mut x := seed * 6364136223846793005 + 1442695040888963407

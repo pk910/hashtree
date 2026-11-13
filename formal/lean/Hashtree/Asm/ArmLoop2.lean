@@ -1,4 +1,5 @@
 import Hashtree.Asm.ArmFrame
+import Hashtree.Asm.Cut
 import Hashtree.Asm.ArmSym
 import Hashtree.Asm.X86Loop2
 import Hashtree.Asm.ArmSlice
@@ -225,6 +226,26 @@ theorem pushOk_sound (e : Key → W32) (σ : Nat → Int) (K : State E Lin) (sp0
                 exact ⟨x.eval e, hx', hy'⟩
               | succ k0 => simp only [hx0, hy0] at hi; cases hi
 
+/-- A spill log whose lane bytes hold one expression stays readable after a cut: the cut names
+every byte cell separately, but the bytes of a lane have the same value, so the mapped log still
+has the lane structure `WfMemH` needs. -/
+theorem pushOk_abstract (env : Key → W32) (σ : Nat → Int) (R : State E Lin) (sp0 lo : Int)
+    (hR : CutOk R) (h : pushOk R sp0 lo = true) :
+    ∀ o, lo ≤ o → o < sp0 → ∃ x,
+      lookup (⟨rStack, o⟩ : Addr Int)
+        ((abstract R).mem.map (fun p => (mapAddr σ p.1, mapCell (envAbs env R) σ p.2))) =
+          .ok (some (.dat x (o % 4).toNat)) ∧
+      lookup (⟨rStack, laneBase o⟩ : Addr Int)
+        ((abstract R).mem.map (fun p => (mapAddr σ p.1, mapCell (envAbs env R) σ p.2))) =
+          .ok (some (.dat x 0)) := by
+  have hm : (abstract R).mem.map (fun p => (mapAddr σ p.1, mapCell (envAbs env R) σ p.2))
+      = R.mem.map (fun p => (mapAddr σ p.1, mapCell env σ p.2)) := by
+    have h := congrArg State.mem (abstract_sound env σ R hR)
+    simpa only [mapState] using h
+  intro o h1 h2
+  obtain ⟨x, hx, hy⟩ := pushOk_sound env σ R sp0 lo h o h1 h2
+  exact ⟨x, by rw [hm]; exact hx, by rw [hm]; exact hy⟩
+
 /-! ## A cut that is an instance of another -/
 
 theorem mapState_vrInst (env : Key → W32) (σ : Nat → Int) (prog : Array Instr) (ro : Region)
@@ -257,5 +278,16 @@ theorem mapState_inst (env : Key → W32) (σ : Nat → Int) (prog : Array Instr
   simp only [mapState]
   simp only [abstract] at hg ⊢
   rw [hg]
+
+/-! ## A cut reached again -/
+
+theorem mapState_reached (e : Key → W32) (σ : Nat → Int) (K K0 : State E Lin) (τ : List Lin)
+    (hs : { K with mem := [], assume := [] } = K0.substL τ) :
+    mapState e σ K =
+      fr (K.mem.map (fun p => (mapAddr σ p.1, mapCell e σ p.2))) (mapState e (sigmaOf τ σ) K0) := by
+  have h := congrArg (mapState e σ) hs
+  rw [mapState_subst] at h
+  rw [← h]
+  simp only [fr, mapState, List.map_nil, List.nil_append]
 
 end Hashtree.Asm.Arm
