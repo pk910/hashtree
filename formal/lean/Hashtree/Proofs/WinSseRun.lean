@@ -41,7 +41,7 @@ theorem shSt_renSt {F G : Nat → Nat} (μ : Int) (s : State W32 Int) :
 inverse permutation the proof needs (it is checked by `decide` on the sixteen registers of the
 shipped layout). -/
 theorem hns_ren {F G : Nat → Nat} (s : State W32 Int)
-    (hG4 : ∀ j, j < 16 → G j ≠ 4)
+    (hG4 : ∀ j, j < 16 → j ≠ 4 → G j ≠ 4)
     (hns : ∀ j, j ≠ 4 → NoStackVal (s.getG j)) :
     ∀ j, j ≠ 4 → NoStackVal ((renSt F G s).getG j) := by
   intro j hj
@@ -51,7 +51,7 @@ theorem hns_ren {F G : Nat → Nat} (s : State W32 Int)
         List.getElem?_range h16, Option.map_some]
       rfl
     rw [hgj]
-    exact hns (G j) (hG4 j h16)
+    exact hns (G j) (hG4 j h16 hj)
   · have hgj : (renSt F G s).getG j = .num (Lane.const 0) (Lane.const 0) := by
       simp only [State.getG, renSt, List.getD_eq_getElem?_getD]
       rw [List.getElem?_map, List.getElem?_eq_none (by simpa using Nat.le_of_not_lt h16)]
@@ -89,7 +89,7 @@ variable {ro : Region} {mem0w mem0l : Addr Int → Cell W32 Int} {orc : Nat → 
 /-- The body instruction of the windows stream (`shiftTgt p (rlI F i)`) executed on the shifted
 windows state is the shifted image of the linux instruction executed on the linux state. -/
 theorem exec_wx {F G : Nat → Nat} (hFG : RenPerm F G)
-    (hG4 : ∀ j, j < 16 → G j ≠ 4)
+    (hG4 : ∀ j, j < 16 → j ≠ 4 → G j ≠ 4)
     (μ : Int) (p : Nat) (hro : ro ≠ rStack)
     (h0 : ∀ a, mem0w (shAddr μ a) = shCell μ (mem0l a))
     (i : Instr) (s : State W32 Int) (hlen : s.gpr.length = 16)
@@ -118,7 +118,7 @@ variable {ro : Region} {mem0w mem0l : Addr Int → Cell W32 Int} {orc : Nat → 
 run, provided the windows body instruction at `pc + p` is `shiftTgt p (rlI F i)` whenever the
 linux instruction at `pc` is `i` (and every such instruction is safe), the run stays inside the
 body slice, and no reachable linux state holds a stack pointer outside `rsp`. -/
-theorem run_wx (μ : Int) (hFG : RenPerm F G) (hG4 : ∀ j, j < 16 → G j ≠ 4)
+theorem run_wx (μ : Int) (hFG : RenPerm F G) (hG4 : ∀ j, j < 16 → j ≠ 4 → G j ≠ 4)
     (hro : ro ≠ rStack) (h0 : ∀ a, mem0w (shAddr μ a) = shCell μ (mem0l a))
     (hmap : ∀ pc i, base ≤ pc → pc < base + L → linuxProg[pc]? = some i →
       winProg[pc + p]? = some (shiftTgt p (rlI F i)))

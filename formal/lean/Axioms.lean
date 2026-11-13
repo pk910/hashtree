@@ -1,4 +1,6 @@
 import Hashtree.Proofs.WinSseRun
+import Hashtree.Proofs.WinSseBody
+import Hashtree.Proofs.WinAvxBody
 -- Axiom audit for every final theorem.
 --
 -- `lake env lean Axioms.lean` after a full build prints the axioms each
@@ -246,3 +248,11 @@ import Hashtree.Proofs.WinAvx2X8
 #print axioms Hashtree.Asm.X86.okI_shiftTgt
 #print axioms Hashtree.Asm.X86.exec_wx
 #print axioms Hashtree.Asm.X86.run_wx
+
+-- R5: the NoStackVal engine and the run_wx body-slice composition
+#print axioms Hashtree.Asm.X86.nsSafeB_iff
+#print axioms Hashtree.Asm.X86.exec_ns
+#print axioms Hashtree.Asm.X86.run_ns
+#print axioms Hashtree.Asm.X86.run_wx_body
+#print axioms Hashtree.Proofs.WinSseBody.sse_body_run
+#print axioms Hashtree.Proofs.WinAvxBody.avx_body_run
