@@ -19,8 +19,9 @@ The windows stream is the linux one under a permutation of the general registers
 | `r8`  (8) | `r10` (10) | rodata base 4160 |
 
 `windows_prog_correspondence` records the per-instruction identity of the *shipped* streams; it is
-checked externally by `formal/ci/relcheck` (3247/3247 instructions match under the rename, and
-`formal/ci/x86identity`/`x86check` re-validate both models against the objects on every CI run).
+proved in-module (`win_correspondence`) by a compiled comparison of the two arrays (`corrAll_eq`,
+`native_decide`, all 3247 instructions), and `python3 formal/ci/proofs.py check` re-validates both
+models against the objects on every CI run.
 
 Everything else is machine-checked here:
 
@@ -106,11 +107,28 @@ theorem linuxProg_ok (pc : Nat) (x : Instr) (hx : linuxProg[pc]? = some x) : okI
 
 /-! ## The transfer engine -/
 
-/-- The windows stream is the renamed linux stream, instruction for instruction.  This is the
-external, tools-checked input of the transfer (the streams are generated from the shipped
-objects; `formal/ci` rechecks the identity of both models against the binaries). -/
+/-- The windows stream is the renamed linux stream, instruction for instruction. -/
 def windows_prog_correspondence : Prop :=
   ∀ j, j < linuxProg.size → winProg[j]? = (linuxProg[j]?).map (rlI F)
+
+/-- The per-instruction comparison of the two shipped streams, as a Boolean kernel evaluation. -/
+def corrAll : Bool :=
+  (List.range linuxProg.size).all (fun j =>
+    decide (winProg[j]? = (linuxProg[j]?).map (rlI F)))
+
+/-- The two generated streams agree instruction by instruction: all 3247 linux instructions have
+the same windows instruction at the same index.  Checked by compiled evaluation (`native_decide`),
+the same kind of witness the Gen certificates use for their `bv_decide` obligations, so the only
+axiom it adds is its own `native_decide` axiom.  (The windows stream is 45 instructions longer:
+the extra instructions lie past the linux body and are not part of the transferred run.) -/
+theorem corrAll_eq : corrAll = true := by native_decide
+
+/-- The correspondence as a proposition, for the transfer engine. -/
+theorem win_correspondence : windows_prog_correspondence := by
+  intro j hj
+  have hm : j ∈ List.range linuxProg.size := List.mem_range.mpr hj
+  have h := List.all_eq_true.mp corrAll_eq j hm
+  simpa [corrAll] using h
 
 /-- Simulate a linux run of `n` steps on the windows program. -/
 theorem win_transfer {ro : Region} {mem0 : Addr Int → Cell W32 Int} {orc : Nat → Bool}
@@ -127,7 +145,7 @@ def STEPS : Nat := (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (
 
 theorem STEPS_eq : STEPS = (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (59 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (29 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (2 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (7 + (1 + (7 + (1 + (2 + (2 + (2 + (2 + (7 + (1 + (7 + (1 + (22))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) := rfl
 
-theorem win_run (hprog : windows_prog_correspondence) (env0 : Key → W32) (σ : Nat → Int)
+theorem win_run (env0 : Key → W32) (σ : Nat → Int)
     (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     (h0 : Mem0Rel env0 σ (mem0s 4 rodata 24) mem0c) (hσ : σ 2 = 16) :
     run winProg 4 mem0c orcC STEPS (renSt F G (mapState env0 σ (entryS 24)))
@@ -137,7 +155,7 @@ theorem win_run (hprog : windows_prog_correspondence) (env0 : Key → W32) (σ :
   have hf : (run linuxProg 4 mem0c orcC STEPS (mapState env0 σ (entryS 24))).err = none := by
     rw [STEPS_eq, run_final env0 σ mem0c orcC h0 hσ]
     rfl
-  have h := win_transfer (ro := 4) (mem0 := mem0c) (orc := orcC) hprog STEPS
+  have h := win_transfer (ro := 4) (mem0 := mem0c) (orc := orcC) win_correspondence STEPS
     (mapState env0 σ (entryS 24)) hlen hs hf
   rw [STEPS_eq, run_final env0 σ mem0c orcC h0 hσ] at h
   rw [STEPS_eq]
@@ -146,7 +164,7 @@ theorem win_run (hprog : windows_prog_correspondence) (env0 : Key → W32) (σ :
 /-- Go-facing output contract of the windows `avx512_x16` body: every output byte is the SHA-256
 byte of its block.  Same statement as the linux `Gen.Avx512X16P.Final.out_final`, on the windows
 instruction stream. -/
-theorem win_out (hprog : windows_prog_correspondence) (inp : Nat → Byte) (env0 : Key → W32)
+theorem win_out (inp : Nat → Byte) (env0 : Key → W32)
     (σ : Nat → Int) (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     (hw : WfMem 4 rodata 24 mem0c) (he : EnvMem env0 σ mem0c) (hσ : σ 2 = 16)
     (hm : HMem 1024 inp env0) :
@@ -165,7 +183,7 @@ theorem win_out (hprog : windows_prog_correspondence) (inp : Nat → Byte) (env0
       (mem0Rel_of_wf 4 rodata 24 env0 σ mem0c hw he) hσ] at hx
     exact hx
   refine ⟨x, ?_, hb'⟩
-  rw [win_run hprog env0 σ mem0c orcC (mem0Rel_of_wf 4 rodata 24 env0 σ mem0c hw he) hσ,
+  rw [win_run env0 σ mem0c orcC (mem0Rel_of_wf 4 rodata 24 env0 σ mem0c hw he) hσ,
     renSt_mem]
   exact hx'
 

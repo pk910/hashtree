@@ -293,13 +293,13 @@
         "src/sha256_avx_x16.S"
       ],
       "proof": {
-        "status": "proved-conditional",
-        "blocks": "every c",
+        "status": "proved-fixed-count",
+        "blocks": "c = 16",
         "theorems": [
           "Hashtree.Proofs.WinAvx512.win_run",
           "Hashtree.Proofs.WinAvx512.win_out"
         ],
-        "note": "R5: the windows COFF stream is the linux stream under a machine-checked register-renaming simulation (Proofs.WinAvx512.win_transfer); the Go-facing output contract win_out is the linux Gen.Avx512X16P.Final.out_final restated on the windows instructions.  Conditional on `windows_prog_correspondence`, the instruction-by-instruction identity of the two generated models, which formal/ci re-derives from the artifacts (3247/3247 match).  The kernel has no stack frame and clobbers xmm6-xmm15 (U6: win_no_rsp, u6_witness)."
+        "note": "R5: the windows COFF stream is the linux stream under a machine-checked register-renaming simulation (Proofs.WinAvx512.win_transfer); the instruction-by-instruction identity of the two shipped streams is checked in-module (win_correspondence, a compiled native_decide comparison of all 3247 instructions), so the only remaining input is the model-versus-binary identity that formal/ci re-derives on every run.  The Go-facing output contract win_out is the linux Gen.Avx512X16P.Final.out_final restated on the windows instructions.  The kernel has no stack frame and clobbers xmm6-xmm15 (U6: win_no_rsp, u6_witness)."
       }
     },
     {
