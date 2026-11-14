@@ -205,30 +205,49 @@ theorem wfMemW_push_nil (rodata : List Nat) (e e' : Key → W32) (σ : Nat → I
   rw [show plookup k ([] : List (Int × Cell E Lin)) = none from rfl] at hl
   cases hl
 
+/-- A log of output cells only.  The kernel has no frame and never writes the stack, so
+this is the shape of every log the loop accumulates; it implies `OutLog` (and R2's `OutLogW σ`
+for any `σ`) and needs no bound on the stack base. -/
+def OutLogO (M : CLog) : Prop := ∀ p ∈ M, p.1.region = rOut
+
+theorem outLogO_outLog {M : CLog} (h : OutLogO M) : OutLog M := fun p hp => Or.inl (h p hp)
+
+theorem outLogO_app {L M : CLog} (hL : OutLogO L) (hM : OutLogO M) : OutLogO (L ++ M) := by
+  intro p hp
+  rcases List.mem_append.mp hp with h | h
+  · exact hL p h
+  · exact hM p h
+
+/-- Every write of one turn is an output cell (kernel check). -/
+theorem KT_logO : KT.mem.all (fun p => decide (p.1.region = rOut)) = true := by decide +kernel
+
+theorem outLogO_map_KT (σ : Nat → Int) (e : Key → W32) :
+    OutLogO (KT.mem.map (fun p => (mapAddr σ p.1, mapCell e σ p.2))) := by
+  intro p hp
+  obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hp
+  have h : decide (q.1.region = rOut) = true := List.all_eq_true.mp KT_logO q hq
+  simpa [mapAddr] using of_decide_eq_true h
+
 /-- The `WfMemW` relation survives a frame of output writes (the entry stack pointer is above
 the protected zone; the kernel never reads stack it did not write).  The kernel pushes nothing,
 so the push clause is vacuous. -/
 theorem wfMemW_view (rodata : List Nat) (env : Key → W32) (σ : Nat → Int)
-    (m : Addr Int → Cell W32 Int) (M : CLog) (hM : OutLog M) (hsp : 24 ≤ σ 9)
+    (m : Addr Int → Cell W32 Int) (M : CLog) (hM : OutLogO M)
     (hw : WfMemW rodata [] env σ m) : WfMemW rodata [] env σ (view M m) := by
   obtain ⟨hro, hret, hin, _⟩ := hw
   have v4 : ∀ o, view M m ⟨4, o⟩ = m ⟨4, o⟩ := fun o =>
-    view_other M m _ (outLog_ne M hM _ ⟨show (4 : Region) ≠ rOut by decide,
+    view_other M m _ (outLog_ne M (outLogO_outLog hM) _ ⟨show (4 : Region) ≠ rOut by decide,
       fun h => absurd (show (4 : Region) = rStack from h) (by decide)⟩)
   have vI : ∀ o, view M m ⟨rIn, o⟩ = m ⟨rIn, o⟩ := fun o =>
-    view_other M m _ (outLog_ne M hM _ ⟨show rIn ≠ rOut by decide,
+    view_other M m _ (outLog_ne M (outLogO_outLog hM) _ ⟨show rIn ≠ rOut by decide,
       fun h => absurd (show rIn = rStack from h) (by decide)⟩)
   have vS : ∀ k : Int, 0 ≤ k → view M m ⟨rStack, σ 9 + k⟩ = m ⟨rStack, σ 9 + k⟩ := by
     intro k hk
     apply view_other
     intro p hp heq
-    rcases hM p hp with h | ⟨h1, h2⟩
-    · rw [heq] at h
-      have hr : rStack = rOut := h
-      exact absurd hr (by decide)
-    · rw [heq] at h2
-      have hlt : σ 9 + k < 24 := h2
-      omega
+    have h := hM p hp
+    rw [heq] at h
+    exact absurd (show rStack = rOut from h) (by decide)
   refine ⟨fun o => by rw [v4]; exact hro o,
     fun k h1 h2 => by rw [vS k h1]; exact hret k h1 h2,
     fun o => by rw [vI]; exact hin o, ?_⟩
@@ -240,15 +259,15 @@ theorem wfMemW_view (rodata : List Nat) (env : Key → W32) (σ : Nat → Int)
 turn's writes. -/
 theorem iter_step (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     (e : Key → W32) (σ : Nat → Int) (hw : WfMemW rodata [] e σ mem0c) (M : CLog)
-    (hM : OutLog M) (hge : 32 ≤ σ 2) (hsp : 24 ≤ σ 9) :
+    (hM : OutLogO M) (hge : 32 ≤ σ 2) :
     ∃ e' M',
       run prog 4 mem0c orcC (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (59 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (29 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (2 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (7 + (1 + (7 + (1 + (2 + (2 + (2 + (2 + (7 + (1 + (7 + (1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) + 22) (fr M (mapState e σ KH)) =
-        fr M' (mapState e' (sigmaOf tau σ) KH) ∧ OutLog M' := by
+        fr M' (mapState e' (sigmaOf tau σ) KH) ∧ OutLogO M' := by
   let E := ecomb e σ (view M mem0c)
   have hrel : Mem0Rel E σ mW (view M mem0c) := by
     rw [show mW = mem0sW 4 rodata [] from rfl]
     exact mem0RelW_of_wf rodata [] E σ (view M mem0c)
-      (wfMemW_push_nil rodata e E σ (view M mem0c) (wfMemW_view rodata e σ mem0c M hM hsp hw))
+      (wfMemW_push_nil rodata e E σ (view M mem0c) (wfMemW_view rodata e σ mem0c M hM hw))
       (envMem_ecomb E σ (view M mem0c))
   have hrun : run prog 4 mem0c orcC (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (59 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (29 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (2 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (7 + (1 + (7 + (1 + (2 + (2 + (2 + (2 + (7 + (1 + (7 + (1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) + 22) (fr M (mapState e σ KH)) =
       fr M (mapState (turnE E) σ KT) := by
@@ -261,20 +280,20 @@ theorem iter_step (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
           (mapState (turnE E) (sigmaOf tau σ) KH) :=
       turn_step (Hashtree.Proofs.Avx512X16WBodyV.G216 E) σ
     rw [hrun, hstep, fr_fr']
-  · exact outLog_app'' (outLog_map_KT σ (turnE E)) hM
+  · exact outLogO_app (outLogO_map_KT σ (turnE E)) hM
 
 /-- **The framed final turn**: `16 <= c < 32`, `jb` taken, reaching the `avx2_x8` tail. -/
 theorem exit_step (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     (e : Key → W32) (σ : Nat → Int) (hw : WfMemW rodata [] e σ mem0c) (M : CLog)
-    (hM : OutLog M) (hge : 16 ≤ σ 2) (hlt : σ 2 < 32) (hsp : 24 ≤ σ 9) :
+    (hM : OutLogO M) (hge : 16 ≤ σ 2) (hlt : σ 2 < 32) :
     ∃ e' M',
       run prog 4 mem0c orcC (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (59 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (29 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (2 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (7 + (1 + (7 + (1 + (2 + (2 + (2 + (2 + (7 + (1 + (7 + (1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) + 22) (fr M (mapState e σ KH)) =
-        fr M' (mapState e' σ KTE) ∧ OutLog M' := by
+        fr M' (mapState e' σ KTE) ∧ OutLogO M' := by
   let E := ecomb e σ (view M mem0c)
   have hrel : Mem0Rel E σ mW (view M mem0c) := by
     rw [show mW = mem0sW 4 rodata [] from rfl]
     exact mem0RelW_of_wf rodata [] E σ (view M mem0c)
-      (wfMemW_push_nil rodata e E σ (view M mem0c) (wfMemW_view rodata e σ mem0c M hM hsp hw))
+      (wfMemW_push_nil rodata e E σ (view M mem0c) (wfMemW_view rodata e σ mem0c M hM hw))
       (envMem_ecomb E σ (view M mem0c))
   have hrun : run prog 4 mem0c orcC (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (8 + (59 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (12 + (19 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (20 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (29 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (19 + (2 + (1 + (1 + (1 + (1 + (1 + (1 + (1 + (7 + (1 + (7 + (1 + (2 + (2 + (2 + (2 + (7 + (1 + (7 + (1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) + 22) (fr M (mapState e σ KH)) =
       fr M (mapState (exitE E) σ KTE) := by
