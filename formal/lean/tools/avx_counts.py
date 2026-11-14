@@ -354,6 +354,159 @@ def emit_turn(M):
     return "\n".join(out) + "\n", total
 
 
+def emit_turnW(M):
+    """The W-mode (wrapper call) loop turn.
+
+    Same slice tree as `emit_turn`, but every cut `K{j}` is rebased on the wrapper call
+    state (`K{j}W := shiftK K{j}`), the symbolic memory is `m0W := mem0qW 4 roC []`, and
+    the slice checks are repeated in that form.  The composed turn is `turn_runW`.
+    """
+    edefs, mlines, rlines = parse_final("AvxX4P")
+    assert (M + 1) in edefs and 1 in edefs, sorted(edefs)[-3:]
+    assert M in mlines and M in rlines
+    lens = lens_of(rlines, M)
+    total = sum(lens.values())
+    sumexpr = nested_sum(lens, M)
+    B = "(fun _ => false)"
+    Q = "(fun pc => decide (pc ∈ ([] : List Nat)))"
+
+    out = []
+    a = out.append
+    a("import Hashtree.Proofs.AvxX4WPrep")
+    a("import Hashtree.Proofs.AvxX4LoopFrame")
+    a("import Hashtree.Proofs.AvxX4LoopTurn")
+    a("set_option maxRecDepth 200000")
+    a("set_option maxHeartbeats 0")
+    a("set_option linter.unusedVariables false")
+    a("set_option linter.unusedSimpArgs false")
+    a("")
+    a("open Hashtree.Asm Hashtree.Asm.X86 Hashtree.Asm.X86Sym Hashtree.Asm.X86SymW")
+    a("open Hashtree.Kernels.X86.AvxX4")
+    a("namespace Hashtree.Proofs.AvxX4LoopW")
+    a("open Hashtree.Gen.AvxX4P")
+    a("open Hashtree.Proofs.AvxX4W")
+    a("open Hashtree.Proofs.AvxX4Loop")
+    a("open Hashtree.Proofs.AvxX4LoopTurn")
+    a("")
+    a("/-!")
+    a("# The avx_x4 loop turn in W mode (the wrapper call state)")
+    a("")
+    a("`Hashtree/Proofs/AvxX4LoopTurn` proves one loop turn from the pilot's cut states, whose")
+    a("stack is absolute (`entryS 24`).  The wrapper calls the kernel with a *relative* stack")
+    a("(`entryW`: `rsp = sAt 0`, i.e. the return marker sits at `σ 9`), so the wrapper proof")
+    a("needs the same turn at the rebased cuts `K{j}W := shiftK K{j}` and at the rebased")
+    a("symbolic memory `m0W := mem0qW 4 roC []`.  The slices are re-checked in that form")
+    a("(`bodyW{j}`, `KHL2W_head`, `KHpW_slice`), the env chain `G{j}W` is rebuilt over `m0W`,")
+    a("and `turn_runW` composes them exactly as `turn_run` does.  `KHpW_shape` shows the turn")
+    a("ends in a substitution instance of `KHL2W`, so the framing lemma of `AvxX4LoopWFrame`")
+    a("can restart the turn.")
+    a("-/")
+    a("")
+    a("/-- The wrapper-call symbolic memory at the x4 rodata (region 4, no pushed cells). -/")
+    a("def m0W : Addr Lin → Cell E Lin := mem0qW 4 roC []")
+    a("")
+    a("theorem m0W_eq : m0W = mem0sW 4 rodata [] :=")
+    a("  mem0qW_eq 4 rodata [] roC 35 roC_eq (by decide +kernel)")
+    a("")
+    a("theorem m0W_keyed : MemKeyed m0W :=")
+    a("  mem0qW_keyed 4 rodata [] roC 35 roC_eq (by decide +kernel) (by decide +kernel)")
+    a("")
+    a("/-! ## The rebased cuts -/")
+    a("")
+    for j in range(1, M + 2):
+        a(f"def K{j}W : State E Lin := shiftK K{j}")
+    a("def KHL2W : State E Lin := shiftK KHL2")
+    a("def KHpW : State E Lin := shiftK KH'")
+    a("")
+    a("theorem KHL2W_nOnly : KHL2W.nOnly = true := by decide +kernel")
+    a("theorem KHL2W_err : KHL2W.err = none := by decide +kernel")
+    a("theorem KHpW_assume : KHpW.assume = A0 := by decide +kernel")
+    a(f"theorem K{M+1}W_err : K{M+1}W.err = none := by decide +kernel")
+    a("")
+    a("/-! ## The W-mode slice checks -/")
+    a("")
+    a(f"theorem KHL2W_head : sliceCheck prog 4 m0W {B} 68 KHL2W K1W [] = true := by")
+    a("  decide +kernel")
+    a(f"theorem KHpW_slice : sliceCheck prog 4 m0W {B} 23 K{M+1}W KHpW [] = true := by")
+    a("  decide +kernel")
+    a("/-- One full turn ends in a substitution instance of the invariant head. -/")
+    a("theorem KHpW_shape : ({ KHpW with mem := [], assume := [] } : State E Lin) =")
+    a("    KHL2W.substL tau := by")
+    a("  decide +kernel")
+    a("")
+    for j in range(1, M + 1):
+        a(f"theorem bodyW{j} : sliceCheck prog 4 m0W {B} {lens[j]} K{j}W K{j+1}W [] = true := by")
+        a("  decide +kernel")
+    a("")
+    a("/-! ## The composed chain -/")
+    a("")
+    a("def G1W (env1 : Key → W32) : Key → W32 := env1")
+    for j in range(2, M + 2):
+        a(f"def G{j}W (env1 : Key → W32) : Key → W32 :=")
+        a(f"  envAbs (G{j-1}W env1) (run prog 4 m0W {Q} {lens[j-1]} K{j-1}W)")
+    a("")
+    mchain = ["  have m1 : Mem0Rel (G1W env1) σ m0W mem0c := h0"]
+    for j in range(2, M + 2):
+        mchain.append(f"  have m{j} : Mem0Rel (G{j}W env1) σ m0W mem0c :=")
+        mchain.append(f"    mem0Rel_envAbs _ σ _ mem0c kq m{j-1} _")
+    a("/-- The `{M}` W-mode body slices, composed at an arbitrary environment and for every")
+    a("remaining count `c ≥ 4`. -/")
+    a("theorem body_runW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → Cell W32 Int)")
+    a("    (orcC : Nat → Bool) (h0 : Mem0Rel (G1W env1) σ m0W mem0c) (hge : 4 ≤ σ 2) :")
+    a(f"    run prog 4 mem0c orcC ({sumexpr}) (mapState (G1W env1) σ K1W) =")
+    a(f"      mapState (G{M+1}W env1) σ K{M+1}W := by")
+    a("  have kq : MemKeyed m0W := m0W_keyed")
+    for ln in mchain:
+        a(ln)
+    for j in range(1, M + 1):
+        a(f"  have r{j} : run prog 4 mem0c orcC {lens[j]} (mapState (G{j}W env1) σ K{j}W) =")
+        a(f"      mapState (G{j+1}W env1) σ K{j+1}W :=")
+        a(f"    (slice_sound (G{j}W env1) σ m0W mem0c m{j} prog 4 {Q}")
+        a(f"      orcC {lens[j]} K{j}W K{j+1}W [] bodyW{j} rfl")
+        a(f"      (assumeOk_of σ K{j+1}W A0 rfl (asm0ge σ hge))).1")
+    for j in range(1, M):
+        a(f"  rw [run_add, r{j}]")
+    a(f"  exact r{M}")
+    a("")
+    a("theorem body_memW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → Cell W32 Int)")
+    a("    (h0 : Mem0Rel (G1W env1) σ m0W mem0c) :")
+    a(f"    Mem0Rel (G{M+1}W env1) σ m0W mem0c := by")
+    a("  have kq : MemKeyed m0W := m0W_keyed")
+    for ln in mchain:
+        a(ln)
+    a(f"  exact m{M+1}")
+    a("")
+    a("/-- **One loop turn at an arbitrary count, in W mode.**  From the rebased invariant head")
+    a("(with the caller's concrete memory and any oracle) the 68-step head slice, the")
+    a("branch-free body slices and the 23-step tail reach `KHpW`, for every count `c = σ 2 ≥ 4`,")
+    a("using only `A0`.  Each turn lowers the count by four. -/")
+    a("theorem turn_runW (env : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → Cell W32 Int)")
+    a("    (orcC : Nat → Bool) (h0 : Mem0Rel env σ m0W mem0c) (hge : 4 ≤ σ 2) :")
+    a(f"    run prog 4 mem0c orcC (68 + ({sumexpr} + 23)) (mapState env σ KHL2W) =")
+    a(f"      mapState (envAbs (G{M+1}W (envAbs env (run prog 4 m0W {B} 68 KHL2W)))")
+    a(f"        (run prog 4 m0W {B} 23 K{M+1}W)) σ KHpW := by")
+    a("  have kq : MemKeyed m0W := m0W_keyed")
+    a("  have hHead := (slice_sound env σ m0W mem0c h0 prog 4 (fun _ => false)")
+    a("    orcC 68 KHL2W K1W [] KHL2W_head KHL2W_err")
+    a("    (assumeOk_of σ K1W A0 rfl (asm0ge σ hge))).1")
+    a("  have hHeadG : run prog 4 mem0c orcC 68 (mapState env σ KHL2W) =")
+    a("      mapState (G1W (envAbs env (run prog 4 m0W (fun _ => false) 68 KHL2W))) σ K1W := hHead")
+    a("  have hm : Mem0Rel (envAbs env (run prog 4 m0W (fun _ => false) 68 KHL2W)) σ m0W mem0c :=")
+    a("    mem0Rel_envAbs env σ m0W mem0c kq h0 _")
+    a("  have hBody := body_runW (envAbs env (run prog 4 m0W (fun _ => false) 68 KHL2W)) σ")
+    a("    mem0c orcC hm hge")
+    a("  have hm2 := body_memW (envAbs env (run prog 4 m0W (fun _ => false) 68 KHL2W)) σ mem0c hm")
+    a(f"  have hTail := (slice_sound (G{M+1}W (envAbs env (run prog 4 m0W (fun _ => false) 68 KHL2W)))")
+    a(f"    σ m0W mem0c hm2 prog 4 (fun _ => false) orcC 23 K{M+1}W KHpW []")
+    a(f"    KHpW_slice K{M+1}W_err (assumeOk_of σ KHpW A0 KHpW_assume (asm0ge σ hge))).1")
+    a("  rw [run_add, hHeadG]")
+    a("  rw [run_add, hBody]")
+    a("  exact hTail")
+    a("")
+    a("end Hashtree.Proofs.AvxX4LoopW")
+    return "\n".join(out) + "\n", total
+
+
 def main():
     if len(sys.argv) < 3:
         print(__doc__)
@@ -369,6 +522,11 @@ def main():
             print(__doc__)
             return 2
         text, total = emit_turn(int(sys.argv[2]))
+    elif what == "turnW":
+        if len(sys.argv) != 3:
+            print(__doc__)
+            return 2
+        text, total = emit_turnW(int(sys.argv[2]))
     else:
         print(__doc__)
         return 2

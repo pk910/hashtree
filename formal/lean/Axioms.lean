@@ -15,6 +15,8 @@ import Hashtree.Proofs.Avx2X8Body
 import Hashtree.Proofs.Avx512X16Body
 import Hashtree.Proofs.AvxX4LoopTurn
 import Hashtree.Proofs.AvxX4ToX1
+import Hashtree.Proofs.AvxX4LoopWAll
+import Hashtree.Proofs.AvxX4X1WAgree
 import Hashtree.GoProof
 import Hashtree.Glue
 import Hashtree.Gen.AvxX4P.Final
@@ -47,6 +49,9 @@ import Hashtree.Proofs.Avx512X16WOut
 #print axioms Hashtree.Proofs.Avx512X16Body.body_run
 #print axioms Hashtree.Proofs.AvxX4LoopTurn.turn_run
 #print axioms Hashtree.Proofs.AvxX4ToX1.x4_small_to_x1
+#print axioms Hashtree.Proofs.AvxX4LoopWAll.x4_runW_last
+#print axioms Hashtree.Proofs.AvxX4LoopWAll.x4_runW
+#print axioms Hashtree.Proofs.AvxX4X1WAgree.x4_x1_W
 
 #print axioms Hashtree.Gen.AvxX4P.out_final
 #print axioms Hashtree.Gen.Avx2X8P.out_final
