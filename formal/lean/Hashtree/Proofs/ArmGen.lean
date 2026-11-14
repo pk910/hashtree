@@ -1,3 +1,4 @@
+import Std.Data.HashMap
 import Hashtree.Asm.Print
 import Hashtree.Asm.ArmSlice
 import Hashtree.Asm.Chain
@@ -32,7 +33,7 @@ structure Cfg where
   cutAt : Option Instr → Option Instr → Bool
   /-- choose cuts adaptively (longest clean slice of at most `maxLen` steps) -/
   adaptive : Bool := false
-  maxLen : Nat := 40
+  maxLen : Nat := 40  -- the NEON kernels need ≥ 132 (their pins: 160); 40 leaves no proved output byte
   /-- bound on the total tree size of a slice's end state (adaptive cuts) -/
   maxSize : Nat := 40000
   /-- the loop is headed by a comparison of the count register `x2` with `4` (multi-lane kernel) -/
@@ -51,9 +52,9 @@ def cfgs : List (String × Cfg) := [
   ("sha_x1", ⟨"hashtree_sha256_sha_x1", "ShaX1", "ArmShaX1P", Hashtree.Kernels.Arm.ShaX1.prog, 4,
     Hashtree.Kernels.Arm.ShaX1.rodata, fun a b => isSha a || isSha b, false, 40, 40000, false⟩),
   ("neon_x1", ⟨"hashtree_sha256_neon_x1", "NeonX1", "ArmNeonX1P", Hashtree.Kernels.Arm.NeonX1.prog, 7,
-    Hashtree.Kernels.Arm.NeonX1.rodata, fun _ _ => false, true, 40, 40000, false⟩),
+    Hashtree.Kernels.Arm.NeonX1.rodata, fun _ _ => false, true, 160, 40000, false⟩),
   ("neon_x4", ⟨"hashtree_sha256_neon_x4", "NeonX4", "ArmNeonX4P", Hashtree.Kernels.Arm.NeonX4.prog, 6,
-    Hashtree.Kernels.Arm.NeonX4.rodata, fun _ _ => false, true, 40, 40000, true⟩)]
+    Hashtree.Kernels.Arm.NeonX4.rodata, fun _ _ => false, true, 160, 40000, true⟩)]
 
 def randInput (seed n : Nat) : Array Nat := Id.run do
   let mut x := seed * 6364136223846793005 + 1442695040888963407
@@ -107,18 +108,36 @@ def vq (q : Q) : String := s!"V {qText q}"
 
 /-- Equations that rewrite `q` down to atoms or closed quantities, or `none`.  Candidate equations
 are tried in order; input bytes (`R`) only when `bytes`. -/
-partial def derive (atoms : List Q) (bytes : Bool) (q : Q) (fuel : Nat) : Option (List Eqn) :=
-  if atoms.contains q then some [] else if fuel = 0 then none else
-  let sub (proof rhs : String) (leaves : List Q) : Option (List Eqn) := do
-    let rest ← leaves.mapM (fun l => derive atoms bytes l (fuel - 1))
-    pure (⟨proof, s!"{vq q} = {rhs}", none⟩ :: rest.flatten)
+abbrev DCache := Std.HashMap String (Option (List Eqn))
+
+/-- `derive` with a `(q, fuel)`-keyed cache: the expansion of a round-`t` quantity revisits the
+same sub-quantities exponentially often (the `A`/`E` recurrences), which made the label step of
+late slices take hours; the cache makes it linear in the number of distinct `(q, fuel)` pairs.
+The results are identical to the uncached search (same candidate order, same equations). -/
+partial def deriveM (atoms : List Q) (bytes : Bool) (q : Q) (fuel : Nat) :
+    StateM DCache (Option (List Eqn)) := do
+  if atoms.contains q then return some []
+  if fuel = 0 then return none
+  let key := s!"{qText q}/{fuel}"
+  if let some r := (← get).get? key then return r
+  let sub (proof rhs : String) (leaves : List Q) : StateM DCache (Option (List Eqn)) := do
+    let mut acc : List (List Eqn) := []
+    for l in leaves do
+      match ← deriveM atoms bytes l (fuel - 1) with
+      | none => return none
+      | some r => acc := acc ++ [r]
+    return some (⟨proof, s!"{vq q} = {rhs}", none⟩ :: acc.flatten)
   -- closed quantities; `abs`: its value becomes a parameter of the core lemma (padding-block K+W / W,
   -- which reach the trees as loaded constants); H0 words stay literal (constant folding mixes them)
-  let closed (proof : String) (v : Nat) (abs : Bool := true) : Option (List Eqn) :=
-    some [⟨proof, s!"{vq q} = {v}#32", if abs then some v else none⟩]
-  let first (cands : List (Unit → Option (List Eqn))) : Option (List Eqn) :=
-    cands.foldl (fun acc f => match acc with | some r => some r | none => f ()) none
-  match q with
+  let closed (proof : String) (v : Nat) (abs : Bool := true) : StateM DCache (Option (List Eqn)) :=
+    pure (some [⟨proof, s!"{vq q} = {v}#32", if abs then some v else none⟩])
+  let first (cands : List (Unit → StateM DCache (Option (List Eqn)))) : StateM DCache (Option (List Eqn)) := do
+    for f in cands do
+      match ← f () with
+      | some r => return some r
+      | none => pure ()
+    return none
+  let r ← (match q with
   | .A n r t =>
     if t ≥ 1 then
       let u := t - 1
@@ -136,7 +155,7 @@ partial def derive (atoms : List Q) (bytes : Bool) (q : Q) (fuel : Nat) : Option
     else sub s!"(qE_initI inp {n} {r} {(-t).toNat} ({t}) (by decide) (by decide))" (vq (.H n r ((-t).toNat + 4))) [.H n r ((-t).toNat + 4)]
   | .W n r t =>
     if r = 1 then closed s!"((qW1T inp {n} {t} (by decide)).trans rfl)" (Hashtree.Spec.W Hashtree.Spec.padBlock t).toNat
-    else if t < 16 then (if bytes then sub s!"(qW_R inp {n} {t} (by decide))" s!"bswap ({vq (.R n t)})" [.R n t] else none)
+    else if t < 16 then (if bytes then sub s!"(qW_R inp {n} {t} (by decide))" s!"bswap ({vq (.R n t)})" [.R n t] else pure none)
     else first [
       fun _ => sub s!"(qW_recM2 inp {n} {r} {t} (by decide) (by decide))" s!"sigma1 ({vq (.W n r (t - 2))}) + {vq (.M2 n r (t - 16))}" [.W n r (t - 2), .M2 n r (t - 16)],
       fun _ => sub s!"(qW_recM inp {n} {r} {t} (by decide) (by decide))" s!"sigma1 ({vq (.W n r (t - 2))}) + {vq (.W n r (t - 7))} + {vq (.M1 n r (t - 16))}" [.W n r (t - 2), .W n r (t - 7), .M1 n r (t - 16)],
@@ -164,8 +183,15 @@ partial def derive (atoms : List Q) (bytes : Bool) (q : Q) (fuel : Nat) : Option
   | .R n t =>
     if bytes then
       let o := 64 * n + 4 * t
-      some [⟨s!"(qR inp {n} {t})", s!"{vq q} = ((((0 : Word) ||| (inp {o}).zeroExtend 32 <<< 0) ||| (inp {o + 1}).zeroExtend 32 <<< 8) ||| (inp {o + 2}).zeroExtend 32 <<< 16) ||| (inp {o + 3}).zeroExtend 32 <<< 24", none⟩]
-    else none
+      pure (some [⟨s!"(qR inp {n} {t})", s!"{vq q} = ((((0 : Word) ||| (inp {o}).zeroExtend 32 <<< 0) ||| (inp {o + 1}).zeroExtend 32 <<< 8) ||| (inp {o + 2}).zeroExtend 32 <<< 16) ||| (inp {o + 3}).zeroExtend 32 <<< 24", none⟩])
+    else pure none : StateM DCache (Option (List Eqn)))
+  modify (·.insert key r)
+  return r
+
+/-- The uncached interface, unchanged. -/
+def derive (atoms : List Q) (bytes : Bool) (q : Q) (fuel : Nat) : Option (List Eqn) :=
+  (deriveM atoms bytes q fuel).run' {}
+
 
 /-- Variables (numbered) and memory keys of a tree. -/
 partial def Hashtree.Asm.E.keys : E → List Key

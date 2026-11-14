@@ -2,8 +2,10 @@
 (slice check, lemmas, step), so that the P files only import D files and build in parallel."""
 import sys, os, re
 d, ns = sys.argv[1], sys.argv[2]
+start = int(sys.argv[3]) if len(sys.argv) > 3 else 0  # first slice to split; earlier P files keep the P chain
 ps = sorted(int(m.group(1)) for f in os.listdir(d) for m in [re.match(r"P(\d+)\.lean$", f)] if m)
 for c in ps:
+    if c < start: continue
     p = f"{d}/P{c}.lean"
     s = open(p).read()
     if f"import {ns}.D{c}\n" in s: continue
@@ -16,7 +18,7 @@ for c in ps:
     defs = s[head_end:i_slice]
     body = s[i_slice:]
     dtext = "\n".join(base_imports) + rest + defs + f"end {ns}\n"
-    pimps = base_imports + ([f"import {ns}.D{c-1}"] if c > 0 else []) + [f"import {ns}.D{c}"]
+    pimps = base_imports + ([f"import {ns}.P{c-1}" if c == start and c > 0 else f"import {ns}.D{c-1}"] if c > 0 else []) + [f"import {ns}.D{c}"]
     ptext = "\n".join(pimps) + rest + body
     open(f"{d}/D{c}.lean", "w").write(dtext)
     open(p, "w").write(ptext)

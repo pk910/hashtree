@@ -72,10 +72,17 @@ if want avx2_x8;      then lake exe x86proofv x8  Hashtree/Gen/Avx2X8P    --spli
 if want avx512_x16;   then lake exe x86proofv x16 Hashtree/Gen/Avx512X16P --split; fi
 
 # linux/arm64 (the macOS models are identical up to the tail symbol name)
-if want sha_x1;   then lake exe armproof sha_x1  2 Hashtree/Gen/ArmShaX1P; fi
+# The ARM trees are split into D{c}/P{c} like the x86 ones (tools/split_slices.py); the pinned
+# neon_x1 tree is split from slice 46 only, and armproof hard-codes the namespace ArmNeonX1P,
+# so the count-0 tree is renamed to ArmNeonX1P0 after generation.
+if want sha_x1;   then lake exe armproof sha_x1  2 Hashtree/Gen/ArmShaX1P
+                       python3 tools/split_slices.py Hashtree/Gen/ArmShaX1P Hashtree.Gen.ArmShaX1P; fi
 if want neon_x1;  then lake exe armproof neon_x1 2 Hashtree/Gen/ArmNeonX1P
-                       lake exe armproof neon_x1 0 Hashtree/Gen/ArmNeonX1P0; fi
-if want neon_x4;  then lake exe armproof neon_x4 4 Hashtree/Gen/ArmNeonX4P; fi
+                       python3 tools/split_slices.py Hashtree/Gen/ArmNeonX1P Hashtree.Gen.ArmNeonX1P 46
+                       lake exe armproof neon_x1 0 Hashtree/Gen/ArmNeonX1P0
+                       sed -i "s/Hashtree\.Gen\.ArmNeonX1P\b/Hashtree.Gen.ArmNeonX1P0/g" Hashtree/Gen/ArmNeonX1P0/*.lean; fi
+if want neon_x4;  then lake exe armproof neon_x4 4 Hashtree/Gen/ArmNeonX4P
+                       python3 tools/split_slices.py Hashtree/Gen/ArmNeonX4P Hashtree.Gen.ArmNeonX4P; fi
 
 # linux/riscv64
 if want riscv_x1;       then lake exe rvproof x1     Hashtree/Gen/RvX1P; fi
