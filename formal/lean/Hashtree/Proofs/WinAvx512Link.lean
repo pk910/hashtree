@@ -298,17 +298,16 @@ theorem vr_shape_of (K : State E Lin) (hK : K.vr.length = 32 ∧ K.vr.all (fun v
   simp [this]
 
 theorem KSpecC512_body (hT : TurnOut) (c : Nat) (inp : Nat → Spec.Byte)
-    (hw : WfMemW Hashtree.Kernels.X86Win.Avx512X16.rodata [] env σ m0) (hc : σ 2 = c) (hsp : 24 ≤ σ 9)
+    (hw : WfMemW Hashtree.Kernels.X86Win.Avx512X16.rodata [] env σ m0) (hc : σ 2 = c)
     (hin : ∀ o : Nat, m0 ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) :
     (W env σ m0 orcC c).err = none ∧
       ((c = 0 ∧ (W env σ m0 orcC c).tail = none ∧ PostLink σ c inp 0 (W env σ m0 orcC c)) ∨
        (c ≠ 0 ∧ (W env σ m0 orcC c).tail = some "hashtree_sha256_avx2_x8" ∧
-         PreLink env σ c (c - c % 16) (c % 16) inp L8 (resume (W env σ m0 orcC c)))) := by
+         PreLink env σ c (c - c % 16) (c % 16) inp 0 L8 (resume (W env σ m0 orcC c)))) := by
   rw [rodata_eq] at hw
   have hwL := wf_eL env σ m0 hw
   have h0 := h0_eL env σ m0 hw
   have hcL : σW σ 2 = (c : Int) := by rw [σW_ne σ 2 (by decide)]; exact hc
-  have hspL : 24 ≤ σW σ 9 := by rw [σW_ne σ 9 (by decide)]; exact hsp
   have h10 : σW σ 10 = σW σ 1 := by rw [σW_10, σW_ne σ 1 (by decide)]
   have hA := agree_fin env σ m0 orcC hw c
   rcases Nat.eq_zero_or_pos c with hc0 | hpos
@@ -400,10 +399,10 @@ theorem KSpecC512_body (hT : TurnOut) (c : Nat) (inp : Nat → Spec.Byte)
         · show (W env σ m0 orcC c).err = none
           exact hWerr
     · -- 16 ≤ c: the loop, then the tail call with the residual
-      obtain ⟨e, M, hrun, hM, hσ'⟩ := x16_loop m0 orcC (eL env σ m0) (σW σ) c h0 hwL hspL h10 hcL h16
+      obtain ⟨e, M, hrun, hM, hσ'⟩ := x16_loop m0 orcC (eL env σ m0) (σW σ) c h0 hwL h10 hcL h16
       have hinL : ∀ o : Nat, m0 ⟨rIn, σW σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0 := by
         intro o; rw [σW_ne σ 0 (by decide)]; exact hin o
-      obtain ⟨hrange, hout⟩ := hT m0 orcC (eL env σ m0) (σW σ) c inp h0 hwL hspL h10 hcL h16 hinL
+      obtain ⟨hrange, hout⟩ := hT m0 orcC (eL env σ m0) (σW σ) c inp h0 hwL h10 hcL h16 hinL
       have hfL : fL env σ m0 orcC c = fr M (mapState e (sIt (c / 16 - 1) (σW σ)) KTE) := by
         unfold fL; exact hrun
       have hfErr : (fL env σ m0 orcC c).err = none := by
@@ -487,9 +486,7 @@ theorem KSpecC512_body (hT : TurnOut) (c : Nat) (inp : Nat → Spec.Byte)
           have := (List.all_eq_true.mp KTE_mem_out) q hq
           simp only [beq_iff_eq] at this
           exact Or.inl (by simp [mapAddr, this])
-        · rcases hM p hp with h | ⟨h1, h2⟩
-          · exact Or.inl h
-          · exact Or.inr ⟨h1, by omega⟩
+        · exact Or.inl (hM p hp)
       · -- Foot
         intro p hp
         rw [hWmem] at hp
@@ -505,9 +502,9 @@ theorem KSpecC512_body (hT : TurnOut) (c : Nat) (inp : Nat → Spec.Byte)
 (R2c): `KSpecC512` with the step function `Avx512X16WLoop.steps`. -/
 theorem KSpecC512_of_turnOut (hT : TurnOut) (c : Nat) (inp : Nat → Spec.Byte) :
     KSpecC512 steps env σ m0 orcC c inp := by
-  intro hw _ hc hsp hin s hs
+  intro hw _ hc hin s hs
   subst hs
-  exact KSpecC512_body env σ m0 orcC hT c inp hw hc hsp hin
+  exact KSpecC512_body env σ m0 orcC hT c inp hw hc hin
 
 end Final
 
