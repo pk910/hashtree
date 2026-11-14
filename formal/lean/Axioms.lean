@@ -64,6 +64,7 @@ import Hashtree.Proofs.WinAvx512Link
 import Hashtree.Proofs.WinAvxX1Live
 import Hashtree.Proofs.WinSseX1Live
 import Hashtree.Proofs.WinAvxX4Bridge
+import Hashtree.Proofs.WinAvxX4Link
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -470,3 +471,13 @@ import Hashtree.Proofs.WinAvxX4Bridge
 #print axioms Hashtree.Proofs.WinSseX1Live.cert
 #print axioms Hashtree.Proofs.WinSseX1Live.live_entry
 #print axioms Hashtree.Proofs.WinAvxX4Bridge.x4RunSteps_eq
+
+-- R5: the avx_x4 chain link, certificate-independent parts: the rodata prefix (wf_linux_of_win),
+-- the c = 0 early return (x4_zero_run, postLink_zero), the hand-off to the avx_x1 link
+-- (preLink_of_exit) and the glue from the windows-stream certificate interface X4WinCert
+-- (KSpecC4_of_cert).
+#print axioms Hashtree.Proofs.WinAvxX4Link.wf_linux_of_win
+#print axioms Hashtree.Proofs.WinAvxX4Link.x4_zero_run
+#print axioms Hashtree.Proofs.WinAvxX4Link.postLink_zero
+#print axioms Hashtree.Proofs.WinAvxX4Link.preLink_of_exit
+#print axioms Hashtree.Proofs.WinAvxX4Link.KSpecC4_of_cert

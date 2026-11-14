@@ -248,7 +248,30 @@ Ingredients (all evaluated/checked this session):
     on `.m` keys irrelevant (entryWin has no memory symbols) — SameG env e' since vId ≥ 100 > gId.
 * halted/err/tail of W from f via Agree + renSt (`renSt` keeps everything but gpr).
 
-## avx_x4 link plan (`KSpecC4_of_turnOut4`, module `Proofs/WinAvxX4Link.lean` to create)
+## avx_x4 link: certificate-independent parts DONE (`Proofs/WinAvxX4Link.lean`)
+
+Landed (commit D): `rodata4_getD`/`wf_linux_of_win` (windows table = linux table + 48 zero bytes,
+so the linux certificate's `WfMemW` follows from the windows one); the `c = 0` path as a
+four-instruction symbolic run `KZ4 := run p4 4 (mem0sW 4 rodata []) _ 4 entryWin` transported by
+`run_hom` (`x4_zero_run`; the recorded `jne` assumption `(.not (.eq ⟨0,[0,0,1]⟩ ⟨0,[]⟩), false)`
+discharged from `σ 2 = 0`), `postLink_zero` (PostLink at depth 0: halted, no log, RegsOkW with
+`rsp = σ 9 + 8`); the hand-off `preLink_of_exit` (PreLink for avx_x1 on `L1` from the exit facts:
+r8/rcx/rdx/rsp values, callee-saved registers equal to the entry state, a 32x16 vector file, the
+log facts); and the glue `KSpecC4_of_cert (X : X4WinCert)` giving `KSpecC4 (fun c => if c = 0
+then 4 else X.steps c)`.  Axioms: standard + `loadLane_hom._native.bv_decide.ax_1_6` (run_hom).
+
+`X4WinCert` is the interface a certificate OF THE WINDOWS STREAM must provide (route (b): R2's
+W-mode tooling on `Kernels.X86Win.AvxX4.prog`, pack `Gen/WinAvxX4P`, count 4, Win64 entry
+`X86Run.entry true cnt 24` — the generator needs a kernel-table entry and a Win64 S-mode start
+state; not authorized in R5, see the integration note).  Its fields are exactly what
+`preLink_of_exit` consumes: for `c ≠ 0`, after `steps c` instructions from `mapState env σ
+entryWin`: err none, tail avx_x1, 16 gprs, r8 = ptr(rNum, c%4), rcx = ptr(rOut, σ1 + 32(c-c%4)),
+rdx = ptr(rIn, σ0 + 64(c-c%4)), rsp = ptr(rStack, σ9), [3,5,6,7,12,13,14,15] unchanged, vr 32x16,
+`OutLogW (σ 9)`, `Foot (σ 9) 568 (σ 1) (32c)`, `OutOk inp (σ 1) (c-c%4)` of the final log.
+Route (a) (transfer from the linux certificate, below) would instead prove `X4WinCert.spec` from
+`x4_runW` + `TurnOut4` through the piecewise pc map; it is NOT needed if the windows pack lands.
+
+## avx_x4 link plan, route (a) (`KSpecC4_of_turnOut4` via transfer from the linux certificate)
 
 Statement module `Proofs/WinAvxX4Bridge.lean` (KSpecC4, TurnOut4, x4RunSteps) is written; TurnOut4
 sent to R2c.  Certificates merged: R2 9a2d747 (`AvxX4LoopWAll.x4_runW`, `x4_runW_last`, W-mode,
