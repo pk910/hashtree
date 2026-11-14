@@ -31,6 +31,8 @@ import Hashtree.Gen.RvCryptoP.Final
 /- R2b: x8/x16 W-mode -/
 import Hashtree.Proofs.Avx2X8WEntry
 import Hashtree.Proofs.Avx512X16WLoop
+/- R2c: x16 output correctness -/
+import Hashtree.Proofs.Avx512X16WOut
 
 #print axioms Hashtree.Proofs.Shani.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -96,3 +98,14 @@ import Hashtree.Proofs.Avx512X16WLoop
 #print axioms Hashtree.Proofs.Avx512X16WLoop.x16_run_region
 #print axioms Hashtree.Proofs.Avx512X16WLoop.x16_all_region
 #print axioms Hashtree.Proofs.Avx512X16WLoop.x16_chain_head
+
+/- R2c: x16 output correctness -/
+#print axioms Hashtree.Proofs.Avx512X16WOut.turnOut
+#print axioms Hashtree.Proofs.Avx512X16WOut.loop_out
+#print axioms Hashtree.Proofs.Avx512X16WOut.iter_out
+#print axioms Hashtree.Proofs.Avx512X16WOut.exit_out
+#print axioms Hashtree.Proofs.Avx512X16WOut.sliceT_turn
+#print axioms Hashtree.Proofs.Avx512X16WOut.sliceT_exit
+#print axioms Hashtree.Proofs.Avx512X16WOut.invW_body
+#print axioms Hashtree.Proofs.Avx512X16WOut.invV_body
+#print axioms Hashtree.Proofs.Avx512X16WOut.invC_lift
