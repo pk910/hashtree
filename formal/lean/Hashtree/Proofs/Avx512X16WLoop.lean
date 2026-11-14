@@ -122,36 +122,35 @@ theorem wfMemW_tr (σ σ' : Nat → Int) (e e' : Key → W32) (m : Addr Int → 
 theorem loop (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (s : Nat)
     (hs : 16 ≤ s) (hs32 : s < 32) :
     ∀ (j : Nat) (e : Key → W32) (σ : Nat → Int) (M : CLog),
-      WfMemW rodata [] e σ mem0c → 24 ≤ σ 9 →
-      σ 2 = 16 * (j : Int) + (s : Int) → OutLog M →
+      WfMemW rodata [] e σ mem0c →
+      σ 2 = 16 * (j : Int) + (s : Int) → OutLogO M →
       ∃ e' M',
         run prog 4 mem0c orcC (j * turnSteps) (fr M (mapState e σ KH)) =
-          fr M' (mapState e' (sIt j σ) KH) ∧ OutLog M' := by
+          fr M' (mapState e' (sIt j σ) KH) ∧ OutLogO M' := by
   intro j
   induction j with
   | zero =>
-    intro e σ M _ _ hσ hM
+    intro e σ M _ hσ hM
     exact ⟨e, M, rfl, hM⟩
   | succ j ih =>
-    intro e σ M hw hsp hσ hM
+    intro e σ M hw hσ hM
     have hge : 32 ≤ σ 2 := by
       rw [hσ]
       have hj : (0 : Int) ≤ (j : Int) := Int.natCast_nonneg j
       have hs' : (16 : Int) ≤ (s : Int) := by exact_mod_cast hs
       have hj : (0 : Int) ≤ (j : Int) := Int.natCast_nonneg j
       omega
-    obtain ⟨e1, M1, hrun1, hM1⟩ := iter_step mem0c orcC e σ hw M hM hge hsp
+    obtain ⟨e1, M1, hrun1, hM1⟩ := iter_step mem0c orcC e σ hw M hM hge
     have hrun1' : run prog 4 mem0c orcC turnSteps (fr M (mapState e σ KH)) =
         fr M1 (mapState e1 (sigmaOf tau σ) KH) := by
       rw [turnSteps_eq]
       exact hrun1
     have h9 : sigmaOf tau σ 9 = σ 9 := sigmaOf_ge σ 9 (by simp [tau])
     have hw1 : WfMemW rodata [] e1 (sigmaOf tau σ) mem0c := wfMemW_tr σ (sigmaOf tau σ) e e1 mem0c h9 hw
-    have hsp1 : 24 ≤ sigmaOf tau σ 9 := by rw [h9]; exact hsp
     have hσ1 : sigmaOf tau σ 2 = 16 * (j : Int) + (s : Int) := by
       rw [tau_count, hσ]
       omega
-    obtain ⟨e2, M2, hrun2, hM2⟩ := ih e1 (sigmaOf tau σ) M1 hw1 hsp1 hσ1 hM1
+    obtain ⟨e2, M2, hrun2, hM2⟩ := ih e1 (sigmaOf tau σ) M1 hw1 hσ1 hM1
     refine ⟨e2, M2, ?_, hM2⟩
     have hlen : (j + 1) * turnSteps = turnSteps + j * turnSteps := by
       rw [Nat.succ_mul, Nat.add_comm]
@@ -220,12 +219,12 @@ theorem fr_nil (s : CState) : fr ([] : CLog) s = s := by
 the residual `c % 16` blocks. -/
 theorem x16_loop (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     (env0 : Key → W32) (σ : Nat → Int) (c : Nat) (h0 : Mem0Rel env0 σ mW mem0c)
-    (hw : WfMemW rodata [] env0 σ mem0c) (hsp : 24 ≤ σ 9) (h10 : σ 10 = σ 1)
+    (hw : WfMemW rodata [] env0 σ mem0c) (h10 : σ 10 = σ 1)
     (hc : σ 2 = (c : Int)) (h16 : 16 ≤ c) :
     ∃ e' M,
       run prog 4 mem0c orcC (steps c) (mapState env0 σ entryW) =
         fr M (mapState e' (sIt (c / 16 - 1) σ) KTE) ∧
-      OutLog M ∧ sIt (c / 16 - 1) σ 2 = ((c % 16 : Nat) : Int) + 16 := by
+      OutLogO M ∧ sIt (c / 16 - 1) σ 2 = ((c % 16 : Nat) : Int) + 16 := by
   let E : Key → W32 := envAbs env0 (run prog 4 mW orcEntry 8 entryW)
   have hA : AssumeOk σ (wcutE K1) :=
     assumeOk_of σ (wcutE K1) A0 wcutE_K1_assume (asmge σ (by rw [hc]; omega))
@@ -263,7 +262,6 @@ theorem x16_loop (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     have h9 : sigmaOf tau σ 9 = σ 9 := sigmaOf_ge σ 9 (by simp [tau])
     have hw1 : WfMemW rodata [] (turnE1 E) (sigmaOf tau σ) mem0c :=
       wfMemW_tr σ (sigmaOf tau σ) env0 (turnE1 E) mem0c h9 hw
-    have hsp1 : 24 ≤ sigmaOf tau σ 9 := by rw [h9]; exact hsp
     have hσ1 : sigmaOf tau σ 2 = 16 * ((c / 16 - 2 : Nat) : Int) + (((c % 16 + 16 : Nat)) : Int) := by
       rw [tau_count, hc, cast_count c hj2]
       omega
@@ -271,7 +269,7 @@ theorem x16_loop (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
       loop mem0c orcC (c % 16 + 16) (by omega) (by omega) (c / 16 - 2) (turnE1 E)
         (sigmaOf tau σ)
         (KT.mem.map (fun p => (mapAddr σ p.1, mapCell (turnE1 E) σ p.2)))
-        hw1 hsp1 hσ1 (outLog_map_KT σ (turnE1 E))
+        hw1 hσ1 (outLogO_map_KT σ (turnE1 E))
     -- the exit turn
     have hσ2 : sIt (c / 16 - 2) (sigmaOf tau σ) 2 = ((c % 16 : Nat) : Int) + 16 := by
       rw [sIt_count, tau_count, hc, cast_count c hj2]
@@ -279,11 +277,9 @@ theorem x16_loop (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     have hw2 : WfMemW rodata [] e2 (sIt (c / 16 - 2) (sigmaOf tau σ)) mem0c := by
       have h9' : sIt (c / 16 - 2) (sigmaOf tau σ) 9 = sigmaOf tau σ 9 := sIt_9 _ _
       exact wfMemW_tr (sigmaOf tau σ) _ (turnE1 E) e2 mem0c h9' hw1
-    have hsp2 : 24 ≤ sIt (c / 16 - 2) (sigmaOf tau σ) 9 := by
-      rw [sIt_9]; exact hsp1
     obtain ⟨e3, M3, hexit, hM3⟩ :=
       exit_step mem0c orcC e2 (sIt (c / 16 - 2) (sigmaOf tau σ)) hw2 M2 hM2
-        (by rw [hσ2]; omega) (by rw [hσ2]; omega) hsp2
+        (by rw [hσ2]; omega) (by rw [hσ2]; omega)
     refine ⟨e3, M3, ?_, hM3, ?_⟩
     · rw [show c / 16 - 1 = (c / 16 - 2) + 1 from by omega, sIt_succ]
       rw [steps_loop (by omega), count_eq turnSteps c (c / 16 - 2) (by omega)]
@@ -309,7 +305,7 @@ the turns.  The count register holds `σ 2 - 16`, the residual number of blocks,
 in `[0, 16)`; symbols `0` and `1` (the input and output pointers) have been advanced by the
 turns. -/
 def x8Pre (f : CState) : Prop :=
-  ∃ e σ M, OutLog M ∧ 0 ≤ σ 2 - 16 ∧ σ 2 - 16 < 16 ∧
+  ∃ e σ M, OutLogO M ∧ 0 ≤ σ 2 - 16 ∧ σ 2 - 16 < 16 ∧
     f = fr M (resume (mapState e σ KTE))
 
 /-- The post-condition of the `avx512_x16` link at block count `c`. -/
@@ -325,7 +321,7 @@ theorem resume_fr (M : CLog) (s : CState) : resume (fr M s) = fr M (resume s) :=
 /-- **The kernel at every count.** -/
 theorem x16_all (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     (env0 : Key → W32) (σ : Nat → Int) (c : Nat) (h0 : Mem0Rel env0 σ mW mem0c)
-    (hw : WfMemW rodata [] env0 σ mem0c) (hsp : 24 ≤ σ 9) (h10 : σ 10 = σ 1)
+    (hw : WfMemW rodata [] env0 σ mem0c) (h10 : σ 10 = σ 1)
     (hc : σ 2 = (c : Int)) :
     x16post c (run prog 4 mem0c orcC (steps c) (mapState env0 σ entryW)) := by
   rcases Nat.eq_zero_or_pos c with hc0 | hpos
@@ -345,7 +341,7 @@ theorem x16_all (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
       · rw [steps_small (by omega) hlt, hrun]
         exact htl
     · obtain ⟨e', M, hrun, hM, hσ'⟩ :=
-        x16_loop mem0c orcC env0 σ c h0 hw hsp h10 hc h16
+        x16_loop mem0c orcC env0 σ c h0 hw h10 hc h16
       refine ⟨?_, Or.inr (Or.inr ⟨h16, ?_, ⟨e', sIt (c / 16 - 1) σ, M, hM, ?_, ?_, ?_⟩⟩)⟩
       · rw [hrun]
         simp [fr, mapState, KTE_err]
@@ -369,7 +365,7 @@ def x16spec (env0 : Key → W32) (σ : Nat → Int) (c : Nat) : Spec :=
 whose pre-condition follows from `x8Pre`. -/
 theorem x16_chain_head (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     (env0 : Key → W32) (σ : Nat → Int) (c : Nat) (h0 : Mem0Rel env0 σ mW mem0c)
-    (hw : WfMemW rodata [] env0 σ mem0c) (hsp : 24 ≤ σ 9) (h10 : σ 10 = σ 1)
+    (hw : WfMemW rodata [] env0 σ mem0c) (h10 : σ 10 = σ 1)
     (hc : σ 2 = (c : Int)) (sp' : Spec) (hname : sp'.link.name = "hashtree_sha256_avx2_x8")
     (hpreS : ∀ (e : Key → W32) (σ' : Nat → Int), sp'.pre (resume (mapState e σ' KSm)))
     (hpre : ∀ f, x8Pre f → sp'.pre f) :
@@ -381,7 +377,7 @@ theorem x16_chain_head (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
   intro s hs
   subst hs
   simp only [step, x16spec, x16link]
-  have hall := x16_all mem0c orcC env0 σ c h0 hw hsp h10 hc
+  have hall := x16_all mem0c orcC env0 σ c h0 hw h10 hc
   obtain ⟨he, hdisj⟩ := hall
   refine ⟨he, ?_⟩
   rcases hdisj with ⟨hc0, htl, hst⟩ | ⟨-, -, htl, hst⟩ | ⟨-, htl, h8⟩
@@ -430,10 +426,10 @@ theorem x16_run_region (r : Region) (hrNum : r ≠ rNum) (hrRet : r ≠ rRet)
 theorem x16_all_region (r : Region) (hrNum : r ≠ rNum) (hrRet : r ≠ rRet)
     (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (env0 : Key → W32) (σ : Nat → Int)
     (c : Nat) (h0 : Mem0Rel env0 σ mW ((X86Ren.swap 4 r).mem mem0c))
-    (hw : WfMemW rodata [] env0 σ ((X86Ren.swap 4 r).mem mem0c)) (hsp : 24 ≤ σ 9)
+    (hw : WfMemW rodata [] env0 σ ((X86Ren.swap 4 r).mem mem0c))
     (h10 : σ 10 = σ 1) (hc : σ 2 = (c : Int)) :
     x16postR r c (run prog r mem0c orcC (steps c) ((X86Ren.swap 4 r).state (mapState env0 σ entryW))) :=
   ⟨_, x16_run_region r hrNum hrRet mem0c orcC env0 σ c,
-    x16_all ((X86Ren.swap 4 r).mem mem0c) orcC env0 σ c h0 hw hsp h10 hc⟩
+    x16_all ((X86Ren.swap 4 r).mem mem0c) orcC env0 σ c h0 hw h10 hc⟩
 
 end Hashtree.Proofs.Avx512X16WLoop
