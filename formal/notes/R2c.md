@@ -5,7 +5,7 @@ this note, the marked `R2c` block of `Axioms.lean`.
 
 ## Statement
 
-`Hashtree.Proofs.Avx512X16WOut.TurnOut` is the text fixed by R5 (`WinAvx512Bridge.TurnOut`,
+`Hashtree.Proofs.Avx512X16WOut.TurnOut` is the text fixed by R5 (`WinAvx512Bridge.TurnOut` at `ec067bb`, no `24 ≤ σ 9` binder,
 copied verbatim; `OutOk` is this module's constant with the text of `ShaniW.OutOk` /
 `WinWrapper.OutOk`, so the two statements are definitionally equal up to unfolding `OutOk`):
 under the hypotheses of `Avx512X16WLoop.x16_loop` (`Mem0Rel env0 σ mW mem0c`, `WfMemW rodata []

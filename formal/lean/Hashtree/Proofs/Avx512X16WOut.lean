@@ -50,7 +50,7 @@ def TurnOut : Prop :=
   ∀ (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (env0 : Key → W32) (σ : Nat → Int)
     (c : Nat) (inp : Nat → Spec.Byte),
     Mem0Rel env0 σ Hashtree.Proofs.Avx512X16WBody.mW mem0c →
-    WfMemW Hashtree.Kernels.X86.Avx512X16.rodata [] env0 σ mem0c → 24 ≤ σ 9 → σ 10 = σ 1 →
+    WfMemW Hashtree.Kernels.X86.Avx512X16.rodata [] env0 σ mem0c → σ 10 = σ 1 →
     σ 2 = c → 16 ≤ c →
     (∀ o : Nat, mem0c ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) →
     (∀ p ∈ (run Hashtree.Kernels.X86.Avx512X16.prog 4 mem0c orcC (Hashtree.Proofs.Avx512X16WLoop.steps c)
@@ -126,7 +126,7 @@ theorem hmem_entry (env : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → 
 turn's own 512 output cells, which hold the digests of the 16 blocks at the input pointer. -/
 theorem iter_out (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     (e : Key → W32) (σ : Nat → Int) (M : CLog) (inp : Nat → Byte)
-    (hw : WfMemW rodata [] e σ mem0c) (hM : OutLog M) (hge : 32 ≤ σ 2) (hsp : 24 ≤ σ 9)
+    (hw : WfMemW rodata [] e σ mem0c) (hM : OutLogO M) (hge : 32 ≤ σ 2)
     (hin : ∀ o : Nat, mem0c ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) :
     ∃ e' N,
       run prog 4 mem0c orcC turnSteps (fr M (mapState e σ KH)) =
@@ -137,14 +137,14 @@ theorem iter_out (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
   have hrel : Mem0Rel E σ mW (view M mem0c) := by
     rw [show mW = mem0sW 4 rodata [] from rfl]
     exact mem0RelW_of_wf rodata [] E σ (view M mem0c)
-      (wfMemW_push_nil rodata e E σ (view M mem0c) (wfMemW_view rodata e σ mem0c M hM hsp hw))
+      (wfMemW_push_nil rodata e E σ (view M mem0c) (wfMemW_view rodata e σ mem0c M hM hw))
       (envMem_ecomb E σ (view M mem0c))
   have hrun : run prog 4 mem0c orcC turnSteps (fr M (mapState e σ KH)) =
       fr M (mapState (turnE E) σ KT) := by
     rw [turnSteps_eq, run_fr]
     rw [mapState_nOnly e E σ (fun _ => rfl) KH KH_nOnly]
     exact congrArg (fr M) (turn_run E σ (view M mem0c) orcC hrel hge)
-  have hmE : HMem 1024 inp E := hmem_view e σ M mem0c inp hM hin
+  have hmE : HMem 1024 inp E := hmem_view e σ M mem0c inp (outLogO_outLog hM) hin
   have hI : InvC inp (turnE E) L217 :=
     stepT_turn inp (Hashtree.Proofs.Avx512X16WBodyV.G216 E) (invV_body inp E hmE) hmE
   refine ⟨turnE E, KT.mem.map (fun p => (mapAddr σ p.1, mapCell (turnE E) σ p.2)), ?_, ?_, ?_⟩
@@ -160,8 +160,7 @@ theorem iter_out (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
 own write log is the turn's 512 output cells holding the 16 digests. -/
 theorem exit_out (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
     (e : Key → W32) (σ : Nat → Int) (M : CLog) (inp : Nat → Byte)
-    (hw : WfMemW rodata [] e σ mem0c) (hM : OutLog M) (hge : 16 ≤ σ 2) (hlt : σ 2 < 32)
-    (hsp : 24 ≤ σ 9)
+    (hw : WfMemW rodata [] e σ mem0c) (hM : OutLogO M) (hge : 16 ≤ σ 2) (hlt : σ 2 < 32)
     (hin : ∀ o : Nat, mem0c ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) :
     ∃ e',
       run prog 4 mem0c orcC turnSteps (fr M (mapState e σ KH)) = fr M (mapState e' σ KTE) ∧
@@ -171,22 +170,22 @@ theorem exit_out (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
   have hrel : Mem0Rel E σ mW (view M mem0c) := by
     rw [show mW = mem0sW 4 rodata [] from rfl]
     exact mem0RelW_of_wf rodata [] E σ (view M mem0c)
-      (wfMemW_push_nil rodata e E σ (view M mem0c) (wfMemW_view rodata e σ mem0c M hM hsp hw))
+      (wfMemW_push_nil rodata e E σ (view M mem0c) (wfMemW_view rodata e σ mem0c M hM hw))
       (envMem_ecomb E σ (view M mem0c))
   have hrun : run prog 4 mem0c orcC turnSteps (fr M (mapState e σ KH)) =
       fr M (mapState (exitE E) σ KTE) := by
     rw [turnSteps_eq, run_fr]
     rw [mapState_nOnly e E σ (fun _ => rfl) KH KH_nOnly]
     exact congrArg (fr M) (exit_run E σ (view M mem0c) orcC hrel hge hlt)
-  have hmE : HMem 1024 inp E := hmem_view e σ M mem0c inp hM hin
+  have hmE : HMem 1024 inp E := hmem_view e σ M mem0c inp (outLogO_outLog hM) hin
   have hI : InvC inp (exitE E) L217 :=
     stepT_exit inp (Hashtree.Proofs.Avx512X16WBodyV.G216 E) (invV_body inp E hmE) hmE
   exact ⟨exitE E, hrun, outShape_sound KTE KTE_outShape (exitE E) σ, outOk_KTE inp (exitE E) σ hI⟩
 
-/-- Output cells only, hence an `OutLog`. -/
-theorem outLog_of_shape (N : CLog) (b lo : Int)
-    (h : ∀ p ∈ N, p.1.region = rOut ∧ lo ≤ p.1.off ∧ p.1.off < b) : OutLog N :=
-  fun p hp => Or.inl (h p hp).1
+/-- Output cells only: R2b's turn-framing log invariant. -/
+theorem outLogO_of_shape (N : CLog) (b lo : Int)
+    (h : ∀ p ∈ N, p.1.region = rOut ∧ lo ≤ p.1.off ∧ p.1.off < b) : OutLogO N :=
+  fun p hp => (h p hp).1
 
 /-! ## The turns -/
 
@@ -196,8 +195,8 @@ pointer. -/
 theorem loop_out (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (s : Nat)
     (hs : 16 ≤ s) (hs32 : s < 32) :
     ∀ (j : Nat) (e : Key → W32) (σ : Nat → Int) (M : CLog) (inp : Nat → Byte),
-      WfMemW rodata [] e σ mem0c → 24 ≤ σ 9 →
-      σ 2 = 16 * (j : Int) + (s : Int) → OutLog M →
+      WfMemW rodata [] e σ mem0c →
+      σ 2 = 16 * (j : Int) + (s : Int) → OutLogO M →
       (∀ o : Nat, mem0c ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) →
       ∃ e' N,
         run prog 4 mem0c orcC (j * turnSteps) (fr M (mapState e σ KH)) =
@@ -207,31 +206,30 @@ theorem loop_out (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (s : 
   intro j
   induction j with
   | zero =>
-    intro e σ M inp _ _ hσ hM hin
+    intro e σ M inp _ hσ hM hin
     refine ⟨e, [], rfl, ?_, ?_⟩
     · intro p hp
       simp at hp
     · intro n i b hn
       exact absurd hn (Nat.not_lt_zero n)
   | succ j ih =>
-    intro e σ M inp hw hsp hσ hM hin
+    intro e σ M inp hw hσ hM hin
     have hge : 32 ≤ σ 2 := by
       rw [hσ]
       have hj : (0 : Int) ≤ (j : Int) := Int.natCast_nonneg j
       have hs' : (16 : Int) ≤ (s : Int) := by exact_mod_cast hs
       push_cast
       omega
-    obtain ⟨e1, N1, hrun1, hsh1, hout1⟩ := iter_out mem0c orcC e σ M inp hw hM hge hsp hin
+    obtain ⟨e1, N1, hrun1, hsh1, hout1⟩ := iter_out mem0c orcC e σ M inp hw hM hge hin
     have h9 : sigmaOf tau σ 9 = σ 9 := sigmaOf_ge σ 9 (by simp [tau])
     have hw1 : WfMemW rodata [] e1 (sigmaOf tau σ) mem0c := wfMemW_tr σ (sigmaOf tau σ) e e1 mem0c h9 hw
-    have hsp1 : 24 ≤ sigmaOf tau σ 9 := by rw [h9]; exact hsp
     have hσ1 : sigmaOf tau σ 2 = 16 * (j : Int) + (s : Int) := by
       rw [tau_count, hσ]
       push_cast
       omega
-    have hM1 : OutLog (N1 ++ M) := outLog_app'' (outLog_of_shape N1 _ _ hsh1) hM
+    have hM1 : OutLogO (N1 ++ M) := outLogO_app (outLogO_of_shape N1 _ _ hsh1) hM
     obtain ⟨e2, N2, hrun2, hsh2, hout2⟩ :=
-      ih e1 (sigmaOf tau σ) (N1 ++ M) (fun o => inp (1024 + o)) hw1 hsp1 hσ1 hM1
+      ih e1 (sigmaOf tau σ) (N1 ++ M) (fun o => inp (1024 + o)) hw1 hσ1 hM1
         (hin_tau mem0c σ inp hin)
     refine ⟨e2, N2 ++ N1, ?_, ?_, ?_⟩
     · have hlen : (j + 1) * turnSteps = turnSteps + j * turnSteps := by
@@ -258,7 +256,7 @@ theorem loop_out (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (s : 
 
 /-- **`TurnOut`.** -/
 theorem turnOut : TurnOut := by
-  intro mem0c orcC env0 σ c inp h0 hw hsp h10 hc h16 hin
+  intro mem0c orcC env0 σ c inp h0 hw h10 hc h16 hin
   let E : Key → W32 := envAbs env0 (run prog 4 mW orcEntry 8 entryW)
   have hA : AssumeOk σ (wcutE K1) :=
     assumeOk_of σ (wcutE K1) _ wcutE_K1_assume (asmge σ (by rw [hc]; omega))
@@ -309,7 +307,6 @@ theorem turnOut : TurnOut := by
     have h9 : sigmaOf tau σ 9 = σ 9 := sigmaOf_ge σ 9 (by simp [tau])
     have hw1 : WfMemW rodata [] (turnE1 E) (sigmaOf tau σ) mem0c :=
       wfMemW_tr σ (sigmaOf tau σ) env0 (turnE1 E) mem0c h9 hw
-    have hsp1 : 24 ≤ sigmaOf tau σ 9 := by rw [h9]; exact hsp
     have hcq : c = 16 * (q + 2) + c % 16 := by
       have := Nat.div_add_mod c 16
       omega
@@ -319,7 +316,7 @@ theorem turnOut : TurnOut := by
       omega
     obtain ⟨e2, N2, hloop, hsh2, hout2⟩ :=
       loop_out mem0c orcC (c % 16 + 16) (by omega) (by omega) q (turnE1 E) (sigmaOf tau σ) N1
-        (fun o => inp (1024 + o)) hw1 hsp1 hσ1 (outLog_of_shape N1 _ _ hsh1)
+        (fun o => inp (1024 + o)) hw1 hσ1 (outLogO_of_shape N1 _ _ hsh1)
         (hin_tau mem0c σ inp hin)
     -- the exit turn
     obtain ⟨σ2, hσ2def⟩ : ∃ σ2 : Nat → Int, σ2 = sIt q (sigmaOf tau σ) := ⟨_, rfl⟩
@@ -331,10 +328,8 @@ theorem turnOut : TurnOut := by
     have hw2 : WfMemW rodata [] e2 σ2 mem0c := by
       have h9' : σ2 9 = sigmaOf tau σ 9 := by rw [hσ2def]; exact sIt_9 _ _
       exact wfMemW_tr (sigmaOf tau σ) _ (turnE1 E) e2 mem0c h9' hw1
-    have hsp2 : 24 ≤ σ2 9 := by
-      rw [hσ2def, sIt_9]; exact hsp1
-    have hM2 : OutLog (N2 ++ N1) :=
-      outLog_app'' (outLog_of_shape N2 _ _ hsh2) (outLog_of_shape N1 _ _ hsh1)
+    have hM2 : OutLogO (N2 ++ N1) :=
+      outLogO_app (outLogO_of_shape N2 _ _ hsh2) (outLogO_of_shape N1 _ _ hsh1)
     have hin2 : ∀ o : Nat, mem0c ⟨rIn, σ2 0 + o⟩ = .dat ((inp (1024 * (q + 1) + o)).zeroExtend 32) 0 := by
       intro o
       rw [hσ2def, sIt_in, tau_in]
@@ -343,7 +338,7 @@ theorem turnOut : TurnOut := by
       exact hin _
     obtain ⟨e3, hexit, hsh3, hout3⟩ :=
       exit_out mem0c orcC e2 σ2 (N2 ++ N1) (fun o => inp (1024 * (q + 1) + o)) hw2 hM2
-        (by rw [hσ2]; omega) (by rw [hσ2]; omega) hsp2 hin2
+        (by rw [hσ2]; omega) (by rw [hσ2]; omega) hin2
     -- the whole run
     have hfin : run prog 4 mem0c orcC (steps c) (mapState env0 σ entryW) =
         fr (N2 ++ N1) (mapState e3 σ2 KTE) := by
