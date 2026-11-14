@@ -17,9 +17,6 @@ import Hashtree.Proofs.WrapperAmd64
 import Hashtree.Proofs.Avx2X8Body
 import Hashtree.Proofs.Avx512X16Body
 import Hashtree.Proofs.AvxX4LoopTurn
-import Hashtree.Proofs.AvxX4ToX1
-import Hashtree.Proofs.AvxX4LoopWAll
-import Hashtree.Proofs.AvxX4X1WAgree
 import Hashtree.GoProof
 import Hashtree.Glue
 import Hashtree.Gen.AvxX4P.Final
@@ -64,6 +61,9 @@ import Hashtree.Proofs.WinAvxX4Live
 import Hashtree.Proofs.WinAvx2X8Live
 import Hashtree.Proofs.WinAvx512Bridge
 import Hashtree.Proofs.WinAvx512Link
+import Hashtree.Proofs.WinAvxX1Live
+import Hashtree.Proofs.WinSseX1Live
+import Hashtree.Proofs.WinAvxX4Bridge
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -77,10 +77,6 @@ import Hashtree.Proofs.WinAvx512Link
 #print axioms Hashtree.Proofs.Avx2X8Body.body_run
 #print axioms Hashtree.Proofs.Avx512X16Body.body_run
 #print axioms Hashtree.Proofs.AvxX4LoopTurn.turn_run
-#print axioms Hashtree.Proofs.AvxX4ToX1.x4_small_to_x1
-#print axioms Hashtree.Proofs.AvxX4LoopWAll.x4_runW_last
-#print axioms Hashtree.Proofs.AvxX4LoopWAll.x4_runW
-#print axioms Hashtree.Proofs.AvxX4X1WAgree.x4_x1_W
 
 #print axioms Hashtree.Gen.AvxX4P.Final.out_final
 #print axioms Hashtree.Gen.Avx2X8P.Final.out_final
@@ -466,3 +462,11 @@ import Hashtree.Proofs.WinAvx512Link
 -- (the link obligation under the named output-byte hypothesis TurnOut, R2c).
 #print axioms Hashtree.Proofs.WinAvx512Link.seed_agree512
 #print axioms Hashtree.Proofs.WinAvx512Link.KSpecC512_of_turnOut
+
+-- R5: avx_x1 / sse_x1 liveness certificates (push-saving bodies, entry sets with the callee-saved
+-- registers) and the avx_x4 chain-link statement shape (x4RunSteps_eq ties TurnOut4 to x4_runW).
+#print axioms Hashtree.Proofs.WinAvxX1Live.cert
+#print axioms Hashtree.Proofs.WinAvxX1Live.live_entry
+#print axioms Hashtree.Proofs.WinSseX1Live.cert
+#print axioms Hashtree.Proofs.WinSseX1Live.live_entry
+#print axioms Hashtree.Proofs.WinAvxX4Bridge.x4RunSteps_eq

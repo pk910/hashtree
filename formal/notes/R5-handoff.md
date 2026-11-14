@@ -246,3 +246,60 @@ Ingredients (all evaluated/checked this session):
     E.eval eL (KTE lane i l) else env (.n n)` (decidable bounded ∃; vId injective by omega), `e'`
     on `.m` keys irrelevant (entryWin has no memory symbols) — SameG env e' since vId ≥ 100 > gId.
 * halted/err/tail of W from f via Agree + renSt (`renSt` keeps everything but gpr).
+
+## avx_x4 link plan (`KSpecC4_of_turnOut4`, module `Proofs/WinAvxX4Link.lean` to create)
+
+Statement module `Proofs/WinAvxX4Bridge.lean` (KSpecC4, TurnOut4, x4RunSteps) is written; TurnOut4
+sent to R2c.  Certificates merged: R2 9a2d747 (`AvxX4LoopWAll.x4_runW`, `x4_runW_last`, W-mode,
+from `fr M (mapState env0 σ entryW)` at count `4(j+1)+s`, `s ∈ [4,8)`, to
+`fr M' (mapState e' (sIt (j+1) (upd15 σ)) K201W)`), small counts: `AvxX4ToX1.x4_small_to_x1`
+(x4 early exit, 8 instructions, tails to x1 — check its exact statement), zero: pc 1-3 `cmp r8,0;
+jne; ret`.
+
+Evaluated facts:
+* Windows avx_x4 (`Kernels.X86Win.AvxX4`): pc 0 nop, 1 `cmp r8,0`, 2 `jne 4`, 3 `ret`, 4 `sub
+  rsp,568`, 5-14 `vmovdqa [rsp+384+16k], xmm(6+k)`, 15 `cmp r8,4`, 16 `jl 4151`, 17 `xor r9,r9`,
+  18 `lea rax,[rip+0x800]`, … body …, 4147 `add rdx,256`, 4148 `add rcx,128`, 4149 `sub r8,4`,
+  4150 `jmp 15`, 4151-4160 restores, 4161 `add rsp,568`, 4162 `jmpTail avx_x1`.  Linux stream: the
+  same without the saves/restores, pc map `w-10` below 705 / `w-9` from 705 (`WinAvxX4.bodyPc`,
+  `bodyReg = {1->0, 2->8, 6->2, 7->1}`, section 11) — NOT a constant shift: the shani transfer
+  engine `run_comb` needs a two-segment composition or a generalised pc map.
+* `K201W` (R2, `AvxX4LoopWExit.K201W`, pc 4143, halted, tail avx_x1, 1280 log cells in rOut and
+  rStack): rax ptr(rOut, s15) [upd15 pins s15 := s1], rcx ptr(4, 1024), rdx ptr(rNum, s2-4),
+  rbx s5, rsp sAt 0, rbp s6, rsi ptr(rIn, 256+s0), rdi ptr(rOut, 128+s1), r8 num, r9 ptr(rNum,1024),
+  r12 ptr(rStack,s7), r13 s11, r14 s8, r15 s12.  `tau` (x4) = [256+s0, 128+s1, s2-4, a, b] (a, b =
+  the loop-head flags), `sIt j` iterates it; symbols ≥ 5 unchanged.
+* Rodata: windows 2240 bytes = linux 2192 + 48 zero bytes (`getD` agrees everywhere): prove
+  `WfMemW linuxRodata … ← WfMemW winRodata …` in the bridge (decide the prefix + zeros).
+* Entry set `[8,4,9,2,1]`: 9 only via the `xor r9,r9` idiom (fixed by the srcs special-case);
+  after the fix expect `[8,4,2,1]`.  avx_x1's entry set `L1 = [4,3,8,6,7,5,12,13,14,15,1,2]`
+  (push-saving); avx_x4 never writes `[3,5,6,7,12,13,14,15]` (`avx_x4_callee_gpr_untouched`,
+  re-check with `unwrittenScan`), so PreLink's Agree on those is by preservation as for avx512.
+
+Proof shape (shani-shaped, NOT avx512-shaped — the windows stream is not a renaming):
+1. Windows prologue replay pc 0..14 from `mapState env σ entryWin` (c ≠ 0): symbolic 15-step run
+   `P15 := abstract (run winProg 4 m0W? … 15 entryWin)` is NOT available (entryWin lives in
+   WinWrapperPre with its own `m0W`) — either replay concretely (`run_succ` + `exec` evaluation per
+   instruction, 15 steps: cmp/jne/sub/10 vstores/cmp/jl — the shani WinShaniFront did this for 11)
+   or symbolically via `slice_sound` with a windows symbolic memory.  Result: rsp = σ9-568, flags
+   of `cmp r8,4`, log = 10 xmm saves at [σ9-184, σ9-24) (the save log `M4`).
+2. Seed: the linux state after its own prologue (`sub rsp,568`? CHECK the linux prologue pcs 0..4)
+   from `fr M (mapState eL σ' entryW)` — compute the symbolic linux prefix state (decide), align
+   with the windows post-prologue state on the linux body entry live set (compute `live
+   linuxAvxX4Prog` at the body-entry pc; expect `[2,6,7,4,…]`) — Agree with the windows state
+   *translated* by the register substitution bodyReg and the frame shift (windows frame 568 vs
+   linux frame: CHECK `sub rsp` imm in Kernels.X86.AvxX4 pc 4).
+3. Body transfer: windows body run (pcs 17..4150) = translated linux body run: needs
+   `run_comb`-style theorem for the avx_x4 body with the piecewise pc map; R5 §11 has the static
+   correspondence scans (`avx_x4_body_correspondence_lo/hi`) but no run-level transfer.  This is
+   the main new piece (compare WinShaniTransfer: `run_comb renPerm δ W lo hi hi_le body_hmap
+   body_hside`).  With `bodyPc` piecewise, split the body at windows pc 705 (linux 696) into two
+   constant-shift segments and compose with the single inserted instruction at windows 705.
+4. Exit: windows 4151-4162 replay (10 vloads from the save log, `add rsp`, `jmpTail`); PreLink
+   for avx_x1 from K201W's registers (rcx = linux rdi → σ1 + 128(j+2) = σ1 + 32(c - c%4); rdx =
+   linux rsi; r8 = linux rdx = c%4; rsp = σ9 after `add`; callee-saved by preservation), log =
+   windows frame cells + outputs (TurnOut4 for the bytes/range), `D = 568`.
+5. c = 0: 4-step concrete replay (nop, cmp, jne not taken, ret) — PostLink D = 0.
+Estimated: the body transfer (3) is the long pole (shani's took WinShaniTransfer + WinFrameStack +
+WinShaniFlags, ~2000 lines); consider asking whether R2 has a W-mode *windows-stream* avx_x4
+certificate (`Kernels.X86Win.AvxX4` run directly) which would remove (3) entirely.
