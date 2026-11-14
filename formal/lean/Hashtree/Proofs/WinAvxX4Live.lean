@@ -33,10 +33,10 @@ theorem cert : Cert prog (fun p => liveT.getD p []) (fun p => liveFT.getD p fals
 /-- The flags are not live at entry. -/
 theorem liveF_entry : liveFT.getD 0 false = false := by decide +kernel
 
-theorem live_entry_eq : liveT.getD 0 [] = [8, 4, 9, 2, 1] := by decide +kernel
+theorem live_entry_eq : liveT.getD 0 [] = [8, 4, 2, 1] := by decide +kernel
 
-/-- Closure: the entry live set is inside the read set `[8, 4, 9, 2, 1]`. -/
-theorem live_entry : ∀ r, r ∈ liveT.getD 0 [] → r ∈ [8, 4, 9, 2, 1] := by
+/-- Closure: the entry live set is inside the read set `[8, 4, 2, 1]`. -/
+theorem live_entry : ∀ r, r ∈ liveT.getD 0 [] → r ∈ [8, 4, 2, 1] := by
   rw [live_entry_eq]; exact fun _ h => h
 
 end Hashtree.Proofs.WinAvxX4Live

@@ -15,7 +15,8 @@ over ssh, push to GitHub); the VM has no GitHub credentials.  Logs: `results/r5-
   winLive.getD 11 [] = [8,2,4,1]`, inclusions `shani_linux_live_entry`/`shani_windows_live_entry`.
 * Entry live sets of all six windows kernels (= rbw tables): R5.md §18 table.
 * ba279c6: linear certificate walk (`certAux`, reversed-list sweep; shani build 3m07s -> 20s);
-  `Proofs/WinAvx512Live`, `Proofs/WinAvxX4Live` (`cert`, `live_entry` for [8,4,2,1] / [8,4,9,2,1]).
+  `Proofs/WinAvx512Live`, `Proofs/WinAvxX4Live` (`cert`, `live_entry` for [8,4,2,1] / [8,4,2,1] after the
+  xor idiom; [8,4,9,2,1] before it).
 * `Asm/RunExit` (this commit): `exec_shape`, `run_err_none`, `run_exit` (`Body prog lo hi` →
   exit fuel `n ≤ N` with pc = hi unhalted, inside before), `run_preserve` (never-written register),
   `run_nowrite` (non-writing segment keeps the log).  These give `shani_call`'s `hcond`/`hpc`/`hnh`,
@@ -79,7 +80,7 @@ With `st := mapState env σ WinWrapper.entryWin`, `a := ⟨rStack, σ 9⟩`, the
 ## Thread 2 (parallel): avx512_x16 and avx_x4 (push-free)
 
 `live`/`certB` modules per program (`Proofs/WinAvx512Live.lean`, `Proofs/WinAvxX4Live.lean`),
-entry sets `[8,4,2,1]` and `[8,4,9,2,1]`; then chain-aware `KSpecC` (X86Chain) + `FitsW`.
+entry sets `[8,4,2,1]` and `[8,4,2,1]` (x4 was `[8,4,9,2,1]` until the xor idiom); then chain-aware `KSpecC` (X86Chain) + `FitsW`.
 Certificates landed (ba279c6); next is the chain-aware `KSpecC` per link (X86Chain) using the
 same bridge recipe as shani, with the chain's `tail` handling.
 
@@ -271,8 +272,8 @@ Evaluated facts:
   the loop-head flags), `sIt j` iterates it; symbols ≥ 5 unchanged.
 * Rodata: windows 2240 bytes = linux 2192 + 48 zero bytes (`getD` agrees everywhere): prove
   `WfMemW linuxRodata … ← WfMemW winRodata …` in the bridge (decide the prefix + zeros).
-* Entry set `[8,4,9,2,1]`: 9 only via the `xor r9,r9` idiom (fixed by the srcs special-case);
-  after the fix expect `[8,4,2,1]`.  avx_x1's entry set `L1 = [4,3,8,6,7,5,12,13,14,15,1,2]`
+* Entry set `[8,4,2,1]` (commit C: `srcs` treats `xor r,r` as a zeroing idiom with no sources,
+  `exec_agree` alu case split on it; before that 9 was spuriously live via `xor r9,r9`).  avx_x1's entry set `L1 = [4,3,8,6,7,5,12,13,14,15,1,2]`
   (push-saving); avx_x4 never writes `[3,5,6,7,12,13,14,15]` (`avx_x4_callee_gpr_untouched`,
   re-check with `unwrittenScan`), so PreLink's Agree on those is by preservation as for avx512.
 

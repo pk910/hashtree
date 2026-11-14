@@ -455,12 +455,17 @@ theorem exec_agree (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat → 
     exact okOr_ag h (· ∈ [s1.pc + 1]) (fun _ hr => hr) (fun h => h) (by ag_lift)
   | alu op w d src =>
     try dsimp only
-    simp only [srcs] at hs; simp only [dsts, writesF, List.singleton_append, Bool.false_or, Bool.true_or, succs]
-    have hd : d ∈ R := hs d (List.mem_cons_self ..)
-    have hsrc : ∀ r, r ∈ gsrc src → r ∈ R := fun r hr => hs r (List.mem_cons_of_mem _ hr)
-    have hdd : ∀ r, r ∈ gsrc (.reg d) → r ∈ R := fun r hr => by simp only [gsrc, List.mem_singleton] at hr; rw [hr]; exact hd
-    simp only [gData32_ag h ro mem0 hsrc, gData32_ag h ro mem0 hdd, gCtl_ag h hsrc, gCtl_ag h hdd]
-    exact okOr_ag h (· ∈ [s1.pc + 1]) (fun _ hr => List.mem_cons_of_mem _ hr) (fun _ => rfl) (by ag_lift)
+    simp only [srcs] at hs; simp only [dsts, writesF, List.cons_append, List.singleton_append, Bool.false_or, Bool.true_or, succs]
+    by_cases hz : op = .xor ∧ src = .reg d
+    · obtain ⟨rfl, rfl⟩ := hz
+      simp only [and_self, ite_true]
+      exact okOr_ag h (· ∈ [s1.pc + 1]) (fun _ hr => List.mem_cons_of_mem _ hr) (fun _ => rfl) (by ag_lift)
+    · rw [if_neg hz] at hs
+      have hd : d ∈ R := hs d (List.mem_cons_self ..)
+      have hsrc : ∀ r, r ∈ gsrc src → r ∈ R := fun r hr => hs r (List.mem_cons_of_mem _ hr)
+      have hdd : ∀ r, r ∈ gsrc (.reg d) → r ∈ R := fun r hr => by simp only [gsrc, List.mem_singleton] at hr; rw [hr]; exact hd
+      simp only [gData32_ag h ro mem0 hsrc, gData32_ag h ro mem0 hdd, gCtl_ag h hsrc, gCtl_ag h hdd]
+      exact okOr_ag h (· ∈ [s1.pc + 1]) (fun _ hr => List.mem_cons_of_mem _ hr) (fun _ => rfl) (by ag_lift)
   | sub w d src =>
     try dsimp only
     simp only [srcs] at hs; simp only [dsts, writesF, List.singleton_append, Bool.false_or, Bool.true_or, succs]

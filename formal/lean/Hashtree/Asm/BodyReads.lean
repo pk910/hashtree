@@ -36,7 +36,8 @@ def srcs : Instr → List Nat
   | .vop _ _ _ _ _ s => vsrc s
   | .vload _ _ _ s => vsrc s
   | .mov _ _ s => gsrc s
-  | .alu _ _ d s => d :: gsrc s
+  -- the zeroing idiom `xor r, r` reads nothing (`exec` sets `r` to 0 without reading it)
+  | .alu op _ d s => if op = .xor ∧ s = .reg d then [] else d :: gsrc s
   | .sub _ d s => d :: gsrc s
   | .cmp _ a s => a :: gsrc s
   | .test _ a b => [a, b]
