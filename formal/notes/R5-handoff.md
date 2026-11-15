@@ -285,6 +285,39 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## sse_x1 / avx_x1 links: the state of the plan (commit M: `WinSseFront.run_front`)
+
+The windows `sse_x1` stream: pcs 0-8 push rbx, r8, rsi, rdi, rbp, r12-r15; 9 `sub rsp,192`;
+10-17 `vstore xmm6..13 -> [rsp+64+16m]`; body 18..4197 (`jmp 23` loop); 4198-4205 restores,
+4206 `add rsp,192`, 4207-4215 pops, 4216 `ret`.  Linux: pushes rbx, rbp, r12-r15 (0-5), `sub
+rsp,88` (6), body 7..4186, `add rsp,88`, six pops, `ret` (4187-4194).  `WinSseBody.sse_body_run`
+transfers the body (linux pcs 7..4186 <-> windows 18..4197) through `winSt F G μ 11` (renaming +
+pc shift 11 + stack shift μ = -128) under `NoStackVal` of every non-rsp register at body entry.
+
+`Proofs/WinSseFront.lean` (commit M): `run_front`: `run winProg 18 {st with pc := 0} = frontSt st
+a 8` for any state with `rsp = a` (rsp = a - 264, flags of the sub, the eight save slots over the
+nine push cells, pc 18); built from `pushSt`/`pushLog` (`storeCells` of each pushed register),
+`exec_pushSt`, `run_pushes`, `exec_sub_front`, `frontSt`/`saveLog`, `exec_frontSt`, `run_saves`,
+with `Hashtree.Asm.run_add` for the composition.  Still to write: the 19-step epilogue replay
+(`run_back`), then the composition.
+
+How the frame-slot lift enters: `sse_body_run` needs `NoStackVal` of rbx/rbp/r12-r15 at the body
+entry, false at the wrapper call state (rbx/rbp are the wrapper's stack pointers).  `frame_lift`
+relates the actual run to a run from a call state whose callee-saved registers are replaced by
+non-stack values (`cs = [3,5,6,7,12,13,14,15]`, `B 0 = σ 9`, `AndOk` vacuous, `RspOk` from
+`entryWin_gpr4`, `RegionOk` from `WinRegionLift.regionOk_sse`), and at the exit gives the
+callee-saved registers restored in the actual run plus agreement outside the frame window.  The
+replaced run = prologue replay + body transfer from the linux state after *its* prologue + epilogue
+replay; the linux side is the certificate.  Two gaps to close for that: (1) `TagRel` does not
+relate the two runs' *log addresses*, only lookups outside the listed slots -- `Foot`/`InRange`
+of the actual run need a `memAddrs : s.mem.map Prod.fst = s'.mem.map Prod.fst` clause (every step
+stores at agreeing addresses; a small addition to the lift); (2) the linux sse_x1 certificate is
+S-mode only (`SseX1All.correct` from `entryS 24`, rsp = 24); the W-mode run (`entryW`, rsp = σ 9)
+exists for avx_x1 (`AvxX1W.correctW`) but not for sse_x1.  `lake exe x86loop1w sse Hashtree/Gen/
+SseX1LW all` is supported by the existing generator (kernel table `sse | avx`) and additive, but
+a Proofs module `SseX1W` (R2's `AvxX1W` pattern) would have to be written -- a pipeline/pack item
+for the coordinator, not done here.  Recommended order: avx_x1 first (W-mode certificate exists).
+
 ## Region side condition DISCHARGED for sse_x1 / avx_x1 / avx2_x8 (commit L)
 
 `Asm/RegionTags`: per-pc known regions of the 16 general registers (`RTags := List (Option
