@@ -146,15 +146,15 @@ theorem body_runW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → 
     run prog 4 mem0c orcC ({total}) (mapState (G{FIRST} env1) σ (shiftK8 {r} K{FIRST})) =
       mapState (G{LAST + 1} env1) σ (shiftK8 {r} K{LAST + 1}) := by
   have kq : MemKeyed m8 := m8_keyed
-  have m{FIRST} : Mem0Rel (G{FIRST} env1) σ m8 mem0c := h0""")
+  have hm{FIRST} : Mem0Rel (G{FIRST} env1) σ m8 mem0c := h0""")
     for j in range(FIRST, LAST + 1):
-        a.append(f"  have m{j + 1} : Mem0Rel (G{j + 1} env1) σ m8 mem0c := "
-                 f"mem0Rel_envAbs _ σ _ mem0c kq m{j} _")
+        a.append(f"  have hm{j + 1} : Mem0Rel (G{j + 1} env1) σ m8 mem0c := "
+                 f"mem0Rel_envAbs _ σ _ mem0c kq hm{j} _")
     for j in range(FIRST, LAST + 1):
         s = slices[j]
         a.append(f"  have r{j} : run prog 4 mem0c orcC {s['n']} (mapState (G{j} env1) σ (shiftK8 {r} K{j})) = "
                  f"mapState (G{j + 1} env1) σ (shiftK8 {r} K{j + 1}) := "
-                 f"(slice_sound (G{j} env1) σ m8 mem0c m{j} prog 4 orcB orcC {s['n']} (shiftK8 {r} K{j}) "
+                 f"(slice_sound (G{j} env1) σ m8 mem0c hm{j} prog 4 orcB orcC {s['n']} (shiftK8 {r} K{j}) "
                  f"(shiftK8 {r} K{j + 1}) T{j} sliceW_{j} rfl "
                  f"(assumeOk_of σ (shiftK8 {r} K{j + 1}) A0 rfl (asmge σ hge))).1")
     for j in range(FIRST, LAST):
@@ -165,11 +165,11 @@ theorem body_runW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → 
 theorem body_memW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → Cell W32 Int)
     (h0 : Mem0Rel (G{FIRST} env1) σ m8 mem0c) : Mem0Rel (G{LAST + 1} env1) σ m8 mem0c := by
   have kq : MemKeyed m8 := m8_keyed
-  have m{FIRST} : Mem0Rel (G{FIRST} env1) σ m8 mem0c := h0""")
+  have hm{FIRST} : Mem0Rel (G{FIRST} env1) σ m8 mem0c := h0""")
     for j in range(FIRST, LAST + 1):
-        a.append(f"  have m{j + 1} : Mem0Rel (G{j + 1} env1) σ m8 mem0c := "
-                 f"mem0Rel_envAbs _ σ _ mem0c kq m{j} _")
-    a.append(f"  exact m{LAST + 1}\n")
+        a.append(f"  have hm{j + 1} : Mem0Rel (G{j + 1} env1) σ m8 mem0c := "
+                 f"mem0Rel_envAbs _ σ _ mem0c kq hm{j} _")
+    a.append(f"  exact hm{LAST + 1}\n")
     # bodyV_runW
     a.append(f"""/-- **A later pass of the body, residue {r}.**  From the loop invariant head `KH {r}`
 (the rebased `K2` with the loop-carried `ymm2..15`) to the rebased `K210`: the two replayed
@@ -179,23 +179,23 @@ theorem bodyV_runW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int →
     run prog 4 mem0c orcC ({total}) (mapState (GV{FIRST} env1) σ (KH {r})) =
       mapState (GV{LAST + 1} env1) σ (shiftK8 {r} K{LAST + 1}) := by
   have kq : MemKeyed m8 := m8_keyed
-  have m{FIRST} : Mem0Rel (GV{FIRST} env1) σ m8 mem0c := h0""")
+  have hm{FIRST} : Mem0Rel (GV{FIRST} env1) σ m8 mem0c := h0""")
     for j in range(FIRST, LAST + 1):
-        a.append(f"  have m{j + 1} : Mem0Rel (GV{j + 1} env1) σ m8 mem0c := "
-                 f"mem0Rel_envAbs _ σ _ mem0c kq m{j} _")
+        a.append(f"  have hm{j + 1} : Mem0Rel (GV{j + 1} env1) σ m8 mem0c := "
+                 f"mem0Rel_envAbs _ σ _ mem0c kq hm{j} _")
     a.append(f"  have r2 : run prog 4 mem0c orcC {slices[2]['n']} (mapState (GV2 env1) σ (KH {r})) = "
              f"mapState (GV3 env1) σ (KH3 {r}) := "
-             f"(slice_sound (GV2 env1) σ m8 mem0c m2 prog 4 orcB orcC {slices[2]['n']} (KH {r}) (KH3 {r}) T2 "
+             f"(slice_sound (GV2 env1) σ m8 mem0c hm2 prog 4 orcB orcC {slices[2]['n']} (KH {r}) (KH3 {r}) T2 "
              f"sliceV2_{r} rfl (assumeOk_of σ (KH3 {r}) A0 rfl (asmge σ hge))).1")
     a.append(f"  have r3 : run prog 4 mem0c orcC {slices[3]['n']} (mapState (GV3 env1) σ (KH3 {r})) = "
              f"mapState (GV4 env1) σ (shiftK8 {r} K4) := "
-             f"(slice_sound (GV3 env1) σ m8 mem0c m3 prog 4 orcB orcC {slices[3]['n']} (KH3 {r}) (shiftK8 {r} K4) T3 "
+             f"(slice_sound (GV3 env1) σ m8 mem0c hm3 prog 4 orcB orcC {slices[3]['n']} (KH3 {r}) (shiftK8 {r} K4) T3 "
              f"sliceV3_{r} rfl (assumeOk_of σ (shiftK8 {r} K4) A0 rfl (asmge σ hge))).1")
     for j in range(4, LAST + 1):
         s = slices[j]
         a.append(f"  have r{j} : run prog 4 mem0c orcC {s['n']} (mapState (GV{j} env1) σ (shiftK8 {r} K{j})) = "
                  f"mapState (GV{j + 1} env1) σ (shiftK8 {r} K{j + 1}) := "
-                 f"(slice_sound (GV{j} env1) σ m8 mem0c m{j} prog 4 orcB orcC {s['n']} (shiftK8 {r} K{j}) "
+                 f"(slice_sound (GV{j} env1) σ m8 mem0c hm{j} prog 4 orcB orcC {s['n']} (shiftK8 {r} K{j}) "
                  f"(shiftK8 {r} K{j + 1}) T{j} sliceW_{j} rfl "
                  f"(assumeOk_of σ (shiftK8 {r} K{j + 1}) A0 rfl (asmge σ hge))).1")
     for j in range(FIRST, LAST):
@@ -205,11 +205,11 @@ theorem bodyV_runW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int →
 theorem bodyV_memW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → Cell W32 Int)
     (h0 : Mem0Rel (GV{FIRST} env1) σ m8 mem0c) : Mem0Rel (GV{LAST + 1} env1) σ m8 mem0c := by
   have kq : MemKeyed m8 := m8_keyed
-  have m{FIRST} : Mem0Rel (GV{FIRST} env1) σ m8 mem0c := h0""")
+  have hm{FIRST} : Mem0Rel (GV{FIRST} env1) σ m8 mem0c := h0""")
     for j in range(FIRST, LAST + 1):
-        a.append(f"  have m{j + 1} : Mem0Rel (GV{j + 1} env1) σ m8 mem0c := "
-                 f"mem0Rel_envAbs _ σ _ mem0c kq m{j} _")
-    a.append(f"  exact m{LAST + 1}\n")
+        a.append(f"  have hm{j + 1} : Mem0Rel (GV{j + 1} env1) σ m8 mem0c := "
+                 f"mem0Rel_envAbs _ σ _ mem0c kq hm{j} _")
+    a.append(f"  exact hm{LAST + 1}\n")
     a.append(f"/-- The body's instruction count. -/\ndef BODYLEN : Nat := {total}\n")
     a.append(f"end Hashtree.Proofs.Avx2X8WBodyR{r}\n")
     return "\n".join(a)
@@ -270,23 +270,23 @@ theorem bodyS_runW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int →
       mapState (GS{LAST + 1} env1) σ (stripK8 {r} K{LAST + 1}) := by
   rw [show BODYLEN = ({total}) from rfl]
   have kq : MemKeyed (m8P {r}) := m8P_keyed_{r}
-  have m{FIRST} : Mem0Rel (GS{FIRST} env1) σ (m8P {r}) mem0c := h0""")
+  have hm{FIRST} : Mem0Rel (GS{FIRST} env1) σ (m8P {r}) mem0c := h0""")
     for j in range(FIRST, LAST + 1):
-        a.append(f"  have m{j + 1} : Mem0Rel (GS{j + 1} env1) σ (m8P {r}) mem0c := "
-                 f"mem0Rel_envAbs _ σ _ mem0c kq m{j} _")
+        a.append(f"  have hm{j + 1} : Mem0Rel (GS{j + 1} env1) σ (m8P {r}) mem0c := "
+                 f"mem0Rel_envAbs _ σ _ mem0c kq hm{j} _")
     a.append(f"  have r2 : run prog 4 mem0c orcC {slices[2]['n']} (mapState (GS2 env1) σ (KHs {r})) = "
              f"mapState (GS3 env1) σ (KH3s {r}) := "
-             f"(slice_sound (GS2 env1) σ (m8P {r}) mem0c m2 prog 4 orcB orcC {slices[2]['n']} (KHs {r}) (KH3s {r}) T2 "
+             f"(slice_sound (GS2 env1) σ (m8P {r}) mem0c hm2 prog 4 orcB orcC {slices[2]['n']} (KHs {r}) (KH3s {r}) T2 "
              f"sliceV2s_{r} rfl (assumeOk_of σ (KH3s {r}) A0 rfl (asmge σ hge))).1")
     a.append(f"  have r3 : run prog 4 mem0c orcC {slices[3]['n']} (mapState (GS3 env1) σ (KH3s {r})) = "
              f"mapState (GS4 env1) σ (stripK8 {r} K4) := "
-             f"(slice_sound (GS3 env1) σ (m8P {r}) mem0c m3 prog 4 orcB orcC {slices[3]['n']} (KH3s {r}) (stripK8 {r} K4) T3 "
+             f"(slice_sound (GS3 env1) σ (m8P {r}) mem0c hm3 prog 4 orcB orcC {slices[3]['n']} (KH3s {r}) (stripK8 {r} K4) T3 "
              f"sliceV3s_{r} rfl (assumeOk_of σ (stripK8 {r} K4) A0 rfl (asmge σ hge))).1")
     for j in range(4, LAST + 1):
         s = slices[j]
         a.append(f"  have r{j} : run prog 4 mem0c orcC {s['n']} (mapState (GS{j} env1) σ (stripK8 {r} K{j})) = "
                  f"mapState (GS{j + 1} env1) σ (stripK8 {r} K{j + 1}) := "
-                 f"(slice_sound (GS{j} env1) σ (m8P {r}) mem0c m{j} prog 4 orcB orcC {s['n']} (stripK8 {r} K{j}) "
+                 f"(slice_sound (GS{j} env1) σ (m8P {r}) mem0c hm{j} prog 4 orcB orcC {s['n']} (stripK8 {r} K{j}) "
                  f"(stripK8 {r} K{j + 1}) T{j} sliceS_{j} rfl "
                  f"(assumeOk_of σ (stripK8 {r} K{j + 1}) A0 rfl (asmge σ hge))).1")
     for j in range(FIRST, LAST):
@@ -296,11 +296,11 @@ theorem bodyS_runW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int →
 theorem bodyS_memW (env1 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → Cell W32 Int)
     (h0 : Mem0Rel (GS{FIRST} env1) σ (m8P {r}) mem0c) : Mem0Rel (GS{LAST + 1} env1) σ (m8P {r}) mem0c := by
   have kq : MemKeyed (m8P {r}) := m8P_keyed_{r}
-  have m{FIRST} : Mem0Rel (GS{FIRST} env1) σ (m8P {r}) mem0c := h0""")
+  have hm{FIRST} : Mem0Rel (GS{FIRST} env1) σ (m8P {r}) mem0c := h0""")
     for j in range(FIRST, LAST + 1):
-        a.append(f"  have m{j + 1} : Mem0Rel (GS{j + 1} env1) σ (m8P {r}) mem0c := "
-                 f"mem0Rel_envAbs _ σ _ mem0c kq m{j} _")
-    a.append(f"  exact m{LAST + 1}\n")
+        a.append(f"  have hm{j + 1} : Mem0Rel (GS{j + 1} env1) σ (m8P {r}) mem0c := "
+                 f"mem0Rel_envAbs _ σ _ mem0c kq hm{j} _")
+    a.append(f"  exact hm{LAST + 1}\n")
     a.append(f"end Hashtree.Proofs.Avx2X8WBodyR{r}S\n")
     return "\n".join(a)
 
