@@ -65,6 +65,8 @@ import Hashtree.Proofs.WinAvxX1Live
 import Hashtree.Proofs.WinSseX1Live
 import Hashtree.Proofs.WinAvxX4Bridge
 import Hashtree.Proofs.WinAvxX4Link
+import Hashtree.Asm.RspMap
+import Hashtree.Proofs.WinRspMap
 
 #print axioms Hashtree.Proofs.ShaniAll.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -481,3 +483,14 @@ import Hashtree.Proofs.WinAvxX4Link
 #print axioms Hashtree.Proofs.WinAvxX4Link.postLink_zero
 #print axioms Hashtree.Proofs.WinAvxX4Link.preLink_of_exit
 #print axioms Hashtree.Proofs.WinAvxX4Link.KSpecC4_of_cert
+
+-- R5: the static rsp maps of the six windows kernels (frame-slot certificate, step 1): segment
+-- tables verified per pc by RspMap.ok (supported rsp writes only, successors carry the stepped
+-- value, exits at the entry rsp) and slotsOk (no indexed rsp operand, accesses at mapped pcs).
+#print axioms Hashtree.Proofs.WinRspMap.sse_ok
+#print axioms Hashtree.Proofs.WinRspMap.avx1_ok
+#print axioms Hashtree.Proofs.WinRspMap.avx2_ok
+#print axioms Hashtree.Proofs.WinRspMap.avx4_ok
+#print axioms Hashtree.Proofs.WinRspMap.shani_ok
+#print axioms Hashtree.Proofs.WinRspMap.avx512_ok
+#print axioms Hashtree.Proofs.WinRspMap.avx2_slotsOk

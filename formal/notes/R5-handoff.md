@@ -248,6 +248,33 @@ Ingredients (all evaluated/checked this session):
     on `.m` keys irrelevant (entryWin has no memory symbols) — SameG env e' since vId ≥ 100 > gId.
 * halted/err/tail of W from f via Agree + renSt (`renSt` keeps everything but gpr).
 
+## Frame-slot certificate, step 1 DONE: the static rsp maps (`Asm/RspMap`, `Proofs/WinRspMap`)
+
+Commit E.  `RspMap.Fact = {sp : (base, δ), saved : Option (base, δ)}`; `step` accepts push, pop
+(not into rsp), ret, `sub/add rsp, imm`, `and rsp, -32` (fresh base 1, δ 0), `mov rbp, rsp`,
+`mov rsp, rbp` (from `saved`), and any instruction with `4 ∉ dsts` (a write of rbp clears
+`saved`).  Tables are segment lists `(start pc, Option Fact)` read by `at?`; `compute` produces
+them (`#eval` only), `ok prog segs` verifies them per pc (entry (0,0), step defined, successors
+`nexts` = `RunAgree.succs` carry the stepped value, `ret`/tails at (0,0)); `slotsOk` (no indexed
+rsp operand; rsp accesses only at mapped pcs); `slots` lists `(base, offset, size)`.
+All six windows kernels: `WinRspMap.{sse,avx1,avx2,avx4,shani,avx512}_{ok,slotsOk,slots}` by
+`decide +kernel`; tables in that file (sse_x1 pushes 0-8, sub 9, body -264, epilogue
+4207-4216; avx_x1 the same shifted by the leading nop; avx2_x8 base 1 from pc 8, saved (0,-16)
+in rbp, restored at 6100; avx_x4 -568 from pc 5; shani -248; avx512 flat).  Unmapped pcs are
+dead `nop`s after `jmp`s (avx_x4 705, 1736-1737).  Slot counts 31/31/45/35/15/1; the lists are in
+R5.md §21.  `compute` passes = 8 in-order sweeps (enough: the only back edges are loop heads;
+`ok` is the proof, not `compute`).
+
+Next (step 2-4, not started): items = registers ∪ slots; `tag` flow (copy propagation of the
+callee-saved entry values through push/pop and the xmm/ymm saves), computed like `live` and
+verified like `certB`; the run relation (`exec_agree` variant on the item set).  First lemma of
+step 4: `run_rsp` — along an error-free run from a state with `rsp = ptr (rStack, b)` at a mapped
+pc, at every later pc `p` with `at? segs p = some f`, `rsp = ptr (rStack, b + f.sp.2)` when
+`f.sp.1 = 0` (base 1 needs the `and` result as a fresh symbol: `rsp = ptr (rStack, a + f.sp.2)`
+for the `a` produced at the `and`).  Prove it by `exec_shape`-style case analysis on the
+supported forms (`push`/`pop`/`ret`/`sub`/`add` change rsp by the literal; all other
+instructions keep it by `getG_setG_of_ne` since `4 ∉ dsts`), threading `ok`.
+
 ## avx_x4 link: certificate-independent parts DONE (`Proofs/WinAvxX4Link.lean`)
 
 Landed (commit D): `rodata4_getD`/`wf_linux_of_win` (windows table = linux table + 48 zero bytes,
