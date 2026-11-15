@@ -195,4 +195,52 @@ theorem loadVal_storeVal (mem0 : Addr Int → Cell W32 Int) (s : State W32 Int) 
       rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       simp [lookup, same_int, plusI_int, beq_add_right, beq_self_add]
 
+/-! ## The cells a store writes, as a list -/
+
+/-- The log entries `storeVal s a v` prepends (newest first). -/
+def storeCells (a : Addr Int) : Val W32 Int → CMem
+  | .num lo hi => [((a.plusI 4).plusI 3, .dat hi 3), ((a.plusI 4).plusI 2, .dat hi 2), ((a.plusI 4).plusI 1, .dat hi 1),
+      (a.plusI 4, .dat hi 0), (a.plusI 3, .dat lo 3), (a.plusI 2, .dat lo 2), (a.plusI 1, .dat lo 1), (a, .dat lo 0)]
+  | .ptr p => (List.range 8).reverse.map (fun (i : Nat) => (a.plusI (Int.ofNat i), Cell.pb p i))
+
+theorem storeVal_mem (s : State W32 Int) (a : Addr Int) (v : Val W32 Int) :
+    (storeVal s a v).mem = storeCells a v ++ s.mem := by
+  cases v with
+  | num lo hi => rfl
+  | ptr p => rfl
+
+/-- Inside the written cells the lookup is the new cell, whatever the old log. -/
+theorem lookup_storeCells_inside (a : Addr Int) (v : Val W32 Int) (x : Addr Int) (hx : Cells a 8 x) :
+    ∃ c, lookup x (storeCells a v) = .ok (some c) := by
+  obtain ⟨h1, h2, h3⟩ := hx
+  obtain ⟨xr, xo⟩ := x
+  obtain ⟨ar, ao⟩ := a
+  simp only at h1 h2 h3
+  subst h1
+  have : ∃ k : Nat, k < 8 ∧ xo = ao + k := ⟨(xo - ao).toNat, by omega, by omega⟩
+  obtain ⟨k, hk, rfl⟩ := this
+  cases v with
+  | num lo hi =>
+    rcases (show k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 ∨ k = 5 ∨ k = 6 ∨ k = 7 by omega) with
+      rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+      simp [storeCells, lookup, same_int, plusI_int, Int.add_assoc, beq_add_right, beq_self_add]
+  | ptr p =>
+    rcases (show k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 ∨ k = 5 ∨ k = 6 ∨ k = 7 by omega) with
+      rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+      simp [storeCells, show List.range 8 = [0, 1, 2, 3, 4, 5, 6, 7] from rfl, lookup, same_int,
+        plusI_int, Int.add_assoc, beq_add_right, beq_self_add]
+
+/-- Two stores of the same value at the same address agree inside the written cells. -/
+theorem lookup_storeVal_inside (s s' : State W32 Int) (a : Addr Int) (v : Val W32 Int) (x : Addr Int)
+    (hx : Cells a 8 x) : lookup x (storeVal s a v).mem = lookup x (storeVal s' a v).mem := by
+  obtain ⟨c, hc⟩ := lookup_storeCells_inside a v x hx
+  rw [storeVal_mem, storeVal_mem, Hashtree.Asm.X86.lookup_app_left _ _ _ c hc,
+    Hashtree.Asm.X86.lookup_app_left _ _ _ c hc]
+
+/-- Outside the written cells a store keeps the agreement of the old logs. -/
+theorem lookup_storeVal_outside (s s' : State W32 Int) (a : Addr Int) (v : Val W32 Int) (x : Addr Int)
+    (hx : ¬ Cells a 8 x) (h : lookup x s.mem = lookup x s'.mem) :
+    lookup x (storeVal s a v).mem = lookup x (storeVal s' a v).mem := by
+  rw [lookup_storeVal_untouched s a v x hx, lookup_storeVal_untouched s' a v x hx, h]
+
 end Hashtree.Asm.MemCells

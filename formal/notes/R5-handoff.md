@@ -285,6 +285,32 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## Frame-slot lift: ONE-INSTRUCTION LIFT PROVED (`Proofs/FrameLift.lift_step`); run level next
+
+Commit J.  `FrameLift` moved to the Proofs layer (it uses `Win64.exec_gpr_len`: the register
+file keeps its length; `TagRel` carries `len16`).  The four copies: `push_step` (`store_rel`: the
+pushed slot takes the register's status, other listed slots survive by `slotVal_store`, the
+written cells agree when the register was agreeing by `lookup_storeVal_inside`), `pop_step`
+(`load_rel` + `load_other`: a tagged slot loads its entry value on both runs by `tagSlot`, an
+unlisted slot that hits no listed slot loads equal values by `loadVal_memAg`; free slots and
+unlisted-but-overlapping slots are certificate failures), `movst_step` and `movload_step` (the
+rsp-slot cases as push/pop at `B b + (δ + disp)`, the non-stack cases by region disjointness:
+`store_nonstack`, `loadVal_memAg` on `Outside`).  `copy_step`, then `lift_step`: for every
+instruction with `tagStep f i T = some T'`, related states at a mapped pc (`RspOk`, `BaseRel`,
+`Bases01`, `Sizes8`, rsp agreeing, rbp agreeing while it holds the saved rsp) with the operand
+hypotheses (`hidx`: rsp operands unindexed/no `ro`; `hreg`: non-rsp operands outside `rStack`)
+and a successful first step give `TagRel` at `T'` for both stepped states and `pc ∈ succs ∨
+halted`.  Checker additions for the proof: copy-loads must read a tagged slot or an unlisted
+slot hitting no listed one, with the destination register `< 16`; a step at a pc whose fact
+records a saved rsp needs rbp agreeing.  The three tables still verify.  Axioms standard.
+
+Next: `rspOk_step` (`RspOk` at the successor: push/pop/ret ±8, `sub/add rsp, imm`, `and rsp,-32`
+with `B 1` = the result, `mov rbp, rsp` / `mov rsp, rbp` through `saved`), the run-level lemma
+(induction over `run` with `tagAt`/`okAt` per pc and `leqTags` monotonicity of `TagRel`), the
+exit clauses (`exitOk` -> every callee-saved register equals its entry value in both runs,
+memory equal outside the listed slots, which lie in the frame), and the per-kernel instance
+lemma (the non-rsp operands of sse_x1/avx_x1/avx2_x8 are rIn/rOut/rodata pointers).
+
 ## Frame-slot lift: GENERAL STEP PROVED (`Asm/FrameLift.general_step`); copies + run level next
 
 Status lattice (commit I): `Tags := List (Item × Option Nat)`; absent = agreeing, `some n` =

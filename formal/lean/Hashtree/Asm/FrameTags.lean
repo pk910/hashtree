@@ -155,8 +155,11 @@ def tagStep (f : Fact) (i : Instr) (T : Tags) : Option Tags :=
     let s : Slot := (f.sp.1, f.sp.2 - 8, 8)
     (clearOverlap? T s).map fun T1 => setStatus T1 (.slot s) (statusOf T (.reg r))
   | .pop r =>
-    if statusOf T (.reg 4) ≠ none ∨ r = 4 then none else
-    some (setStatus T (.reg r) (statusOf T (.slot (f.sp.1, f.sp.2, 8))))
+    if statusOf T (.reg 4) ≠ none ∨ r = 4 ∨ 16 ≤ r then none else
+    match statusOf T (.slot (f.sp.1, f.sp.2, 8)) with
+    | some none => none   -- a free slot (no guarantee on either run's cells): not readable
+    | none => if hitsTagged T (f.sp.1, f.sp.2, 8) then none else some (setStatus T (.reg r) none)
+    | some (some n) => some (setStatus T (.reg r) (some (some n)))
   | .movst w m s =>
     if w = 64 then
       if !regsUntagged T (memRegs m) then none else
@@ -166,9 +169,13 @@ def tagStep (f : Fact) (i : Instr) (T : Tags) : Option Tags :=
     else generalStep f i T
   | .mov w d (.mem m) =>
     if w = 64 then
-      if !regsUntagged T (memRegs m) then none else
+      if !regsUntagged T (memRegs m) || 16 ≤ d then none else
       match slotOf f m 8 with
-      | some sl => some (setStatus T (.reg d) (statusOf T (.slot sl)))
+      | some sl =>
+        match statusOf T (.slot sl) with
+        | some none => none
+        | none => if hitsTagged T sl then none else some (setStatus T (.reg d) none)
+        | some (some n) => some (setStatus T (.reg d) (some (some n)))
       | none => some (clearItem T (.reg d))
     else generalStep f i T
   | _ => generalStep f i T
@@ -210,7 +217,7 @@ def tagAt (n : Nat) (segs : List (Nat × Option Fact)) (TT : TagSegs) (cs : List
   | none, _ => true
   | some _, none => true
   | some f, some T =>
-    statusOf T (.reg 4) = none && tableOk T &&
+    statusOf T (.reg 4) = none && (f.saved = none || statusOf T (.reg 5) = none) && tableOk T &&
     match tagStep f i T with
     | none => false
     | some T' =>
@@ -313,6 +320,7 @@ structure TagRel (mem0 : Addr Int → Cell W32 Int) (B : Nat → Int) (T : Tags)
     slotVal mem0 B s sl = Except.ok (s0.getG n) ∧ slotVal mem0 B s' sl = Except.ok (s0'.getG n)
   mem : ∀ a, ¬ InTagged B T a → Hashtree.Asm.lookup a s.mem = Hashtree.Asm.lookup a s'.mem
   len : s.gpr.length = s'.gpr.length
+  len16 : s.gpr.length = 16
   vr : s.vr = s'.vr
   flags : s.flags = s'.flags
   pc : s.pc = s'.pc
@@ -320,9 +328,11 @@ structure TagRel (mem0 : Addr Int → Cell W32 Int) (B : Nat → Int) (T : Tags)
   tail : s.tail = s'.tail
   err : s.err = s'.err
 
-/-- The rsp map, semantically: at a mapped pc, `rsp = B base + δ`. -/
+/-- The rsp map, semantically: at a mapped pc, `rsp = B base + δ`, and `rbp` holds the saved rsp
+value when the fact records one. -/
 def RspOk (B : Nat → Int) (f : Fact) (s : State W32 Int) : Prop :=
-  s.getG 4 = .ptr ⟨rStack, B f.sp.1 + f.sp.2⟩
+  s.getG 4 = .ptr ⟨rStack, B f.sp.1 + f.sp.2⟩ ∧
+  ∀ v, f.saved = some v → s.getG 5 = .ptr ⟨rStack, B v.1 + v.2⟩
 
 /-- **The lift (to prove)**: under a verified rsp map and tag table, one error-free step of the
 certified program from related states at a mapped pc gives related states at the successor pc,

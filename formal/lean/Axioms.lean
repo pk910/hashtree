@@ -72,7 +72,7 @@ import Hashtree.Asm.FrameTags
 import Hashtree.Proofs.WinFrameTags
 import Hashtree.Asm.RunAgreeM
 import Hashtree.Asm.MemCells
-import Hashtree.Asm.FrameLift
+import Hashtree.Proofs.FrameLift
 import Hashtree.Proofs.AvxX4ToX1
 import Hashtree.Proofs.AvxX4LoopWAll
 import Hashtree.Proofs.AvxX4X1WAgree
@@ -603,6 +603,15 @@ import Hashtree.Proofs.Avx512X16WOut
 -- R5: the frame-slot lift, general case: every instruction that is not one of the four copies
 -- preserves TagRel (FrameLift.general_step, through RunAgreeM.exec_agreeM, RunExit.exec_shape and
 -- the MemCells untouched lemmas); the reads-outside lemma readsM_of_cert.
-#print axioms Hashtree.Asm.FrameLift.general_step
-#print axioms Hashtree.Asm.FrameLift.readsM_of_cert
-#print axioms Hashtree.Asm.FrameLift.slot_untouched
+#print axioms Hashtree.Proofs.FrameLift.general_step
+#print axioms Hashtree.Proofs.FrameLift.readsM_of_cert
+#print axioms Hashtree.Proofs.FrameLift.slot_untouched
+
+-- R5: the frame-slot lift, one instruction: the four copies (push_step, pop_step, movst_step,
+-- movload_step) and lift_step = copies + general_step: every instruction of a certified stream
+-- preserves TagRel (both stepped states related at the stepped tags, pc at a successor or halted).
+#print axioms Hashtree.Proofs.FrameLift.push_step
+#print axioms Hashtree.Proofs.FrameLift.pop_step
+#print axioms Hashtree.Proofs.FrameLift.movst_step
+#print axioms Hashtree.Proofs.FrameLift.movload_step
+#print axioms Hashtree.Proofs.FrameLift.lift_step
