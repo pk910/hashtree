@@ -1390,4 +1390,693 @@ theorem lift_step (hB : BaseRel B) (h01 : Bases01 T) (h8 : Sizes8 T) (hb : f.sp.
 
 end Copies
 
+
+/-! ## The rsp map along a step -/
+
+section Rsp
+variable {mem0 : M0} {B : Nat → Int} {s : CS} {f f' : Fact} {orc : Nat → Bool}
+
+theorem exec_sub_rsp (k : Int) (hh : s.halted = false) {sp : Addr Int} (hsp : s.getG 4 = .ptr sp) :
+    exec 4 mem0 orc (.sub 64 4 (.imm k)) s =
+      (setFlags (s.setG 4 (.ptr ⟨sp.region, sp.off + (-1) * k⟩)) sp.off k).next := by
+  unfold exec
+  simp only [hh, Bool.false_eq_true, ite_false, ite_true, gCtl, bind, Except.bind, pure, Except.pure]
+  rw [hsp]
+  simp [okOr, Addr.plus, Ctl.smul, Ctl.ofInt, Ctl.add, rNum]
+
+theorem exec_add_rsp (k : Int) (hh : s.halted = false) {sp : Addr Int} (hsp : s.getG 4 = .ptr sp) :
+    exec 4 mem0 orc (.alu .add 64 4 (.imm k)) s =
+      (setFlags (s.setG 4 (.ptr ⟨sp.region, sp.off + k⟩)) (sp.off + k) 0).next := by
+  unfold exec
+  simp only [hh, Bool.false_eq_true, ite_false, ite_true, gCtl, bind, Except.bind, pure, Except.pure]
+  have hne : ¬ (LOp.add = LOp.xor ∧ GSrc.imm k = GSrc.reg 4) := by simp
+  simp only [hne, ite_false]
+  rw [hsp]
+  simp [okOr, Ctl.ofInt, Ctl.add, rNum]
+
+theorem exec_and_rsp (hh : s.halted = false) {sp : Addr Int} (hsp : s.getG 4 = .ptr sp) (hreg : sp.region = rStack)
+    {r : Int} (hr : andInt sp.off (-32) = some r) :
+    exec 4 mem0 orc (.alu .and 64 4 (.imm (-32))) s = (clearFlags (s.setG 4 (.ptr ⟨sp.region, r⟩))).next := by
+  unfold exec
+  simp only [hh, Bool.false_eq_true, ite_false, ite_true, gCtl, bind, Except.bind, pure, Except.pure]
+  have hne : ¬ (LOp.and = LOp.xor ∧ GSrc.imm (-32) = GSrc.reg 4) := by simp
+  simp only [hne, ite_false]
+  rw [hsp]
+  simp [okOr, Ctl.ofInt, Ctl.asInt, hr, rNum, hreg, rStack]
+
+theorem exec_and_rsp_some (hh : s.halted = false) {sp : Addr Int} (hsp : s.getG 4 = .ptr sp)
+    (hok : (exec 4 mem0 orc (.alu .and 64 4 (.imm (-32))) s).err = none) : ∃ r, andInt sp.off (-32) = some r := by
+  unfold exec at hok
+  simp only [hh, Bool.false_eq_true, ite_false, ite_true, gCtl, bind, Except.bind, pure, Except.pure] at hok
+  have hne : ¬ (LOp.and = LOp.xor ∧ GSrc.imm (-32) = GSrc.reg 4) := by simp
+  simp only [hne, ite_false] at hok
+  rw [hsp] at hok
+  cases hr : andInt sp.off (-32) with
+  | none =>
+    simp [okOr, Ctl.ofInt, Ctl.asInt, hr] at hok
+    exact absurd hok (fail_err s _)
+  | some r => exact ⟨r, rfl⟩
+
+theorem exec_mov_reg (d q : Nat) (hh : s.halted = false) :
+    exec 4 mem0 orc (.mov 64 d (.reg q)) s = (s.setG d (s.getG q)).next := by
+  unfold exec
+  simp only [hh, Bool.false_eq_true, ite_false, ite_true]
+  rfl
+
+theorem exec_ret_rsp (hh : s.halted = false) (hlen : s.gpr.length = 16) {sp : Addr Int} (hsp : s.getG rsp = .ptr sp)
+    (hok : (exec 4 mem0 orc .ret s).err = none) :
+    (exec 4 mem0 orc .ret s).getG 4 = .ptr (sp.plusI 8) ∧ ∀ q, q ≠ 4 → (exec 4 mem0 orc .ret s).getG q = s.getG q := by
+  unfold exec at hok ⊢
+  simp only [hh, Bool.false_eq_true, ite_false] at hok ⊢
+  rw [hsp] at hok ⊢
+  cases hv : loadVal mem0 s sp with
+  | error e => simp only [hv, bind, Except.bind] at hok; exact absurd hok (fail_err s e)
+  | ok v =>
+    simp only [hv, bind, Except.bind] at hok ⊢
+    rcases v with ⟨lo, hi⟩ | ⟨⟨reg, off⟩⟩
+    · exact absurd hok (fail_err s _)
+    · by_cases h5 : reg = 5
+      · subst h5
+        simp only [okOr, pure, Except.pure, getG_halt]
+        constructor
+        · exact getG_setG_self' _ _ _ (by rw [hlen]; decide)
+        · intro q hq; exact getG_setG_of_ne _ _ _ _ hq
+      · exfalso
+        rcases reg with _ | _ | _ | _ | _ | _ | n
+        all_goals first | exact absurd hok (fail_err s _) | exact absurd rfl h5
+
+
+/-- The rsp map along an instruction with no rsp form: rsp is not written, a write of rbp drops
+the saved value. -/
+theorem rspOk_other (hR : RspOk B f s) (hh : s.halted = false) {i : Instr}
+    (hok : (exec 4 mem0 orc i s).err = none) (hst : stepOther i f = some f') :
+    RspOk B f' (exec 4 mem0 orc i s) := by
+  simp only [stepOther] at hst
+  rcases exec_shape 4 mem0 orc i s hh with ⟨hne, _⟩ | ⟨_, _, hgpr, _, _, _, _⟩
+  · exact absurd hok hne
+  split at hst
+  · cases hst
+  · rename_i h4
+    split at hst
+    · rename_i h5
+      simp only [Option.some.injEq] at hst; subst hst
+      refine ⟨?_, fun v hv => by cases hv⟩
+      rw [hgpr 4 h4]; exact hR.1
+    · rename_i h5
+      simp only [Option.some.injEq] at hst; subst hst
+      refine ⟨?_, fun v hv => ?_⟩
+      · rw [hgpr 4 h4]; exact hR.1
+      · rw [hgpr 5 h5]; exact hR.2 v hv
+
+theorem getG_setG_rsp (u : CS) (v : Val W32 Int) (h : 4 < u.gpr.length) : (u.setG rsp v).getG 4 = v :=
+  getG_setG_self' u 4 v h
+
+theorem ptr_mk_eq (r : Region) (a b : Int) (h : a = b) : (Val.ptr ⟨r, a⟩ : Val W32 Int) = Val.ptr ⟨r, b⟩ := by rw [h]
+
+/-- **The rsp map is sound along a step**: the fact of the successor describes rsp (and the saved
+rsp in rbp) of the stepped state; the aligned base is the result of `and rsp, -32`. -/
+theorem rspOk_step (hR : RspOk B f s) (hh : s.halted = false) (hlen : s.gpr.length = 16) {i : Instr}
+    (hst : RspMap.step i f = some f') (hok : (exec 4 mem0 orc i s).err = none)
+    (hand : i = .alu .and 64 4 (.imm (-32)) → ∀ r, andInt (B f.sp.1 + f.sp.2) (-32) = some r → B (f.sp.1 + 1) = r) :
+    RspOk B f' (exec 4 mem0 orc i s) := by
+  have hsp : s.getG 4 = .ptr ⟨rStack, B f.sp.1 + f.sp.2⟩ := hR.1
+  cases i <;> (try exact rspOk_other hR hh hok hst)
+  case push r =>
+    simp only [RspMap.step, Option.some.injEq] at hst; subst hst
+    rw [exec_push r hh hsp]
+    refine ⟨?_, fun v hv => ?_⟩
+    · dsimp only
+      rw [getG_next, getG_setG_rsp _ _ (by rw [storeVal_gpr, hlen]; decide), plusI_int]
+      exact ptr_mk_eq _ _ _ (by (try dsimp only); omega)
+    · dsimp only at hv
+      rw [getG_next, getG_setG_of_ne _ _ _ _ (by decide), getG_storeVal]; exact hR.2 v hv
+  case pop r =>
+    simp only [RspMap.step] at hst
+    split at hst
+    · cases hst
+    rename_i hr4
+    simp only [Option.some.injEq] at hst; subst hst
+    obtain ⟨v, hv⟩ := exec_pop_err r hh hsp hok
+    rw [exec_pop r hh hsp hv]
+    refine ⟨?_, fun w hw => ?_⟩
+    · dsimp only
+      rw [getG_next, getG_setG_rsp _ _ (by simp [State.setG, hlen]), plusI_int]
+      exact ptr_mk_eq _ _ _ (by (try dsimp only); omega)
+    · simp only at hw
+      split at hw
+      · cases hw
+      · rename_i hr5
+        rw [getG_next, getG_setG_of_ne _ _ _ _ (by decide), getG_setG_ne' _ _ _ _ (Ne.symm hr5)]; exact hR.2 w hw
+  case ret =>
+    simp only [RspMap.step, Option.some.injEq] at hst; subst hst
+    obtain ⟨h4, hq⟩ := exec_ret_rsp hh hlen hsp hok
+    refine ⟨?_, fun v hv => ?_⟩
+    · dsimp only; rw [h4, plusI_int]; exact ptr_mk_eq _ _ _ (by (try dsimp only); omega)
+    · dsimp only at hv; rw [hq 5 (by decide)]; exact hR.2 v hv
+  case sub w d src =>
+    simp only [RspMap.step] at hst
+    split at hst
+    · rename_i hwd
+      obtain ⟨rfl, rfl⟩ := hwd
+      split at hst
+      · rename_i k
+        simp only [Option.some.injEq] at hst; subst hst
+        rw [exec_sub_rsp k hh hsp]
+        refine ⟨?_, fun v hv => ?_⟩
+        · dsimp only
+          rw [getG_next, getG_setFlags, getG_setG_self' _ _ _ (by rw [hlen]; decide)]
+          exact ptr_mk_eq _ _ _ (by (try dsimp only); omega)
+        · dsimp only at hv
+          rw [getG_next, getG_setFlags, getG_setG_of_ne _ _ _ _ (by decide)]; exact hR.2 v hv
+      · cases hst
+    · exact rspOk_other hR hh hok hst
+  case alu op w d src =>
+    simp only [RspMap.step] at hst
+    split at hst
+    · rename_i hwd
+      obtain ⟨rfl, rfl⟩ := hwd
+      split at hst
+      · rename_i k
+        simp only [Option.some.injEq] at hst; subst hst
+        rw [exec_add_rsp k hh hsp]
+        refine ⟨?_, fun v hv => ?_⟩
+        · dsimp only
+          rw [getG_next, getG_setFlags, getG_setG_self' _ _ _ (by rw [hlen]; decide)]
+          exact ptr_mk_eq _ _ _ (by (try dsimp only); omega)
+        · dsimp only at hv
+          rw [getG_next, getG_setFlags, getG_setG_of_ne _ _ _ _ (by decide)]; exact hR.2 v hv
+      · rename_i k
+        split at hst
+        · rename_i hk
+          subst hk
+          simp only [Option.some.injEq] at hst; subst hst
+          obtain ⟨r, hr⟩ := exec_and_rsp_some hh hsp hok
+          rw [exec_and_rsp hh hsp rfl hr]
+          refine ⟨?_, fun v hv => ?_⟩
+          · dsimp only
+            rw [getG_next, getG_clearFlags, getG_setG_self' _ _ _ (by rw [hlen]; decide)]
+            have := hand rfl r hr
+            exact ptr_mk_eq _ _ _ (by rw [Int.add_zero]; exact this.symm)
+          · dsimp only at hv
+            rw [getG_next, getG_clearFlags, getG_setG_of_ne _ _ _ _ (by decide)]; exact hR.2 v hv
+        · cases hst
+      · cases hst
+    · exact rspOk_other hR hh hok hst
+  case mov w d src =>
+    simp only [RspMap.step] at hst
+    split at hst
+    · rename_i hc
+      obtain ⟨rfl, rfl, rfl⟩ := hc
+      simp only [Option.some.injEq] at hst; subst hst
+      rw [exec_mov_reg 5 4 hh]
+      refine ⟨?_, fun v hv => ?_⟩
+      · dsimp only; rw [getG_next, getG_setG_of_ne _ _ _ _ (by decide)]; exact hsp
+      · simp only [Option.some.injEq] at hv; subst hv
+        rw [getG_next, getG_setG_self' _ _ _ (by rw [hlen]; decide)]; exact hsp
+    · split at hst
+      · rename_i hc
+        obtain ⟨rfl, rfl, rfl⟩ := hc
+        split at hst
+        · rename_i v hv
+          simp only [Option.some.injEq] at hst; subst hst
+          rw [exec_mov_reg 4 5 hh]
+          refine ⟨?_, fun w hw => ?_⟩
+          · dsimp only; rw [getG_next, getG_setG_self' _ _ _ (by rw [hlen]; decide)]; exact hR.2 v hv
+          · dsimp only at hw; rw [getG_next, getG_setG_of_ne _ _ _ _ (by decide)]; exact hR.2 w hw
+        · cases hst
+      · exact rspOk_other hR hh hok hst
+
+end Rsp
+
+
+/-! ## The run -/
+
+section Run
+variable {mem0 : M0} {B : Nat → Int} {s0 s0' : CS} {orc : Nat → Bool}
+
+/-- The per-pc check of the tag certificate, from the linear sweep. -/
+theorem tagAux_at (n : Nat) (D : Int) (segs : List (Nat × Option Fact)) (TT : TagSegs) (cs : List Nat) :
+    ∀ (p : Nat) (l : List Instr), tagAux n D segs TT cs p l = true →
+      ∀ j i, l[j]? = some i → tagAt n D segs TT cs (p + j) i = true
+  | _, [], _, _, _, h => by simp at h
+  | p, i :: rest, h, j, i', hj => by
+    simp only [tagAux, Bool.and_eq_true] at h
+    cases j with
+    | zero => simp only [List.getElem?_cons_zero, Option.some.injEq] at hj; subst hj; simpa using h.1
+    | succ j =>
+      simp only [List.getElem?_cons_succ] at hj
+      have := tagAux_at n D segs TT cs (p + 1) rest h.2 j i' hj
+      rwa [show p + (j + 1) = p + 1 + j by omega]
+
+theorem tagCert_at {n : Nat} {D : Int} {prog : Array Instr} {segs : List (Nat × Option Fact)} {TT : TagSegs}
+    {cs : List Nat} (h : tagCert n D prog segs TT cs = true) {p : Nat} {i : Instr} (hp : prog[p]? = some i) :
+    tagAt n D segs TT cs p i = true := by
+  simp only [tagCert, Bool.and_eq_true] at h
+  have := tagAux_at n D segs TT cs 0 prog.toList h.2 p i (by rw [Array.getElem?_toList]; exact hp)
+  simpa using this
+
+theorem okAux_at (n : Nat) (segs : List (Nat × Option Fact)) :
+    ∀ (p : Nat) (l : List Instr), okAux n segs p l = true →
+      ∀ j i, l[j]? = some i → okAt n segs (p + j) i = true
+  | _, [], _, _, _, h => by simp at h
+  | p, i :: rest, h, j, i', hj => by
+    simp only [okAux, Bool.and_eq_true] at h
+    cases j with
+    | zero => simp only [List.getElem?_cons_zero, Option.some.injEq] at hj; subst hj; simpa using h.1
+    | succ j =>
+      simp only [List.getElem?_cons_succ] at hj
+      have := okAux_at n segs (p + 1) rest h.2 j i' hj
+      rwa [show p + (j + 1) = p + 1 + j by omega]
+
+theorem ok_at {n : Nat} {prog : Array Instr} {segs : List (Nat × Option Fact)} (h : RspMap.ok n prog segs = true)
+    {p : Nat} {i : Instr} (hp : prog[p]? = some i) : okAt n segs p i = true := by
+  simp only [RspMap.ok, Bool.and_eq_true] at h
+  have := okAux_at n segs 0 prog.toList h.2 p i (by rw [Array.getElem?_toList]; exact hp)
+  simpa using this
+
+/-- A listed item is an entry with its status. -/
+theorem statusOf_eq_some {T : Tags} {i : Item} {st : Option Nat} (h : statusOf T i = some st) :
+    ∃ p ∈ T, p.1 = i ∧ p.2 = st := by
+  induction T with
+  | nil => simp [statusOf_nil] at h
+  | cons p T ih =>
+    rw [statusOf_cons] at h
+    split at h
+    · rename_i hp; simp only [Option.some.injEq] at h; exact ⟨p, List.mem_cons_self .., hp, h⟩
+    · obtain ⟨q, hq, h1, h2⟩ := ih h; exact ⟨q, List.mem_cons_of_mem _ hq, h1, h2⟩
+
+theorem mem_statusOf {T : Tags} {p : Item × Option Nat} (h : p ∈ T) : statusOf T p.1 ≠ none := by
+  induction T with
+  | nil => simp at h
+  | cons q T ih =>
+    rw [statusOf_cons]
+    rcases List.mem_cons.mp h with rfl | h'
+    · simp
+    · split
+      · simp
+      · exact ih h'
+
+/-- The window of the listed slots: every cell is in `[B 0 - D, B 0)`. -/
+def InWindow (D : Int) (B : Nat → Int) (T : Tags) : Prop :=
+  ∀ sl, statusOf T (.slot sl) ≠ none → ∀ a, inSlot B sl a → B 0 - D ≤ a.off ∧ a.off < B 0
+
+theorem tableOk_facts {D : Int} {T : Tags} (hB : BaseRel B) (h : tableOk D T = true) :
+    Bases01 T ∧ Sizes8 T ∧ InWindow D B T := by
+  simp only [tableOk, List.all_eq_true] at h
+  have hs : ∀ sl, statusOf T (.slot sl) ≠ none →
+      sl.2.2 = 8 ∧ ((sl.1 = 0 ∧ -D ≤ sl.2.1 ∧ sl.2.1 + 8 ≤ 0) ∨ (sl.1 = 1 ∧ 47 - D ≤ sl.2.1 ∧ sl.2.1 + 8 ≤ -16)) := by
+    intro sl hsl
+    obtain ⟨p, hp, hpi⟩ := listed_mem hsl
+    have := h p hp
+    rw [hpi] at this
+    simpa [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq, decide_eq_true_eq, and_assoc] using this
+  refine ⟨fun sl hsl => ?_, fun sl hsl => (hs sl hsl).1, fun sl hsl a ha => ?_⟩
+  · rcases (hs sl hsl).2 with ⟨h0, _⟩ | ⟨h1, _⟩
+    · exact Or.inl h0
+    · exact Or.inr h1
+  · obtain ⟨_, h2, h3⟩ := ha
+    obtain ⟨h8, hc⟩ := hs sl hsl
+    obtain ⟨hB1, hB2⟩ := hB
+    rw [h8] at h3
+    rcases hc with ⟨h0, h4, h5⟩ | ⟨h1, h4, h5⟩
+    · rw [h0] at h2 h3; omega
+    · rw [h1] at h2 h3; omega
+
+/-- The relation is monotone along the status lattice (`leqTags`). -/
+theorem tagRel_mono {T T' : Tags} (hle : leqTags T T' = true) {s s' : CS}
+    (h : TagRel mem0 B T s0 s0' s s') : TagRel mem0 B T' s0 s0' s s' := by
+  simp only [leqTags, Bool.and_eq_true, List.all_eq_true, Bool.or_eq_true, decide_eq_true_eq] at hle
+  obtain ⟨h1, h2⟩ := hle
+  -- an item unlisted in `T'` is unlisted in `T`
+  have unl : ∀ i, statusOf T' i = none → statusOf T i = none := by
+    intro i hi
+    cases hc : statusOf T i with
+    | none => rfl
+    | some st =>
+      obtain ⟨p, hp, hpi, _⟩ := statusOf_eq_some hc
+      rcases h1 p hp with h' | h' <;> (rw [hpi] at h'; rw [hi] at h'; cases h')
+  -- an item tagged in `T'` is tagged the same in `T`
+  have tg : ∀ i n, statusOf T' i = some (some n) → statusOf T i = some (some n) := by
+    intro i n hi
+    obtain ⟨p, hp, hpi, hpn⟩ := statusOf_eq_some hi
+    rcases h2 p hp with h' | h'
+    · rw [hpn] at h'; cases h'
+    · rw [hpi, hpn] at h'; exact h'
+  refine ⟨?_, ?_, ?_, ?_, h.len, h.len16, h.vr, h.flags, h.pc, h.halted, h.tail, h.err⟩
+  · intro r hr; exact h.reg r (unl _ hr)
+  · intro r n hr; exact h.tagReg r n (tg _ n hr)
+  · intro t n ht; exact h.tagSlot t n (tg _ n ht)
+  · intro a ha
+    apply h.mem
+    rintro ⟨t, ht, hta⟩
+    apply ha
+    refine ⟨t, ?_, hta⟩
+    intro h0; exact ht (unl _ h0)
+
+theorem nexts_eq_succs (p : Nat) (i : Instr) : nexts p i = RunAgree.succs p i := by cases i <;> rfl
+
+theorem run_succ' (prog : Array Instr) (n : Nat) (s : CS) {i : Instr} (hh : s.halted = false)
+    (hi : prog[s.pc]? = some i) : run prog 4 mem0 orc (n + 1) s = run prog 4 mem0 orc n (exec 4 mem0 orc i s) := by
+  simp [run, hh, hi]
+
+theorem run_halted' (prog : Array Instr) (n : Nat) (s : CS) (hh : s.halted = true) : run prog 4 mem0 orc n s = s := by
+  cases n with
+  | zero => rfl
+  | succ n => simp [run, hh]
+
+/-- The exits of a certified stream halt the machine with every callee-saved register restored. -/
+theorem halts_of_isExit {i : Instr} (h : isExit i = false) : halts i = false := by
+  cases i <;> simp_all [isExit, halts]
+
+/-- The run invariant: at a mapped, visited pc, related states under the pc's facts; or halted
+at an exit with the exit tags (every callee-saved register tagged with itself) inside the frame. -/
+def Inv (D : Int) (segs : List (Nat × Option Fact)) (TT : TagSegs) (cs : List Nat) (s s' : CS) : Prop :=
+  (s.halted = false ∧ ∃ f T, at? segs s.pc = some f ∧ atT TT s.pc = some T ∧ RspOk B f s ∧
+      TagRel mem0 B T s0 s0' s s') ∨
+  (s.halted = true ∧ ∃ T, FrameTags.exitOk cs T = true ∧ InWindow D B T ∧ TagRel mem0 B T s0 s0' s s')
+
+/-- The region hypothesis at a state: every memory operand of its instruction whose base is not
+rsp evaluates outside `rStack`. -/
+def RegionOk (prog : Array Instr) (u : CS) : Prop :=
+  ∀ i, prog[u.pc]? = some i → ∀ m ∈ memOps i, m.1.base ≠ some 4 → ∀ a, effAddr 4 u m.1 = .ok a → a.region ≠ rStack
+
+/-- The base hypothesis: the aligned base is the result of `and rsp, -32` at its pc. -/
+def AndOk (prog : Array Instr) (segs : List (Nat × Option Fact)) (B : Nat → Int) : Prop :=
+  ∀ p f, at? segs p = some f → prog[p]? = some (.alu .and 64 4 (.imm (-32))) →
+    ∀ r, andInt (B f.sp.1 + f.sp.2) (-32) = some r → B (f.sp.1 + 1) = r
+
+/-- One certified step keeps the invariant. -/
+theorem inv_step {n : Nat} {D : Int} {prog : Array Instr} {segs : List (Nat × Option Fact)} {TT : TagSegs}
+    {cs : List Nat} (hsz : prog.size = n) (hok0 : RspMap.ok n prog segs = true)
+    (hcert : tagCert n D prog segs TT cs = true) (hB : BaseRel B) (hand : AndOk prog segs B)
+    (hidx : ∀ (p : Nat) (i : Instr), prog[p]? = some i → ∀ m ∈ memOps i, m.1.base = some 4 → m.1.index = none ∧ m.1.ro = none)
+    {s s' : CS} (hinv : Inv (B := B) (mem0 := mem0) (s0 := s0) (s0' := s0') D segs TT cs s s')
+    (hreg : RegionOk prog s) {i : Instr} (hi : prog[s.pc]? = some i) (hh : s.halted = false)
+    (hok : (exec 4 mem0 orc i s).err = none) :
+    Inv (B := B) (mem0 := mem0) (s0 := s0) (s0' := s0') D segs TT cs (exec 4 mem0 orc i s) (exec 4 mem0 orc i s') := by
+  rcases hinv with ⟨_, f, T, hf, hT, hR, hrel⟩ | ⟨hh', _⟩
+  · -- the per-pc facts
+    have hta := tagCert_at hcert hi
+    have hoa := ok_at hok0 hi
+    simp only [tagAt, hf, hT, Bool.and_eq_true, decide_eq_true_eq, Bool.or_eq_true] at hta
+    simp only [okAt, hf, Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] at hoa
+    obtain ⟨⟨⟨hrsp, hsav⟩, htab⟩, hrest⟩ := hta
+    obtain ⟨hb, hrest'⟩ := hoa
+    split at hrest
+    · cases hrest
+    rename_i T' hstep
+    split at hrest'
+    · cases hrest'
+    rename_i f' hst
+    simp only [Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true', List.all_eq_true, decide_eq_true_eq] at hrest hrest'
+    obtain ⟨hexit, hsucc⟩ := hrest
+    obtain ⟨_, hsucc'⟩ := hrest'
+    obtain ⟨h01, h8, hwin⟩ := tableOk_facts hB htab
+    have hsav' : f.saved ≠ none → statusOf T (.reg 5) = none := fun h => by
+      rcases hsav with h' | h'
+      · exact absurd h' h
+      · exact h'
+    obtain ⟨hrel', hpc⟩ := lift_step hB h01 h8 hb hrsp hsav' hrel hR hh hstep (hidx _ _ hi) (hreg i hi) hok
+    have hR' := rspOk_step hR hh hrel.len16 hst hok (fun hi' r hr => hand _ f hf (hi' ▸ hi) r hr)
+    -- the exit / successor
+    rcases hpc with hq | hhalt
+    · have hq' : (exec 4 mem0 orc i s).pc ∈ nexts s.pc i := by rw [nexts_eq_succs]; exact hq
+      obtain ⟨_, hTq⟩ := hsucc _ hq'
+      obtain ⟨_, hfq⟩ := hsucc' _ hq'
+      split at hTq
+      · rename_i Tq hTq'
+        rcases exec_shape 4 mem0 orc i s hh with ⟨hne, _⟩ | ⟨_, hhalt, _⟩
+        · exact absurd hok hne
+        · by_cases hhl : (exec 4 mem0 orc i s).halted = true
+          · -- halted and at a successor: an exit (jccTail) -- use the exit branch
+            right
+            refine ⟨hhl, T', ?_, ?_, hrel'⟩
+            · rcases hhalt with h' | h'
+              · rw [hhl] at h'; rw [hh] at h'; cases h'
+              · have : isExit i = true := by cases i <;> simp_all [isExit, halts]
+                rw [this] at hexit
+                rcases hexit with h | h
+                · cases h
+                · exact h
+            · intro sl hsl a ha
+              apply hwin sl _ a ha
+              cases hc : isCopy i with
+              | false =>
+                have hg : generalStep f i T = some T' := by rwa [tagStep_general hc] at hstep
+                exact fun h0 => hsl ((general_slot_status hg sl).1.mpr h0)
+              | true =>
+                -- halting instructions are not copies
+                exfalso
+                rcases hhalt with h' | h'
+                · rw [hhl] at h'; rw [hh] at h'; cases h'
+                · cases i <;> simp_all [isCopy, halts]
+          · left
+            refine ⟨by simpa using hhl, f', Tq, hfq, hTq', hR', tagRel_mono hTq hrel'⟩
+      · cases hTq
+    · right
+      refine ⟨hhalt, T', ?_, ?_, hrel'⟩
+      · rcases exec_shape 4 mem0 orc i s hh with ⟨hne, _⟩ | ⟨_, hhalt', _⟩
+        · exact absurd hok hne
+        · rcases hhalt' with h' | h'
+          · rw [hhalt] at h'; rw [hh] at h'; cases h'
+          · have : isExit i = true := by cases i <;> simp_all [isExit, halts]
+            rw [this] at hexit
+            rcases hexit with h | h
+            · cases h
+            · exact h
+      · intro sl hsl a ha
+        apply hwin sl _ a ha
+        cases hc : isCopy i with
+        | false =>
+          have hg : generalStep f i T = some T' := by rwa [tagStep_general hc] at hstep
+          exact fun h0 => hsl ((general_slot_status hg sl).1.mpr h0)
+        | true =>
+          exfalso
+          rcases exec_shape 4 mem0 orc i s hh with ⟨hne, _⟩ | ⟨_, hhalt', _⟩
+          · exact absurd hok hne
+          · rcases hhalt' with h' | h'
+            · rw [hhalt] at h'; rw [hh] at h'; cases h'
+            · cases i <;> simp_all [isCopy, halts]
+  · rw [hh'] at hh; cases hh
+
+/-- **The run lift**: the invariant holds along every error-free run of a certified stream. -/
+theorem run_lift {n : Nat} {D : Int} {prog : Array Instr} {segs : List (Nat × Option Fact)} {TT : TagSegs}
+    {cs : List Nat} (hsz : prog.size = n) (hok0 : RspMap.ok n prog segs = true)
+    (hcert : tagCert n D prog segs TT cs = true) (hB : BaseRel B) (hand : AndOk prog segs B)
+    (hidx : ∀ (p : Nat) (i : Instr), prog[p]? = some i → ∀ m ∈ memOps i, m.1.base = some 4 → m.1.index = none ∧ m.1.ro = none) :
+    ∀ (k : Nat) (s s' : CS), Inv (B := B) (mem0 := mem0) (s0 := s0) (s0' := s0') D segs TT cs s s' →
+      (∀ j, j ≤ k → RegionOk prog (run prog 4 mem0 orc j s)) →
+      (run prog 4 mem0 orc k s).err = none →
+      Inv (B := B) (mem0 := mem0) (s0 := s0) (s0' := s0') D segs TT cs (run prog 4 mem0 orc k s) (run prog 4 mem0 orc k s')
+  | 0, s, s', hinv, _, _ => hinv
+  | k + 1, s, s', hinv, hreg, hok => by
+    by_cases hh : s.halted = true
+    · have hh' : s'.halted = true := by
+        rcases hinv with ⟨h0, _⟩ | ⟨_, T, _, _, hrel⟩
+        · rw [h0] at hh; cases hh
+        · rw [← hrel.halted]; exact hh
+      rw [run_halted' prog _ s hh, run_halted' prog _ s' hh']
+      exact hinv
+    · have hh0 : s.halted = false := by simpa using hh
+      have hrel : s'.halted = false ∧ s'.pc = s.pc := by
+        rcases hinv with ⟨_, _, _, _, _, _, hrel⟩ | ⟨h1, _⟩
+        · exact ⟨by rw [← hrel.halted]; exact hh0, hrel.pc.symm⟩
+        · rw [h1] at hh0; cases hh0
+      cases hi : prog[s.pc]? with
+      | none =>
+        -- `pc out of program`: the run fails
+        exfalso
+        have : (run prog 4 mem0 orc (k + 1) s).err ≠ none := by
+          simp only [run, hh0, Bool.false_eq_true, ite_false, hi]
+          exact fail_err s _
+        exact this hok
+      | some i =>
+        rw [run_succ' prog k s hh0 hi] at hok ⊢
+        rw [run_succ' prog k s' hrel.1 (by rw [hrel.2]; exact hi)]
+        have hok1 : (exec 4 mem0 orc i s).err = none :=
+          RunExit.run_err_none prog 4 mem0 orc k _ hok 0 (Nat.zero_le _)
+        have hreg0 : RegionOk prog s := hreg 0 (Nat.zero_le _)
+        apply run_lift hsz hok0 hcert hB hand hidx k _ _
+          (inv_step hsz hok0 hcert hB hand hidx hinv hreg0 hi hh0 hok1)
+          (fun j hj => by
+            have := hreg (j + 1) (by omega)
+            rwa [run_succ' prog j s hh0 hi] at this)
+          hok
+
+end Run
+
+
+/-! ## Entry, exit, and the top-level statement -/
+
+section Top
+variable {mem0 : M0} {B : Nat → Int} {orc : Nat → Bool}
+
+theorem entryTags_reg (cs : List Nat) (hnd : cs.Nodup) (r : Nat) :
+    statusOf (entryTags cs) (.reg r) = if r ∈ cs then some (some r) else none := by
+  induction cs with
+  | nil => simp [entryTags, statusOf_nil]
+  | cons c cs ih =>
+    simp only [entryTags, List.map_cons, statusOf_cons]
+    by_cases hc : c = r
+    · subst hc; simp
+    · simp only [Item.reg.injEq, hc, ite_false, List.mem_cons]
+      rw [show List.map (fun r => (Item.reg r, some r)) cs = entryTags cs from rfl, ih (List.nodup_cons.mp hnd).2]
+      simp [Ne.symm hc]
+
+theorem entryTags_slot (cs : List Nat) (t : Slot) : statusOf (entryTags cs) (.slot t) = none := by
+  induction cs with
+  | nil => rfl
+  | cons c cs ih =>
+    simp only [entryTags, List.map_cons, statusOf_cons]
+    rw [show List.map (fun r => (Item.reg r, some r)) cs = entryTags cs from rfl, ih]
+    simp
+
+/-- The entry relation: two call states that agree on everything except the callee-saved
+registers (and are at pc 0 with the register file of length 16). -/
+theorem entry_rel (cs : List Nat) {s0 s0' : CS} (hreg : ∀ r, r ∉ cs → s0.getG r = s0'.getG r)
+    (hlen : s0.gpr.length = s0'.gpr.length) (hlen16 : s0.gpr.length = 16) (hvr : s0.vr = s0'.vr)
+    (hfl : s0.flags = s0'.flags) (hmem : s0.mem = s0'.mem) (hpc : s0.pc = s0'.pc) (hh : s0.halted = s0'.halted)
+    (htl : s0.tail = s0'.tail) (he : s0.err = s0'.err) (hnd : cs.Nodup) :
+    TagRel mem0 B (entryTags cs) s0 s0' s0 s0' := by
+  refine ⟨?_, ?_, ?_, ?_, hlen, hlen16, hvr, hfl, hpc, hh, htl, he⟩
+  · intro r hr; rw [entryTags_reg cs hnd] at hr; split at hr; · cases hr
+    exact hreg r ‹_›
+  · intro r n hr; rw [entryTags_reg cs hnd] at hr; split at hr
+    · simp only [Option.some.injEq] at hr; subst hr; exact ⟨rfl, rfl⟩
+    · cases hr
+  · intro t n ht; rw [entryTags_slot] at ht; cases ht
+  · intro a _; rw [hmem]
+
+/-- At an exit: every callee-saved register holds its entry value in both runs, and the two
+runs agree outside the frame window (and on everything but the general registers). -/
+theorem exit_facts {D : Int} {segs : List (Nat × Option Fact)} {TT : TagSegs} {cs : List Nat} {s0 s0' s s' : CS}
+    (hinv : Inv (B := B) (mem0 := mem0) (s0 := s0) (s0' := s0') D segs TT cs s s') (hh : s.halted = true) :
+    (∀ r ∈ cs, s.getG r = s0.getG r ∧ s'.getG r = s0'.getG r) ∧
+    (∀ a : Addr Int, (a.region ≠ rStack ∨ a.off < B 0 - D ∨ B 0 ≤ a.off) → lookup a s.mem = lookup a s'.mem) ∧
+    s.getG 4 = s'.getG 4 ∧ s.vr = s'.vr ∧ s.flags = s'.flags ∧ s.pc = s'.pc ∧ s.halted = s'.halted ∧
+    s.tail = s'.tail ∧ s.err = s'.err := by
+  rcases hinv with ⟨h0, _⟩ | ⟨_, T, hex, hwin, hrel⟩
+  · rw [h0] at hh; cases hh
+  · simp only [FrameTags.exitOk, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at hex
+    refine ⟨fun r hr => hrel.tagReg r r (hex.1 r hr), fun a ha => hrel.mem a ?_, hrel.reg 4 hex.2, hrel.vr,
+      hrel.flags, hrel.pc, hrel.halted, hrel.tail, hrel.err⟩
+    rintro ⟨t, ht, hta⟩
+    have hw := hwin t ht a hta
+    rcases ha with h | h | h
+    · exact h hta.1
+    · omega
+    · omega
+
+/-- `slotsOk` gives the operand condition of the lift. -/
+theorem slotsOkAux_at (segs : List (Nat × Option Fact)) :
+    ∀ (p : Nat) (l : List Instr), slotsOkAux segs p l = true → ∀ j i, l[j]? = some i → slotsOkAt segs (p + j) i = true
+  | _, [], _, _, _, h => by simp at h
+  | p, i :: rest, h, j, i', hj => by
+    simp only [slotsOkAux, Bool.and_eq_true] at h
+    cases j with
+    | zero => simp only [List.getElem?_cons_zero, Option.some.injEq] at hj; subst hj; simpa using h.1
+    | succ j =>
+      simp only [List.getElem?_cons_succ] at hj
+      have := slotsOkAux_at segs (p + 1) rest h.2 j i' hj
+      rwa [show p + (j + 1) = p + 1 + j by omega]
+
+theorem hidx_of_slotsOk {prog : Array Instr} {segs : List (Nat × Option Fact)} (h : slotsOk prog segs = true) :
+    ∀ (p : Nat) (i : Instr), prog[p]? = some i → ∀ m ∈ memOps i, m.1.base = some 4 → m.1.index = none ∧ m.1.ro = none := by
+  intro p i hp m hm hb
+  have := slotsOkAux_at segs 0 prog.toList h p i (by rw [Array.getElem?_toList]; exact hp)
+  simp only [Nat.zero_add, slotsOkAt, Bool.and_eq_true, Bool.not_eq_true', rspIndexed, List.any_eq_false] at this
+  have h1 := this.1 m hm
+  simp only [hb, true_and, decide_eq_true_eq, not_or] at h1
+  exact ⟨Decidable.not_not.mp h1.1, Decidable.not_not.mp h1.2⟩
+
+/-- The region of an effective address: rip-relative operands read the rodata region, register
+bases carry their register's region (an index only moves the offset). -/
+theorem effAddr_region (u : CS) (m : MemRef) {a : Addr Int} (ha : effAddr 4 u m = .ok a) :
+    (m.ro ≠ none ∧ a.region = 4) ∨ (m.ro = none ∧ m.base = none ∧ a.region = rNum) ∨
+    (m.ro = none ∧ ∃ b p, m.base = some b ∧ u.getG b = .ptr p ∧ a.region = p.region) := by
+  simp only [effAddr, baseAddr] at ha
+  cases hro : m.ro with
+  | some o =>
+    rw [hro] at ha
+    simp only at ha
+    left
+    refine ⟨by simp, ?_⟩
+    cases hi : m.index with
+    | none => rw [hi] at ha; simp only [Except.ok.injEq] at ha; rw [← ha]; rfl
+    | some i =>
+      rw [hi] at ha
+      simp only at ha
+      split at ha
+      · rename_i n _
+        simp only [Except.ok.injEq] at ha; rw [← ha]; rfl
+      · cases ha
+  | none =>
+    rw [hro] at ha
+    simp only at ha
+    cases hb : m.base with
+    | none =>
+      rw [hb] at ha; simp only at ha
+      right; left
+      refine ⟨rfl, rfl, ?_⟩
+      cases hi : m.index with
+      | none => rw [hi] at ha; simp only [Except.ok.injEq] at ha; rw [← ha]; rfl
+      | some i =>
+        rw [hi] at ha; simp only at ha
+        split at ha
+        · simp only [Except.ok.injEq] at ha; rw [← ha]; rfl
+        · cases ha
+    | some b =>
+      rw [hb] at ha; simp only [regPtr] at ha
+      right; right
+      refine ⟨rfl, b, ?_⟩
+      cases hg : u.getG b with
+      | num _ _ => rw [hg] at ha; simp at ha
+      | ptr p =>
+        rw [hg] at ha; simp only at ha
+        refine ⟨p, rfl, rfl, ?_⟩
+        cases hi : m.index with
+        | none => rw [hi] at ha; simp only [Except.ok.injEq] at ha; rw [← ha]; rfl
+        | some i =>
+          rw [hi] at ha; simp only at ha
+          split at ha
+          · simp only [Except.ok.injEq] at ha; rw [← ha]; rfl
+          · cases ha
+
+/-- **The frame-slot lift, top level**: for a stream with a verified rsp map and tag certificate,
+two runs from call states that differ only in the callee-saved registers, under the base and
+region hypotheses, stay related; when the first run halts after `k` error-free steps, every
+callee-saved register holds its entry value in both runs, the runs agree outside the frame
+window `[B 0 - D, B 0)` of the stack, and on rsp, the vector file, flags, pc, halted, tail, err. -/
+theorem frame_lift {n : Nat} {D : Int} {prog : Array Instr} {segs : List (Nat × Option Fact)} {TT : TagSegs}
+    {cs : List Nat} {f0 : Fact}
+    (hsz : prog.size = n) (hok0 : RspMap.ok n prog segs = true) (hsl : slotsOk prog segs = true)
+    (hcert : tagCert n D prog segs TT cs = true) (hnd : cs.Nodup) (hf0 : at? segs 0 = some f0)
+    (hB : BaseRel B) (hand : AndOk prog segs B) {s0 s0' : CS}
+    (hreg : ∀ r, r ∉ cs → s0.getG r = s0'.getG r) (hlen : s0.gpr.length = s0'.gpr.length) (hlen16 : s0.gpr.length = 16)
+    (hvr : s0.vr = s0'.vr) (hfl : s0.flags = s0'.flags) (hmem : s0.mem = s0'.mem) (hpc : s0.pc = 0) (hpc' : s0'.pc = 0)
+    (hh : s0.halted = false) (hh' : s0'.halted = false) (htl : s0.tail = s0'.tail) (he : s0.err = s0'.err)
+    (hR : RspOk B f0 s0) (k : Nat)
+    (hregion : ∀ j, j ≤ k → RegionOk prog (run prog 4 mem0 orc j s0))
+    (hok : (run prog 4 mem0 orc k s0).err = none) (hhalt : (run prog 4 mem0 orc k s0).halted = true) :
+    (∀ r ∈ cs, (run prog 4 mem0 orc k s0).getG r = s0.getG r ∧ (run prog 4 mem0 orc k s0').getG r = s0'.getG r) ∧
+    (∀ a : Addr Int, (a.region ≠ rStack ∨ a.off < B 0 - D ∨ B 0 ≤ a.off) →
+      lookup a (run prog 4 mem0 orc k s0).mem = lookup a (run prog 4 mem0 orc k s0').mem) ∧
+    (run prog 4 mem0 orc k s0).getG 4 = (run prog 4 mem0 orc k s0').getG 4 ∧
+    (run prog 4 mem0 orc k s0).vr = (run prog 4 mem0 orc k s0').vr ∧
+    (run prog 4 mem0 orc k s0).flags = (run prog 4 mem0 orc k s0').flags ∧
+    (run prog 4 mem0 orc k s0).pc = (run prog 4 mem0 orc k s0').pc ∧
+    (run prog 4 mem0 orc k s0).halted = (run prog 4 mem0 orc k s0').halted ∧
+    (run prog 4 mem0 orc k s0).tail = (run prog 4 mem0 orc k s0').tail ∧
+    (run prog 4 mem0 orc k s0).err = (run prog 4 mem0 orc k s0').err := by
+  have hT0 : atT TT 0 = some (entryTags cs) := by
+    simp only [tagCert, Bool.and_eq_true, decide_eq_true_eq] at hcert; exact hcert.1
+  have hinv0 : Inv (B := B) (mem0 := mem0) (s0 := s0) (s0' := s0') D segs TT cs s0 s0' := by
+    left
+    refine ⟨hh, f0, entryTags cs, by rw [hpc]; exact hf0, by rw [hpc]; exact hT0, hR, ?_⟩
+    exact entry_rel cs hreg hlen hlen16 hvr hfl hmem (by rw [hpc, hpc']) (by rw [hh, hh']) htl he hnd
+  have hinv := run_lift hsz hok0 hcert hB hand (hidx_of_slotsOk hsl) k s0 s0' hinv0 hregion hok
+  exact exit_facts hinv hhalt
+
+end Top
+
 end Hashtree.Proofs.FrameLift

@@ -33,17 +33,32 @@ structure Fact where
   saved : Option RV := none
   deriving DecidableEq, Repr, Inhabited
 
+/-- An instruction that is none of the rsp forms: it must not write rsp; a write of rbp drops
+the saved value. -/
+def stepOther (i : Instr) (f : Fact) : Option Fact :=
+  if 4 ∈ dsts i then none else if 5 ∈ dsts i then some { f with saved := none } else some f
+
 /-- The effect of one instruction on the fact; `none` = an unsupported rsp (or rbp-save) write. -/
-def step : Instr → Fact → Option Fact
-  | .push _, f => some { f with sp := (f.sp.1, f.sp.2 - 8) }
-  | .pop r, f => if r = 4 then none else some { sp := (f.sp.1, f.sp.2 + 8), saved := if r = 5 then none else f.saved }
-  | .ret, f => some { f with sp := (f.sp.1, f.sp.2 + 8) }
-  | .sub 64 4 (.imm k), f => some { f with sp := (f.sp.1, f.sp.2 - k) }
-  | .alu .add 64 4 (.imm k), f => some { f with sp := (f.sp.1, f.sp.2 + k) }
-  | .alu .and 64 4 (.imm (-32)), f => some { f with sp := (f.sp.1 + 1, 0) }
-  | .mov 64 5 (.reg 4), f => some { f with saved := some f.sp }
-  | .mov 64 4 (.reg 5), f => match f.saved with | some v => some { f with sp := v } | none => none
-  | i, f => if 4 ∈ dsts i then none else if 5 ∈ dsts i then some { f with saved := none } else some f
+def step (i : Instr) (f : Fact) : Option Fact :=
+  match i with
+  | .push _ => some { f with sp := (f.sp.1, f.sp.2 - 8) }
+  | .pop r => if r = 4 then none else some { sp := (f.sp.1, f.sp.2 + 8), saved := if r = 5 then none else f.saved }
+  | .ret => some { f with sp := (f.sp.1, f.sp.2 + 8) }
+  | .sub w d src =>
+    if w = 64 ∧ d = 4 then (match src with | .imm k => some { f with sp := (f.sp.1, f.sp.2 - k) } | _ => none)
+    else stepOther i f
+  | .alu op w d src =>
+    if w = 64 ∧ d = 4 then
+      (match op, src with
+        | .add, .imm k => some { f with sp := (f.sp.1, f.sp.2 + k) }
+        | .and, .imm k => if k = -32 then some { f with sp := (f.sp.1 + 1, 0) } else none
+        | _, _ => none)
+    else stepOther i f
+  | .mov w d src =>
+    if w = 64 ∧ d = 5 ∧ src = .reg 4 then some { f with saved := some f.sp }
+    else if w = 64 ∧ d = 4 ∧ src = .reg 5 then (match f.saved with | some v => some { f with sp := v } | none => none)
+    else stepOther i f
+  | _ => stepOther i f
 
 /-- Control successors (as `RunAgree.succs`). -/
 def nexts (p : Nat) : Instr → List Nat
@@ -71,6 +86,7 @@ def okAt (n : Nat) (segs : List (Nat × Option Fact)) (p : Nat) (i : Instr) : Bo
   match at? segs p with
   | none => true
   | some f =>
+    (f.sp.1 == 0 || f.sp.1 == 1) &&
     match step i f with
     | none => false
     | some f' => exitOk i f && (nexts p i).all fun q => q < n && at? segs q = some f'

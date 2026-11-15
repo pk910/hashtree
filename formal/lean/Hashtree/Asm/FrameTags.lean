@@ -196,9 +196,12 @@ def leqTags (T T' : Tags) : Bool :=
 /-- The entry tags of a callee-saved set. -/
 def entryTags (cs : List Nat) : Tags := cs.map fun r => (.reg r, some r)
 
-/-- Every listed slot is an 8-byte cell on base 0 or 1 (what the lift's slot values read). -/
-def tableOk (T : Tags) : Bool :=
-  T.all fun p => match p.1 with | .slot t => (t.1 == 0 || t.1 == 1) && t.2.2 == 8 | _ => true
+/-- Every listed slot is an 8-byte cell on base 0 or 1, inside the frame window `[B 0 - D, B 0)`
+(base 1 sits 16..47 below base 0, so its slots must lie in `[47 - D, -16 - 8]`). -/
+def tableOk (D : Int) (T : Tags) : Bool :=
+  T.all fun p => match p.1 with
+    | .slot t => t.2.2 == 8 && ((t.1 == 0 && -D ≤ t.2.1 && t.2.1 + 8 ≤ 0) || (t.1 == 1 && 47 - D ≤ t.2.1 && t.2.1 + 8 ≤ -16))
+    | _ => true
 
 /-- The tag table as segments `(start pc, tags)` (as the rsp map: a pc takes the value of the last
 segment starting at or before it; `none` = unvisited). -/
@@ -211,28 +214,28 @@ def atT (TT : TagSegs) (p : Nat) : Option Tags :=
 defined, rsp is agreeing and the listed slots are 8-byte cells on base 0/1 (`tableOk`), exits
 satisfy `exitOk` (after the step), and the stepped tags are below every successor's tags
 (`leqTags`). -/
-def tagAt (n : Nat) (segs : List (Nat × Option Fact)) (TT : TagSegs) (cs : List Nat)
+def tagAt (n : Nat) (D : Int) (segs : List (Nat × Option Fact)) (TT : TagSegs) (cs : List Nat)
     (p : Nat) (i : Instr) : Bool :=
   match at? segs p, atT TT p with
   | none, _ => true
   | some _, none => true
   | some f, some T =>
-    statusOf T (.reg 4) = none && (f.saved = none || statusOf T (.reg 5) = none) && tableOk T &&
+    statusOf T (.reg 4) = none && (f.saved = none || statusOf T (.reg 5) = none) && tableOk D T &&
     match tagStep f i T with
     | none => false
     | some T' =>
       (!isExit i || exitOk cs T') &&
       (nexts p i).all fun q => q < n && (match atT TT q with | some Tq => leqTags T' Tq | none => false)
 
-def tagAux (n : Nat) (segs : List (Nat × Option Fact)) (TT : TagSegs) (cs : List Nat) :
+def tagAux (n : Nat) (D : Int) (segs : List (Nat × Option Fact)) (TT : TagSegs) (cs : List Nat) :
     Nat → List Instr → Bool
   | _, [] => true
-  | p, i :: rest => tagAt n segs TT cs p i && tagAux n segs TT cs (p + 1) rest
+  | p, i :: rest => tagAt n D segs TT cs p i && tagAux n D segs TT cs (p + 1) rest
 
 /-- **The frame-slot certificate check**: entry tags, and `tagAt` at every pc (a linear sweep). -/
-def tagCert (n : Nat) (prog : Array Instr) (segs : List (Nat × Option Fact)) (TT : TagSegs)
+def tagCert (n : Nat) (D : Int) (prog : Array Instr) (segs : List (Nat × Option Fact)) (TT : TagSegs)
     (cs : List Nat) : Bool :=
-  atT TT 0 = some (entryTags cs) && tagAux n segs TT cs 0 prog.toList
+  atT TT 0 = some (entryTags cs) && tagAux n D segs TT cs 0 prog.toList
 
 /-! ## Computing the table -/
 
@@ -341,7 +344,7 @@ window `[B 0 - D, B 0)` (the kernel's own frame; a hypothesis discharged per ker
 model's region discipline). -/
 def LiftSpec (n : Nat) (prog : Array Instr) (segs : List (Nat × Option Fact)) (TT : TagSegs)
     (cs : List Nat) (D : Int) : Prop :=
-  RspMap.ok n prog segs = true → tagCert n prog segs TT cs = true →
+  RspMap.ok n prog segs = true → tagCert n D prog segs TT cs = true →
   ∀ (mem0 : Addr Int → Cell W32 Int) (B : Nat → Int) (orc : Nat → Bool) (s0 s0' s s' : State W32 Int)
     (f : Fact) (T : Tags),
     at? segs s.pc = some f → atT TT s.pc = some T →

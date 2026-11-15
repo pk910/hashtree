@@ -53,7 +53,7 @@ def tagsSse : TagSegs :=
    (4216, some [(.reg 3, some 3), (.reg 6, some 6), (.reg 7, some 7), (.reg 5, some 5), (.reg 12, some 12), (.reg 13, some 13), (.reg 14, some 14), (.reg 15, some 15), (.slot (0, -72, 8), some 15), (.slot (0, -64, 8), some 14), (.slot (0, -56, 8), some 13), (.slot (0, -48, 8), some 12), (.slot (0, -40, 8), some 5), (.slot (0, -32, 8), some 7), (.slot (0, -24, 8), some 6), (.slot (0, -8, 8), some 3)]),
    (4217, none)]
 
-theorem sse_tagCert : tagCert 4243 Hashtree.Kernels.X86Win.SseX1.prog segsSse tagsSse cs = true := by decide +kernel
+theorem sse_tagCert : tagCert 4243 264 Hashtree.Kernels.X86Win.SseX1.prog segsSse tagsSse cs = true := by decide +kernel
 theorem sse_entry : atT tagsSse 0 = some (entryTags cs) := by decide +kernel
 theorem sse_exitOk : (atT tagsSse 4216).map (exitOk cs) = some true := by decide +kernel
 
@@ -87,7 +87,7 @@ def tagsAvx1 : TagSegs :=
    (4086, some [(.reg 3, some 3), (.reg 6, some 6), (.reg 7, some 7), (.reg 5, some 5), (.reg 12, some 12), (.reg 13, some 13), (.reg 14, some 14), (.reg 15, some 15), (.slot (0, -72, 8), some 15), (.slot (0, -64, 8), some 14), (.slot (0, -56, 8), some 13), (.slot (0, -48, 8), some 12), (.slot (0, -40, 8), some 5), (.slot (0, -32, 8), some 7), (.slot (0, -24, 8), some 6), (.slot (0, -8, 8), some 3)]),
    (4087, none)]
 
-theorem avx1_tagCert : tagCert 4116 Hashtree.Kernels.X86Win.AvxX1.prog segsAvx1 tagsAvx1 cs = true := by decide +kernel
+theorem avx1_tagCert : tagCert 4116 264 Hashtree.Kernels.X86Win.AvxX1.prog segsAvx1 tagsAvx1 cs = true := by decide +kernel
 theorem avx1_entry : atT tagsAvx1 0 = some (entryTags cs) := by decide +kernel
 theorem avx1_exitOk : (atT tagsAvx1 4086).map (exitOk cs) = some true := by decide +kernel
 
@@ -111,7 +111,7 @@ def tagsAvx2 : TagSegs :=
    (6103, some [(.reg 5, some 5), (.reg 6, some 6), (.reg 15, some 15), (.reg 14, some 14), (.reg 13, some 13), (.reg 12, some 12), (.slot (1, -328, 8), some 15), (.slot (1, -336, 8), some 14), (.slot (1, -344, 8), some 13), (.slot (1, -352, 8), some 12), (.slot (0, -16, 8), some 6), (.slot (0, -8, 8), some 5), (.reg 3, some 3), (.reg 7, some 7)]),
    (6104, none)]
 
-theorem avx2_tagCert : tagCert 6107 Hashtree.Kernels.X86Win.Avx2X8.prog segsAvx2 tagsAvx2 cs = true := by decide +kernel
+theorem avx2_tagCert : tagCert 6107 1312 Hashtree.Kernels.X86Win.Avx2X8.prog segsAvx2 tagsAvx2 cs = true := by decide +kernel
 theorem avx2_entry : atT tagsAvx2 0 = some (entryTags cs) := by decide +kernel
 theorem avx2_exitOk : (atT tagsAvx2 6103).map (exitOk cs) = some true := by decide +kernel
 

@@ -615,3 +615,12 @@ import Hashtree.Proofs.Avx512X16WOut
 #print axioms Hashtree.Proofs.FrameLift.movst_step
 #print axioms Hashtree.Proofs.FrameLift.movload_step
 #print axioms Hashtree.Proofs.FrameLift.lift_step
+
+-- R5: the frame-slot lift, run level: rspOk_step (the rsp map along a step), run_lift (the
+-- invariant along every error-free run of a certified stream) and frame_lift (two runs from
+-- call states differing only in the callee-saved registers: at the exit every callee-saved
+-- register holds its entry value in both runs and the runs agree outside the frame window).
+#print axioms Hashtree.Proofs.FrameLift.rspOk_step
+#print axioms Hashtree.Proofs.FrameLift.run_lift
+#print axioms Hashtree.Proofs.FrameLift.exit_facts
+#print axioms Hashtree.Proofs.FrameLift.frame_lift

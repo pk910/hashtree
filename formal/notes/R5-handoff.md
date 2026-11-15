@@ -285,6 +285,33 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## Frame-slot lift: RUN LEVEL PROVED (`Proofs/FrameLift.frame_lift`); instances next
+
+Commit K.  `rspOk_step` (`RspMap.step` restructured into explicit conditions: push/pop/ret ±8,
+`sub/add rsp, imm`, `and rsp, -32` with `B (base+1)` = the `andInt` result (`AndOk`), `mov rbp,
+rsp` / `mov rsp, rbp` through the fact's `saved`, everything else by `exec_shape`); `tagCert_at`
+/ `ok_at` (per-pc facts from the linear sweeps); `tableOk D` now also pins every listed slot
+inside the frame window `[B 0 - D, B 0)` (`InWindow`), and `okAt` pins the base to 0/1;
+`tagRel_mono` (the relation is monotone along `leqTags`); the invariant `Inv` (mapped pc with
+`RspOk`+`TagRel`, or halted at an exit with `exitOk` tags inside the window); `inv_step`,
+`run_lift` (induction over `run`), `entry_rel`/`entryTags_reg`/`entryTags_slot`, `exit_facts`,
+`hidx_of_slotsOk`, `effAddr_region` (an effective address carries its base register's region:
+the instance side condition is one `simp` on the register facts), and **`frame_lift`**: for a
+stream with verified rsp map (`RspMap.ok`, `slotsOk`) and tag certificate (`tagCert n D`), two
+runs from call states that differ only in the callee-saved registers (`cs.Nodup`), under
+`BaseRel B`, `AndOk prog segs B`, `RspOk B f0 s0` and `RegionOk` along the first run, if the
+first run halts after `k` error-free steps then every callee-saved register holds its entry
+value in both runs, the runs agree on every address outside `rStack` or outside the window, and
+on rsp / vector file / flags / pc / halted / tail / err.  Windows D: sse_x1 264, avx_x1 264,
+avx2_x8 1312 (`WinFrameTags`).  Axioms: standard + `bytes_reassemble` bv_decide.
+
+Next: the per-kernel instances -- for sse_x1 / avx_x1 (base 0 only: `B 1` free, `AndOk`
+vacuous) and avx2_x8 (`B 1 := andInt (B 0 - 16) (-32)`): `RegionOk` from the region discipline
+of the kernel's pointer registers (`effAddr_region` + the register facts of R2's certificate run
+or the model's pointer invariants), `RspOk` at entry from `entryWin`; then the sse_x1 / avx_x1
+links (`KSpecC1` shape) built on the x1 certificates with the callee-saved registers handled by
+`frame_lift` instead of the entry live set.
+
 ## Frame-slot lift: ONE-INSTRUCTION LIFT PROVED (`Proofs/FrameLift.lift_step`); run level next
 
 Commit J.  `FrameLift` moved to the Proofs layer (it uses `Win64.exec_gpr_len`: the register
