@@ -67,6 +67,7 @@ import Hashtree.Proofs.WinAvxX4Bridge
 import Hashtree.Proofs.WinAvxX4Link
 import Hashtree.Asm.RspMap
 import Hashtree.Proofs.WinRspMap
+import Hashtree.Proofs.WinAvx512Final
 import Hashtree.Proofs.AvxX4ToX1
 import Hashtree.Proofs.AvxX4LoopWAll
 import Hashtree.Proofs.AvxX4X1WAgree
@@ -567,3 +568,11 @@ import Hashtree.Proofs.Avx512X16WOut
 #print axioms Hashtree.Proofs.Avx512X16WOut.invW_body
 #print axioms Hashtree.Proofs.Avx512X16WOut.invV_body
 #print axioms Hashtree.Proofs.Avx512X16WOut.invC_lift
+
+-- R5: the unconditional windows avx512_x16 chain link: R2c's Avx512X16WOut.turnOut discharges
+-- TurnOut (turnOut512), giving KSpecC512 without hypotheses (KSpecC512_final) and the chain head
+-- clause for winSpecs (head512).  Axioms: standard + byte_bswap / loadLane_hom / SpecQ.qW_* and
+-- the pilot's Gen.Avx512X16P.shape* bv_decide axioms.
+#print axioms Hashtree.Proofs.WinAvx512Final.turnOut512
+#print axioms Hashtree.Proofs.WinAvx512Final.KSpecC512_final
+#print axioms Hashtree.Proofs.WinAvx512Final.head512

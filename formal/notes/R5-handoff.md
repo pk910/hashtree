@@ -175,6 +175,20 @@ If the per-pc rsp map fails to verify for a stream (an rsp write not in the list
 back to the fixed-rsp bodies first (shani done; avx512, avx_x4 next) — none of the three is
 expected to fail given sections 5/11/12 of R5.md.
 
+## avx512_x16 link: UNCONDITIONAL (`Proofs/WinAvx512Final.lean`, commit F)
+
+R2c's `Avx512X16WOut.turnOut : TurnOut` (branch `research/formal-r2c-x16out` 2ed8c3b, merged in
+47fc415, files disjoint, Axioms union) discharges `WinAvx512Bridge.TurnOut`: `turnOut512` (one
+`unfold` of each `OutOk`: `Avx512X16WOut.OutOk` and `WinWrapper.OutOk` have the same text),
+`KSpecC512_final : KSpecC512 Avx512X16WLoop.steps env σ m0 orcC c inp` (no hypotheses) and
+`head512` (the `KSpecC512_head` instantiation = the head clause of `KSpecC` for `winSpecs` at the
+avx512_x16 link, tail `(linkOf "hashtree_sha256_avx2_x8" p8 (fun _ => 0)).name`).  Axioms of all
+three: propext, Classical.choice, Quot.sound, `byte_bswap`/`loadLane_hom`/`SpecQ.qW_R`/`qW_recM`/
+`qW_recM2` bv_decide axioms and the 133 `Gen.Avx512X16P.shape*` bv_decide axioms of the pilot;
+no sorryAx, no ofReduceBool.  Build: `Avx512X16WOut` in this clone 1h40m (LEAN_NUM_THREADS=4),
+the Final module 5 s.  The full `KSpecC m0 orc c (winSpecs …)` still needs the avx2_x8, avx_x4
+and avx_x1 links.
+
 ## avx512_x16 link: DONE (`Proofs/WinAvx512Link.lean`, `KSpecC512_of_turnOut`)
 
 Proved as planned below, with two deviations: the tail seed is `T8 := [8,4,2,1]` (the registers
