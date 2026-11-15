@@ -1865,7 +1865,7 @@ theorem run_lift {n : Nat} {D : Int} {prog : Array Instr} {segs : List (Nat × O
     (hcert : tagCert n D prog segs TT cs = true) (hB : BaseRel B) (hand : AndOk prog segs B)
     (hidx : ∀ (p : Nat) (i : Instr), prog[p]? = some i → ∀ m ∈ memOps i, m.1.base = some 4 → m.1.index = none ∧ m.1.ro = none) :
     ∀ (k : Nat) (s s' : CS), Inv (B := B) (mem0 := mem0) (s0 := s0) (s0' := s0') D segs TT cs s s' →
-      (∀ j, j ≤ k → RegionOk prog (run prog 4 mem0 orc j s)) →
+      (∀ j, j ≤ k → (run prog 4 mem0 orc j s).halted = false → RegionOk prog (run prog 4 mem0 orc j s)) →
       (run prog 4 mem0 orc k s).err = none →
       Inv (B := B) (mem0 := mem0) (s0 := s0) (s0' := s0') D segs TT cs (run prog 4 mem0 orc k s) (run prog 4 mem0 orc k s')
   | 0, s, s', hinv, _, _ => hinv
@@ -1895,12 +1895,13 @@ theorem run_lift {n : Nat} {D : Int} {prog : Array Instr} {segs : List (Nat × O
         rw [run_succ' prog k s' hrel.1 (by rw [hrel.2]; exact hi)]
         have hok1 : (exec 4 mem0 orc i s).err = none :=
           RunExit.run_err_none prog 4 mem0 orc k _ hok 0 (Nat.zero_le _)
-        have hreg0 : RegionOk prog s := hreg 0 (Nat.zero_le _)
+        have hreg0 : RegionOk prog s := hreg 0 (Nat.zero_le _) hh0
         apply run_lift hsz hok0 hcert hB hand hidx k _ _
           (inv_step hsz hok0 hcert hB hand hidx hinv hreg0 hi hh0 hok1)
-          (fun j hj => by
+          (fun j hj hhj => by
             have := hreg (j + 1) (by omega)
-            rwa [run_succ' prog j s hh0 hi] at this)
+            rw [run_succ' prog j s hh0 hi] at this
+            exact this hhj)
           hok
 
 end Run
@@ -2056,7 +2057,7 @@ theorem frame_lift {n : Nat} {D : Int} {prog : Array Instr} {segs : List (Nat ×
     (hvr : s0.vr = s0'.vr) (hfl : s0.flags = s0'.flags) (hmem : s0.mem = s0'.mem) (hpc : s0.pc = 0) (hpc' : s0'.pc = 0)
     (hh : s0.halted = false) (hh' : s0'.halted = false) (htl : s0.tail = s0'.tail) (he : s0.err = s0'.err)
     (hR : RspOk B f0 s0) (k : Nat)
-    (hregion : ∀ j, j ≤ k → RegionOk prog (run prog 4 mem0 orc j s0))
+    (hregion : ∀ j, j ≤ k → (run prog 4 mem0 orc j s0).halted = false → RegionOk prog (run prog 4 mem0 orc j s0))
     (hok : (run prog 4 mem0 orc k s0).err = none) (hhalt : (run prog 4 mem0 orc k s0).halted = true) :
     (∀ r ∈ cs, (run prog 4 mem0 orc k s0).getG r = s0.getG r ∧ (run prog 4 mem0 orc k s0').getG r = s0'.getG r) ∧
     (∀ a : Addr Int, (a.region ≠ rStack ∨ a.off < B 0 - D ∨ B 0 ≤ a.off) →

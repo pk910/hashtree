@@ -73,6 +73,10 @@ import Hashtree.Proofs.WinFrameTags
 import Hashtree.Asm.RunAgreeM
 import Hashtree.Asm.MemCells
 import Hashtree.Proofs.FrameLift
+import Hashtree.Asm.RegionTags
+import Hashtree.Proofs.WinRegionTags
+import Hashtree.Proofs.RegionLift
+import Hashtree.Proofs.WinRegionLift
 import Hashtree.Proofs.AvxX4ToX1
 import Hashtree.Proofs.AvxX4LoopWAll
 import Hashtree.Proofs.AvxX4X1WAgree
@@ -624,3 +628,16 @@ import Hashtree.Proofs.Avx512X16WOut
 #print axioms Hashtree.Proofs.FrameLift.run_lift
 #print axioms Hashtree.Proofs.FrameLift.exit_facts
 #print axioms Hashtree.Proofs.FrameLift.frame_lift
+
+-- R5: the region-typing certificate (per-pc known regions of the general registers, verified
+-- by RegionTags.regCert) and its soundness: regStep_sound, regionOk_run, and the three kernel
+-- instances discharging the frame-slot lift's region side condition from the wrapper call state.
+#print axioms Hashtree.Proofs.WinRegionTags.sse_regCert
+#print axioms Hashtree.Proofs.WinRegionTags.avx1_regCert
+#print axioms Hashtree.Proofs.WinRegionTags.avx2_regCert
+#print axioms Hashtree.Proofs.RegionLift.regStep_sound
+#print axioms Hashtree.Proofs.RegionLift.regionOk_run
+#print axioms Hashtree.Proofs.WinRegionLift.entryWin_regRel
+#print axioms Hashtree.Proofs.WinRegionLift.regionOk_sse
+#print axioms Hashtree.Proofs.WinRegionLift.regionOk_avx1
+#print axioms Hashtree.Proofs.WinRegionLift.regionOk_avx2

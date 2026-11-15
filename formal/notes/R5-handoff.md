@@ -285,6 +285,32 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## Region side condition DISCHARGED for sse_x1 / avx_x1 / avx2_x8 (commit L)
+
+`Asm/RegionTags`: per-pc known regions of the 16 general registers (`RTags := List (Option
+Region)`), transfer `regStep` for the forms the bodies define their pointers with (`mov d, reg` /
+`mov d, imm`, `lea`, 64-bit `add`/`and`/`sub`, the zeroing idiom; `push`/`pop`/`ret` keep rsp's;
+every other write unknown), `regCert` (per pc: table of length 16, every non-rsp / non-rip memory
+base known and not `rStack`, successors' tables contained in the stepped table), `regs` computes
+(must-analysis), entry table `entryWinRegs` (rcx rOut, rdx rIn, r8/r12/r13/r15 rNum, rsp/rbx/rbp
+rStack, r14 region 6, the rest data).  `Proofs/WinRegionTags`: the three tables (6/6/10 segments),
+`decide +kernel` 17 s.  `Proofs/RegionLift`: `RegRel`, `regStep_sound` (exec forms
+`exec_mov_imm`, `exec_xor_idiom`, `exec_lea`, `exec_add_region`, `exec_and_region`,
+`exec_sub_region`, rsp pointer facts), `regionOk_of_bases` (via `effAddr_region`), `RInv`,
+`rinv_step`, `region_run`, `regionOk_run`.  `Proofs/WinRegionLift`: `entryWin_regRel` (the
+wrapper call state meets the entry table) and `regionOk_sse` / `regionOk_avx1` / `regionOk_avx2`:
+along every error-free run from `mapState env σ entryWin`, every non-halted state satisfies
+`FrameLift.RegionOk`.  `frame_lift`/`run_lift` now take `RegionOk` only at non-halted states
+(all the proof uses).  The measured bases: sse_x1 rbp x96 / rcx x8 / rdx x4 (rbp becomes the
+rodata table pointer by `lea` at pc 26 and later the input pointer), avx_x1 rsi, avx2_x8 rsi/rdx.
+
+What remains for the sse_x1 / avx_x1 links: instantiate `frame_lift` with `cs = [3,5,6,7,12,13,
+14,15]`, `B 0 = σ 9` (`B 1` free), `AndOk` vacuous (no `and rsp`), `RspOk` at entry
+(`entryWin_gpr4`, saved = none), `hregion` from `regionOk_sse`/`regionOk_avx1`; the second run
+is the certificate's run (linux-style symbolic registers for the callee-saved set); then the
+exit facts give `RegsOkW`'s callee-saved clauses and memory agreement outside the frame, to be
+combined with the x1 certificates (`SseX1P`/`AvxX1P` finals, `AvxX1W`) for `OutOk`/`Foot`.
+
 ## Frame-slot lift: RUN LEVEL PROVED (`Proofs/FrameLift.frame_lift`); instances next
 
 Commit K.  `rspOk_step` (`RspMap.step` restructured into explicit conditions: push/pop/ret ±8,
