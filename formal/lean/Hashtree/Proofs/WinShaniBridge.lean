@@ -709,7 +709,7 @@ theorem kspec_body (hw : WfMemW Hashtree.Kernels.X86Win.Shani.rodata [] env σ m
         rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
       have hsp : (Hashtree.Asm.X86.spSt (-160) S).getG (G j) = S.getG (G j) := by
         show (S.gpr.set 4 _).getD (G j) _ = S.gpr.getD (G j) _
-        rw [getD_set_ne _ _ _ (Ne.symm hGj.2)]
+        rw [getD_set_ne_r5 _ _ _ (Ne.symm hGj.2)]
       rw [hsp, hpres (G j) hGj.1]
       show (seedSt (stW env σ) (aW σ)).getG (G j) = _
       rw [seedSt_getG _ _ (G j) (g_lt j hj16), ite_eq_right hGj.2, fg16 j hj16]

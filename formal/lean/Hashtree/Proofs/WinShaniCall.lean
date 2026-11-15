@@ -97,12 +97,12 @@ theorem saveSt_getG (st : State W32 Int) (a : Addr Int) (hlen : st.gpr.length = 
     rw [ite_eq_left (show (4 : Nat) = 4 from rfl)]
     show (st.gpr.set 4 (.ptr (a.plusI (-248)))).getD 4
         (Val.num (Lane.const 0) (Lane.const 0)) = .ptr (a.plusI (-248))
-    rw [getD_set_self st.gpr 4 (by rw [hlen]; omega)]
+    rw [getD_set_self_r5 st.gpr 4 (by rw [hlen]; omega)]
   · rw [ite_eq_right h4]
     show (st.gpr.set 4 (.ptr (a.plusI (-248)))).getD i
         (Val.num (Lane.const 0) (Lane.const 0))
       = st.gpr.getD i (Val.num (Lane.const 0) (Lane.const 0))
-    rw [getD_set_ne st.gpr 4 i (Ne.symm h4)]
+    rw [getD_set_ne_r5 st.gpr 4 i (Ne.symm h4)]
 
 /-- The prologue's result state is the translated linux body-entry seed. -/
 theorem shani_seed_eq (st : State W32 Int) (a : Addr Int) (hlen : st.gpr.length = 16) :

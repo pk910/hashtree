@@ -505,13 +505,13 @@ theorem getV_setVec_self (s : State W32 Int) (d : Nat) (v : List W32)
     (hd : d < s.vr.length) :
     (setVec s false 4 d v).getV d = v.take 4 ++ (s.getV d).drop 4 := by
   simp only [setVec, State.setV, State.getV]
-  exact getD_set_self _ _ hd _ _
+  exact getD_set_self_r5 _ _ hd _ _
 
 /-- Writing a vector register: every other register is unchanged. -/
 theorem getV_setVec_ne (s : State W32 Int) (d j : Nat) (v : List W32) (h : j ≠ d) :
     (setVec s false 4 d v).getV j = s.getV j := by
   simp only [setVec, State.setV, State.getV]
-  exact getD_set_ne _ _ _ (Ne.symm h) _ _
+  exact getD_set_ne_r5 _ _ _ (Ne.symm h) _ _
 
 /-! ## The epilogue instructions and their `exec` formulas -/
 
@@ -753,7 +753,7 @@ theorem run_epilogue {ro : Region} {mem0 : Addr Int → Cell W32 Int} {orc : Nat
     show (epiSt t0 st 10).pc + 1 = 690; omega
   have hrspA : A.getG rsp = .ptr (r.plusI 248) := by
     show ((epiSt t0 st 10).gpr.set rsp (.ptr (r.plusI 248))).getD rsp _ = _
-    rw [getD_set_self _ _ (by rw [epiSt_gpr_len, show rsp = 4 from rfl]; omega)]
+    rw [getD_set_self_r5 _ _ (by rw [epiSt_gpr_len, show rsp = 4 from rfl]; omega)]
   have hretA : loadVal mem0 A (r.plusI 248) = .ok (.ptr (⟨rRet, Ctl.ofInt 0⟩ : Addr Int)) := by
     rw [loadVal_mem_eq (s := t0) (t := A)
       (by show A.mem = t0.mem
@@ -789,13 +789,13 @@ theorem epiFinal_getG_rsp (t0 st : State W32 Int) (r : Addr Int)
     (hgr : 5 ≤ t0.gpr.length) :
     (epiFinal t0 st r).getG rsp = .ptr (r.plusI 256) := by
   show ((epiSt t0 st 10).gpr.set rsp (.ptr (r.plusI 256))).getD rsp _ = _
-  rw [getD_set_self _ _ (by rw [epiSt_gpr_len, show rsp = 4 from rfl]; omega)]
+  rw [getD_set_self_r5 _ _ (by rw [epiSt_gpr_len, show rsp = 4 from rfl]; omega)]
 
 /-- The epilogue leaves every other general register alone. -/
 theorem epiFinal_getG_ne (t0 st : State W32 Int) (r : Addr Int) (j : Nat) (hj : j ≠ rsp) :
     (epiFinal t0 st r).getG j = t0.getG j := by
   show ((epiSt t0 st 10).gpr.set rsp (.ptr (r.plusI 256))).getD j _ = t0.gpr.getD j _
-  rw [getD_set_ne _ _ _ (Ne.symm hj)]
+  rw [getD_set_ne_r5 _ _ _ (Ne.symm hj)]
   exact epiSt_getG t0 st 10 j
 
 /-- The epilogue leaves the write log alone. -/

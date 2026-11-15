@@ -285,6 +285,29 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## sse_x1 W-mode certificate + audit green (commit O)
+
+* `Gen/SseX1LW` (527 files, 17 MB, `lake exe x86loop1w sse Hashtree/Gen/SseX1LW all`, 11 s; entries
+  Head/It/It0/T0a/T0b; modules build in 8m50s) and `Proofs/SseX1W.lean`: `SseX1W.correctW`, the
+  sse_x1 counterpart of R2's `AvxX1W.correctW` (textual port: AvxX1LW→SseX1LW, Kernels.X86.AvxX1→SseX1,
+  avx_x1→sse_x1; same hypotheses `WfMemW rodata [] env0 σ mem0c`, `EnvMem`, `σ 2 = c`, input bytes;
+  same conclusion halted/err/tail, `InRange (σ 9) (σ 1) (32c)`, `OutOk`, `RegsOk`).  Axioms:
+  standard + allowlisted bv_decide (`byte_bswap`, `loadLane_hom`, `SpecQ.qW_*`) + `Gen.SseX1LW.*core*`
+  bv_decide.  Both x1 links now have a W-mode linux certificate to transfer from.
+* `make audit` is GREEN (EXIT=0, 435 prints; families: standard, `bytes_reassemble`, `byte_bswap`,
+  `loadLane_hom`, `SpecQ.qW_*`, `Go.*_eq`, `Gen.*` — all `_native.bv_decide`; no `sorryAx`).  Two
+  fixes: (1) R5's `WinFrameStack.getD_set_ne/getD_set_self` clashed with R2's `Asm/X86Agree` copies
+  when both were imported — renamed to `getD_set_ne_r5`/`getD_set_self_r5` (uses in WinNs,
+  WinShaniBridge/Call/Epi/Front); (2) the print lines added in e85b05d named non-existent constants
+  (`Proofs.ShaniAll.shani_correct` → `Proofs.Shani.shani_correct`, `SseX1All.correct` →
+  `SseX1L.correct`, `AvxX1All.correct` → `AvxX1L.correct`, `GoProof.*` → `Go.*`, `Gen.<K>.Final.*` →
+  `Gen.<K>.*`).  Audit now also prints `SseX1W.correctW`.
+* Next (order fixed by the coordinator): `WinSseBack.run_back` (19-step sse_x1 epilogue: pcs
+  4198-4205 `vload xmm6..13 ← [rsp+64+16m]`, 4206 `add rsp,192`, 4207-4215 pops 15,14,13,12,5,7,6,8,3,
+  4216 `ret`) in the `WinShaniEpi` style (`epiSt`-like restore chain via `loadLanes_pre`/`Outside`,
+  `exec_add64_rsp` generalised to imm 192, `FrameLift.exec_pop` + `loadVal` of the push cells through
+  `MemCells.lookup_storeVal_*`); then the avx_x1 link, then the sse_x1 link on `SseX1W`.
+
 ## Lift: the log-address clause (commit N)
 
 `AgreeM` and `TagRel` now carry `addrs : s.mem.map Prod.fst = s'.mem.map Prod.fst` (both runs

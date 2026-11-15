@@ -72,29 +72,29 @@ def spSt (δ : Int) (s : State W32 Int) : State W32 Int :=
 theorem spSt_gpr_len (δ : Int) (s : State W32 Int) : (spSt δ s).gpr.length = s.gpr.length := by
   simp only [spSt, List.length_set]
 
-theorem getD_set_ne {α : Type} (l : List α) (i j : Nat) (h : i ≠ j) (a d : α) :
+theorem getD_set_ne_r5 {α : Type} (l : List α) (i j : Nat) (h : i ≠ j) (a d : α) :
     (l.set i a).getD j d = l.getD j d := by
   rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_set, if_neg h]
 
-theorem getD_set_self {α : Type} (l : List α) (i : Nat) (hi : i < l.length) (a d : α) :
+theorem getD_set_self_r5 {α : Type} (l : List α) (i : Nat) (hi : i < l.length) (a d : α) :
     (l.set i a).getD i d = a := by
   rw [List.getD_eq_getElem?_getD, List.getElem?_set_self hi]
   rfl
 
 theorem spSt_getG_self (δ : Int) (s : State W32 Int) (h4 : 4 < s.gpr.length) :
     (spSt δ s).getG 4 = spVal δ (s.getG 4) := by
-  simp only [spSt, State.getG, getD_set_self _ _ h4]
+  simp only [spSt, State.getG, getD_set_self_r5 _ _ h4]
 
 theorem spSt_getG_ne (δ : Int) (s : State W32 Int) (j : Nat) (hj : j ≠ 4) :
     (spSt δ s).getG j = s.getG j := by
   simp only [spSt, State.getG]
-  exact getD_set_ne s.gpr 4 j (Ne.symm hj) _ _
+  exact getD_set_ne_r5 s.gpr 4 j (Ne.symm hj) _ _
 
 theorem spSt_setG (δ : Int) (s : State W32 Int) (j : Nat)
     (hj : j ≠ 4) (v : Val W32 Int) :
     (spSt δ s).setG j v = spSt δ (s.setG j v) := by
   simp only [spSt, State.setG, State.getG]
-  rw [List.set_comm _ _ (Ne.symm hj), getD_set_ne s.gpr j 4 hj]
+  rw [List.set_comm _ _ (Ne.symm hj), getD_set_ne_r5 s.gpr j 4 hj]
 
 @[simp] theorem spSt_next (δ : Int) (s : State W32 Int) : (spSt δ s).next = spSt δ s.next := rfl
 
@@ -125,7 +125,7 @@ theorem spSt_setG (δ : Int) (s : State W32 Int) (j : Nat)
     (hd : dn ≠ 4) (x : W32) :
     setData32 (spSt δ s) dn x = spSt δ (setData32 s dn x) := by
   simp only [setData32, spSt, State.setG, State.getG]
-  rw [List.set_comm _ _ (Ne.symm hd), getD_set_ne s.gpr dn 4 hd]
+  rw [List.set_comm _ _ (Ne.symm hd), getD_set_ne_r5 s.gpr dn 4 hd]
 
 @[simp] theorem spSt_storeLane (δ : Int) (s : State W32 Int) (a : Addr Int) (x : W32) :
     storeLane (spSt δ s) a x = spSt δ (storeLane s a x) := rfl

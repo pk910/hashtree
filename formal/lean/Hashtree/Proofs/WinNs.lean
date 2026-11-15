@@ -204,12 +204,12 @@ theorem getG_branch (s : State W32 Int) (orc : Nat → Bool) (c : Cond Int) (t :
 theorem getG_setG_self' (s : State W32 Int) (d : Nat) (v : Val W32 Int)
     (h : d < s.gpr.length) : (s.setG d v).getG d = v := by
   simp only [State.setG, State.getG]
-  exact getD_set_self s.gpr d h v _
+  exact getD_set_self_r5 s.gpr d h v _
 
 theorem getG_setG_ne' (s : State W32 Int) (d j : Nat) (v : Val W32 Int) (h : j ≠ d) :
     (s.setG d v).getG j = s.getG j := by
   simp only [State.setG, State.getG]
-  exact getD_set_ne s.gpr d j (Ne.symm h) v _
+  exact getD_set_ne_r5 s.gpr d j (Ne.symm h) v _
 
 theorem getG_setData32_self (s : State W32 Int) (d : Nat) (x : W32)
     (h : d < s.gpr.length) : (setData32 s d x).getG d = .num x (Lane.const 0) :=

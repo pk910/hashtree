@@ -138,7 +138,7 @@ theorem exec_saveSt (ro : Region) (mem0 : Addr Int → Cell W32 Int) (orc : Nat 
     exec ro mem0 orc (saveStep m) (saveSt st a m) = saveSt st a (m + 1) := by
   have h4 : (saveSt st a m).getG rsp = .ptr (a.plusI (-248)) := by
     simp only [saveSt, State.getG]
-    exact getD_set_self st.gpr rsp (by rw [rsp]; omega) (.ptr (a.plusI (-248))) _
+    exact getD_set_self_r5 st.gpr rsp (by rw [rsp]; omega) (.ptr (a.plusI (-248))) _
   have hh' : (saveSt st a m).halted = false := by
     simp only [saveSt, hh]
   rw [show saveStep m = .vstore 4 { base := some rsp, disp := ((16 * m : Nat) : Int) } (6 + m) from rfl]
