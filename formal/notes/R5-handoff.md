@@ -248,6 +248,29 @@ Ingredients (all evaluated/checked this session):
     on `.m` keys irrelevant (entryWin has no memory symbols) — SameG env e' since vId ≥ 100 > gId.
 * halted/err/tail of W from f via Agree + renSt (`renSt` keeps everything but gpr).
 
+## Windows avx_x4 pilot certificate (`Gen/WinAvxX4P`, route (b)): generator additions landed
+
+The slice-certificate generator `x86proofv` (`formal/lean/X86ProofV.lean`) now carries the entry
+state as data in its kernel record (`KSel.win` for the concrete call state `X86Run.entry win`,
+`start`/`entryName` for the symbolic start state and its text, `extraImport`); the three linux
+records keep `false` / `entryS 24` / `"(entryS 24)"` / `""`, the new record `wx4` is
+`Kernels.X86Win.AvxX4` (count 4, `win := true`, `entrySW 24` from the new module
+`Asm/X86SymWin.lean`: rcx/rdx/r8 = rOut/rIn/rNum under the symbols sOut/sIn/sCnt, rsp = 24, all
+else fresh; a separate module so that nothing rebuilds).  Byte identity: the original and the
+new generator produce identical `x4 --split` trees (407 files, `diff -r` empty; queue 11 log
+`/tmp/r5q/gen_identity.log`).  Note: the pinned `Hashtree/Gen/AvxX4P` (204 files, unsplit
+`Final` importing only `P{C-1}`) predates the `--split` D-files; the current generator (with or
+without this change) emits 407 files, so `make verify` would differ after any regeneration of
+avx_x4 -- pre-existing, not caused here.
+
+The windows pilot: `lake exe x86proofv wx4 Hashtree/Gen/WinAvxX4P --split` (9 s, 204 slices,
+411 files, deterministic), then `lake build Hashtree.Gen.WinAvxX4P.Final` is the certificate
+check (serial, hours).  The pilot is ADDITIVE (new namespace `Hashtree.Gen.WinAvxX4P`; nothing
+in the pinned archive changes) and PACKS AT INTEGRATION (`pack-gen.sh` + `ci/proofs.py
+record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `mapState env0 σ
+(entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
+W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
+
 ## Frame-slot certificate, step 1 DONE: the static rsp maps (`Asm/RspMap`, `Proofs/WinRspMap`)
 
 Commit E.  `RspMap.Fact = {sp : (base, δ), saved : Option (base, δ)}`; `step` accepts push, pop

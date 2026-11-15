@@ -7,6 +7,8 @@ import Hashtree.Asm.Scan
 import Hashtree.Kernels.X86.AvxX4
 import Hashtree.Kernels.X86.Avx2X8
 import Hashtree.Kernels.X86.Avx512X16
+import Hashtree.Kernels.X86Win.AvxX4
+import Hashtree.Asm.X86SymWin
 
 /-!
 `x86proofv <kernel> <outdir> <first> <last>`: the shani_x2 proof generator (X86Proof.lean) for the
@@ -30,14 +32,25 @@ structure KSel where
   rodata : List Nat
   count : Nat
   desc : String
+  /-- the concrete call state (`X86Run.entry win`): `false` = SysV (rdi/rsi/rdx), `true` = Win64 (rcx/rdx/r8) -/
+  win : Bool := false
+  /-- the symbolic start state of the slices and its Lean text -/
+  start : State E Lin := entryS 24
+  entryName : String := "(entryS 24)"
+  /-- an extra import of the generated modules (the module defining the symbolic start state) -/
+  extraImport : String := ""
 
 def kernels : List KSel := [
   ⟨"x4", "Hashtree.Kernels.X86.AvxX4", "AvxX4P", Hashtree.Kernels.X86.AvxX4.prog, Hashtree.Kernels.X86.AvxX4.rodata, 4,
-    "The AVX 4-lane kernel (hashtree_sha256_avx_x4), called on four blocks"⟩,
+    "The AVX 4-lane kernel (hashtree_sha256_avx_x4), called on four blocks", false, entryS 24, "(entryS 24)", ""⟩,
   ⟨"x8", "Hashtree.Kernels.X86.Avx2X8", "Avx2X8P", Hashtree.Kernels.X86.Avx2X8.prog, Hashtree.Kernels.X86.Avx2X8.rodata, 8,
-    "The AVX2 8-lane kernel (hashtree_sha256_avx2_x8), called on eight blocks"⟩,
+    "The AVX2 8-lane kernel (hashtree_sha256_avx2_x8), called on eight blocks", false, entryS 24, "(entryS 24)", ""⟩,
   ⟨"x16", "Hashtree.Kernels.X86.Avx512X16", "Avx512X16P", Hashtree.Kernels.X86.Avx512X16.prog, Hashtree.Kernels.X86.Avx512X16.rodata, 16,
-    "The AVX-512 16-lane kernel (hashtree_sha256_avx512_x16), called on sixteen blocks"⟩]
+    "The AVX-512 16-lane kernel (hashtree_sha256_avx512_x16), called on sixteen blocks", false, entryS 24, "(entryS 24)", ""⟩,
+  { key := "wx4", ns := "Hashtree.Kernels.X86Win.AvxX4", gen := "WinAvxX4P",
+    prog := Hashtree.Kernels.X86Win.AvxX4.prog, rodata := Hashtree.Kernels.X86Win.AvxX4.rodata, count := 4,
+    desc := "The windows/amd64 AVX 4-lane kernel (hashtree_sha256_avx_x4), called on four blocks",
+    win := true, start := entrySW 24, entryName := "(entrySW 24)", extraImport := "import Hashtree.Asm.X86SymWin\n" }]
 
 def randInput (seed n : Nat) : Array Nat := Id.run do
   let mut x := seed * 6364136223846793005 + 1442695040888963407
@@ -219,7 +232,7 @@ def main (args : List String) : IO Unit := do
   -- Ro.lean: chunked rodata, the fast symbolic initial memory of the slice checks
   let fR := rodata.length / 64 + 1
   let roC := chunksF 64 fR rodata
-  IO.FS.writeFile s!"{dir}/Ro.lean" (s!"import Hashtree.Asm.SpecQV\nimport {kp.ns}\n\nopen Hashtree.Asm Hashtree.Asm.X86 Hashtree.Asm.X86Sym {kp.ns}\n" ++
+  IO.FS.writeFile s!"{dir}/Ro.lean" (s!"import Hashtree.Asm.SpecQV\nimport {kp.ns}\n{kp.extraImport}\nopen Hashtree.Asm Hashtree.Asm.X86 Hashtree.Asm.X86Sym {kp.ns}\n" ++
     s!"set_option maxRecDepth 200000\n\nnamespace {gns}\n\n" ++
     s!"def roC : List (List Nat) := {listLean (fun (c : List Nat) => toString c) roC}\n\n" ++
     s!"theorem roC_eq : roC = chunksF 64 {fR} rodata := by decide +kernel\n\n" ++
@@ -234,7 +247,7 @@ def main (args : List String) : IO Unit := do
     | .A _ _ t => t ≥ 1 | .H _ r _ => r ≥ 1 | .W _ r t => r == 0 && t ≥ 16 | _ => false
   -- first step at which a new working variable (A/E, t ≥ 1) appears: the rounds start before it
   let mut firstRound := 0
-  let mut s0 := Hashtree.Asm.X86Run.entry false cnt 24
+  let mut s0 := Hashtree.Asm.X86Run.entry kp.win cnt 24
   let mut k0 := 0
   while !s0.halted && k0 < 1000000 && firstRound == 0 do
     s0 := run prog 4 mc (fun _ => false) 1 s0
@@ -243,7 +256,7 @@ def main (args : List String) : IO Unit := do
       if (t1.getD ((s0.getV i).getD 0 0) []).any (fun q => match q with | .A _ _ t | .E _ _ t => t ≥ 1 | _ => false) then
         firstRound := k0
   let mut cuts : List Nat := []
-  let mut s := Hashtree.Asm.X86Run.entry false cnt 24
+  let mut s := Hashtree.Asm.X86Run.entry kp.win cnt 24
   let mut k := 0
   let mut seen : Std.HashSet Q := {}
   while !s.halted && k < 1000000 do
@@ -269,9 +282,9 @@ def main (args : List String) : IO Unit := do
   let t2 := table i2 cnt
   let m1 := Hashtree.Asm.X86Run.mem0 cprogs i1 24
   let m2 := Hashtree.Asm.X86Run.mem0 cprogs i2 24
-  let mut c1 := Hashtree.Asm.X86Run.entry false cnt 24
-  let mut c2 := Hashtree.Asm.X86Run.entry false cnt 24
-  let mut K := entryS 24
+  let mut c1 := Hashtree.Asm.X86Run.entry kp.win cnt 24
+  let mut c2 := Hashtree.Asm.X86Run.entry kp.win cnt 24
+  let mut K := kp.start
   let mut prev := 0
   let mut chosen : List (Nat × Q) := []
   let mut stepsList : List Nat := []
@@ -399,7 +412,7 @@ def main (args : List String) : IO Unit := do
               String.join (eqs.map fun e => s!" {e.proof}")
             calls := calls ++ [s!"core{c}_{id} (qv inp) inp env{callArgs}"]
     if first ≤ c ∧ c ≤ last then
-      let kName := if c = 0 then "(entryS 24)" else s!"K{c}"
+      let kName := if c = 0 then kp.entryName else s!"K{c}"
       -- one projection per entry (`obtain` with one big pattern is quadratic: 420 s for 344 entries)
       let pat := String.join ((List.range chosen.length).map fun k => s!"  have h{k} := hI.1; have hI := hI.2\n")
       let tv := calls.foldr (fun cl acc => s!"(And.intro ⟨rfl, {cl}⟩\n      {acc})") "trivial"
@@ -414,7 +427,7 @@ def main (args : List String) : IO Unit := do
         s!"def T{c} : List (Nat × E) := {listLean (fun (p : Nat × E) => s!"({p.1}, {p.2.toLean})") trees}\n\n"
       let proofs := s!"theorem slice{c} : sliceCheck prog 4 m0q {orcT} {n} {kName} K{c + 1} T{c} = true := by\n  decide +kernel\n\n" ++
         lemmas ++ step ++ s!"end {gns}\n"
-      let base := s!"import Hashtree.Asm.Chain\nimport Hashtree.Asm.SpecQV\nimport {kp.ns}\n"
+      let base := s!"import Hashtree.Asm.Chain\nimport Hashtree.Asm.SpecQV\nimport {kp.ns}\n{kp.extraImport}"
       -- split: D{c} holds the cut's definitions only; P{c} the proofs, independent of P{c-1}
       if split then IO.FS.writeFile s!"{dir}/D{c}.lean" (base ++ hdr ++ defs ++ s!"end {gns}\n")
       let body := if split then
@@ -439,7 +452,7 @@ def main (args : List String) : IO Unit := do
   IO.println s!"shapes: {shapes.size}"
   -- Final.lean: chain everything for this call (count 2)
   let C := stepsList.length
-  let kn (j : Nat) : String := if j = 0 then "(entryS 24)" else s!"K{j}"
+  let kn (j : Nat) : String := if j = 0 then kp.entryName else s!"K{j}"
   let finImports := if split then String.join ((List.range C).map (s!"import {gns}.P{·}\n")) else s!"import {gns}.P{C - 1}\n"
   let mut fin := s!"{finImports}\nopen Hashtree.Asm Hashtree.Asm.X86 Hashtree.Asm.X86Sym {kp.ns} Hashtree.Asm.SpecQ Hashtree.Spec\n" ++
     s!"set_option maxRecDepth 200000\nset_option maxHeartbeats 0\nset_option linter.unusedVariables false\n\nnamespace {gns}\n\n" ++
@@ -455,9 +468,9 @@ def main (args : List String) : IO Unit := do
   -- recorded conditions: one lemma per distinct list
   let mut asms : List (List (Cond Lin × Bool)) := []
   let mut asmIdx : List Nat := []
-  let mut Kc := entryS 24
+  let mut Kc := kp.start
   let mut prev2 := 0
-  let mut finalK := entryS 24
+  let mut finalK := kp.start
   for cc in [0:C] do
     let R := run prog 4 m0 (fun pc => (orcs[cc]!).1.contains pc) stepsList[cc]! Kc
     let K' := abstract R
@@ -480,7 +493,7 @@ def main (args : List String) : IO Unit := do
   let sumText : List Nat → String := fun l => l.foldr (fun n acc => if acc = "" then s!"{n}" else s!"{n} + ({acc})") ""
   fin := fin ++ "theorem run_final (env0 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)\n" ++
     s!"    (h0 : Mem0Rel env0 σ (mem0s 4 rodata 24) mem0c) (hσ : σ 2 = {cnt}) :\n" ++
-    s!"    run prog 4 mem0c orcC ({sumText stepsList}) (mapState env0 σ (entryS 24)) = mapState (E{C} env0) σ K{C} := by\n" ++
+    s!"    run prog 4 mem0c orcC ({sumText stepsList}) (mapState env0 σ {kp.entryName}) = mapState (E{C} env0) σ K{C} := by\n" ++
     "  have m0 : Mem0Rel env0 σ m0q mem0c := by rw [m0q_eq]; exact h0\n" ++
     "  have kq : MemKeyed m0q := by rw [m0q_eq]; exact mem0s_keyed 4 rodata 24\n"
   for cc in [0:C] do
@@ -488,7 +501,7 @@ def main (args : List String) : IO Unit := do
   for cc in [0:C] do
     let envc := if cc = 0 then "env0" else s!"(E{cc} env0)"
     let sl := s!"(slice_sound {envc} σ m0q mem0c m{cc} prog 4 {(orcs[cc]!).2} orcC {stepsList[cc]!} {kn cc} K{cc + 1} T{cc} slice{cc} rfl (assumeOk_of σ K{cc + 1} A{asmIdx[cc]!} rfl (asm{asmIdx[cc]!} σ hσ))).1"
-    let lhsS := if cc = 0 then "mapState env0 σ (entryS 24)" else s!"mapState (E{cc} env0) σ K{cc}"
+    let lhsS := if cc = 0 then s!"mapState env0 σ {kp.entryName}" else s!"mapState (E{cc} env0) σ K{cc}"
     fin := fin ++ s!"  have r{cc} : run prog 4 mem0c orcC {stepsList[cc]!} ({lhsS}) = mapState (E{cc + 1} env0) σ K{cc + 1} := {sl}\n"
   for cc in [0:C] do
     if cc + 1 < C then fin := fin ++ s!"  rw [run_add, r{cc}]\n" else fin := fin ++ s!"  exact r{cc}\n"
@@ -513,7 +526,7 @@ def main (args : List String) : IO Unit := do
     "theorem out_final (inp : Nat → Byte) (env0 : Key → W32) (σ : Nat → Int) (mem0c : Addr Int → Cell W32 Int)\n" ++
     s!"    (orcC : Nat → Bool) (hw : WfMem 4 rodata 24 mem0c) (he : EnvMem env0 σ mem0c) (hσ : σ 2 = {cnt}) (hm : HMem {nb} inp env0) :\n" ++
     s!"    ∀ n i b, n < {cnt} → i < 8 → b < 4 → ∃ x,\n" ++
-    s!"      lookup (⟨rOut, σ 1 + ((32 * n + 4 * i + b : Nat) : Int)⟩ : Addr Int)\n        (run prog 4 mem0c orcC ({sumText stepsList}) (mapState env0 σ (entryS 24))).mem = .ok (some (.dat x b)) ∧\n" ++
+    s!"      lookup (⟨rOut, σ 1 + ((32 * n + 4 * i + b : Nat) : Int)⟩ : Addr Int)\n        (run prog 4 mem0c orcC ({sumText stepsList}) (mapState env0 σ {kp.entryName})).mem = .ok (some (.dat x b)) ∧\n" ++
     "      byteOf x b = ((node (blk inp n)).getD (4 * i + b) 0).zeroExtend 32 := by\n" ++
     "  rw [run_final env0 σ mem0c orcC (mem0Rel_of_wf 4 rodata 24 env0 σ mem0c hw he) hσ]\n" ++
     "  have hF := inv_final inp env0 hm\n" ++
