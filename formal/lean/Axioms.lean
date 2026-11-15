@@ -68,6 +68,8 @@ import Hashtree.Proofs.WinAvxX4Link
 import Hashtree.Asm.RspMap
 import Hashtree.Proofs.WinRspMap
 import Hashtree.Proofs.WinAvx512Final
+import Hashtree.Asm.FrameTags
+import Hashtree.Proofs.WinFrameTags
 import Hashtree.Proofs.AvxX4ToX1
 import Hashtree.Proofs.AvxX4LoopWAll
 import Hashtree.Proofs.AvxX4X1WAgree
@@ -576,3 +578,13 @@ import Hashtree.Proofs.Avx512X16WOut
 #print axioms Hashtree.Proofs.WinAvx512Final.turnOut512
 #print axioms Hashtree.Proofs.WinAvx512Final.KSpecC512_final
 #print axioms Hashtree.Proofs.WinAvx512Final.head512
+
+-- R5: the frame-slot certificates (tag flow of the Win64 callee-saved registers through the
+-- push/pop and save/restore slots) of the three push-saving windows bodies, verified per pc by
+-- FrameTags.tagCert over the verified rsp maps; the exits restore every callee-saved register.
+#print axioms Hashtree.Proofs.WinFrameTags.sse_tagCert
+#print axioms Hashtree.Proofs.WinFrameTags.avx1_tagCert
+#print axioms Hashtree.Proofs.WinFrameTags.avx2_tagCert
+#print axioms Hashtree.Proofs.WinFrameTags.sse_exitOk
+#print axioms Hashtree.Proofs.WinFrameTags.avx1_exitOk
+#print axioms Hashtree.Proofs.WinFrameTags.avx2_exitOk

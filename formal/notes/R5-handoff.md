@@ -285,6 +285,16 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## Frame-slot certificate, steps 2-3 DONE (`Asm/FrameTags`, `Proofs/WinFrameTags`)
+
+Checker `tagCert n prog segs TT cs` (segment tag tables `TagSegs`, `atT`; `tagStep`; `exitOk`;
+`subTags`), tables `tagsSse`/`tagsAvx1`/`tagsAvx2` (literals from `#eval tags …`, R5.md §22),
+theorems `<k>_tagCert`, `<k>_entry`, `<k>_exitOk` by `decide +kernel` (37 s for all three).
+Statement of the lift: `TagRel`/`RspOk`/`LiftSpec` in `Asm/FrameTags` (reported to the
+coordinator before the proof).  Next: prove `LiftSpec` by case analysis on the supported
+instruction forms (push/pop/movst/mov-load exact; the general case via `srcs`/`dsts` untagged +
+`exec_shape`-style preservation), then the run-level corollary and the sse_x1/avx_x1 links.
+
 ## Frame-slot certificate, step 1 DONE: the static rsp maps (`Asm/RspMap`, `Proofs/WinRspMap`)
 
 Commit E.  `RspMap.Fact = {sp : (base, δ), saved : Option (base, δ)}`; `step` accepts push, pop
