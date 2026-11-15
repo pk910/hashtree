@@ -33,6 +33,8 @@ structure AgreeM (R : List Nat) (fl : Bool) (M : Addr γ → Prop) (s1 s2 : Stat
   flags : fl = true → s1.flags = s2.flags
   /-- the logs agree at the addresses in `M` -/
   mem : ∀ a, M a → lookup a s1.mem = lookup a s2.mem
+  /-- the logs have the same addresses (both runs store at agreeing addresses) -/
+  addrs : s1.mem.map Prod.fst = s2.mem.map Prod.fst
   pc : s1.pc = s2.pc
   halted : s1.halted = s2.halted
   tail : s1.tail = s2.tail
@@ -225,6 +227,7 @@ theorem setG_ag (h : AgreeM R fl M s1 s2) (d : Nat) (v : Val α γ) :
   vr := h.vr
   flags := h.flags
   mem := h.mem
+  addrs := h.addrs
   pc := h.pc
   halted := h.halted
   tail := h.tail
@@ -249,10 +252,11 @@ theorem lookup_append_congr (a : Addr γ) (l : List (Addr γ × Cell α γ)) {m1
 theorem storeLane_ag (h : AgreeM R fl M s1 s2) (a : Addr γ) (x : α) :
     AgreeM R fl M (storeLane s1 a x) (storeLane s2 a x) :=
   by
-  refine { h with mem := ?_ }
-  intro b hb
-  simp only [storeLane]
-  exact lookup_cons_congr _ _ _ (lookup_cons_congr _ _ _ (lookup_cons_congr _ _ _ (lookup_cons_congr _ _ _ (h.mem b hb))))
+  refine { h with mem := ?_, addrs := ?_ }
+  · intro b hb
+    simp only [storeLane]
+    exact lookup_cons_congr _ _ _ (lookup_cons_congr _ _ _ (lookup_cons_congr _ _ _ (lookup_cons_congr _ _ _ (h.mem b hb))))
+  · simp only [storeLane, List.map_cons, h.addrs]
 
 theorem storeLanes_ag (h : AgreeM R fl M s1 s2) (a : Addr γ) (xs : List α) :
     AgreeM R fl M (storeLanes s1 a xs) (storeLanes s2 a xs) := by
@@ -265,10 +269,11 @@ theorem storeVal_ag (h : AgreeM R fl M s1 s2) (a : Addr γ) (v : Val α γ) :
   cases v with
   | num lo hi => exact storeLane_ag (storeLane_ag h a lo) _ hi
   | ptr p =>
-    refine { h with mem := ?_ }
-    intro b hb
-    simp only [storeVal]
-    exact lookup_append_congr _ _ (h.mem b hb)
+    refine { h with mem := ?_, addrs := ?_ }
+    · intro b hb
+      simp only [storeVal]
+      exact lookup_append_congr _ _ (h.mem b hb)
+    · simp only [storeVal, List.map_append, h.addrs]
 
 theorem clearFlags_ag (h : AgreeM R fl M s1 s2) : AgreeM R true M (clearFlags s1) (clearFlags s2) :=
   { h with flags := fun _ => rfl }
@@ -291,20 +296,20 @@ theorem fail_pc (s : State α γ) (e : String) : (s.fail e).pc = s.pc := by
 
 theorem assume_ag (h : AgreeM R fl M s1 s2) (a1 a2 : List (Cond γ × Bool)) :
     AgreeM R fl M { s1 with assume := a1 } { s2 with assume := a2 } :=
-  ⟨h.gpr, h.len, h.vr, h.flags, h.mem, h.pc, h.halted, h.tail, h.err⟩
+  ⟨h.gpr, h.len, h.vr, h.flags, h.mem, h.addrs, h.pc, h.halted, h.tail, h.err⟩
 
 theorem setPc_ag (h : AgreeM R fl M s1 s2) (t : Nat) : AgreeM R fl M { s1 with pc := t } { s2 with pc := t } :=
-  ⟨h.gpr, h.len, h.vr, h.flags, h.mem, rfl, h.halted, h.tail, h.err⟩
+  ⟨h.gpr, h.len, h.vr, h.flags, h.mem, h.addrs, rfl, h.halted, h.tail, h.err⟩
 
 theorem branch_ag (h : AgreeM R fl M s1 s2) (orc : Nat → Bool) (c : Cond γ) (t : Nat) :
     AgreeM R fl M (s1.branch orc c t) (s2.branch orc c t) := by
-  obtain ⟨hg, hl, hv, hf, hm, hpc, hh, ht, he⟩ := h
+  obtain ⟨hg, hl, hv, hf, hm, had, hpc, hh, ht, he⟩ := h
   obtain ⟨g1, v1, f1, m1, p1, hl1, t1, e1, a1⟩ := s1
   obtain ⟨g2, v2, f2, m2, p2, hl2, t2, e2, a2⟩ := s2
   simp only at hv hm hpc hh ht he
   subst hv hpc hh ht he
   simp only [State.branch]
-  split <;> (try split) <;> (try split) <;> exact ⟨hg, hl, rfl, hf, hm, rfl, rfl, rfl, rfl⟩
+  split <;> (try split) <;> (try split) <;> exact ⟨hg, hl, rfl, hf, hm, had, rfl, rfl, rfl, rfl⟩
 
 theorem branch_pc (s : State α γ) (orc : Nat → Bool) (c : Cond γ) (t : Nat) :
     (s.branch orc c t).pc = s.pc + 1 ∨ (s.branch orc c t).pc = t := by
@@ -438,8 +443,8 @@ theorem exec_agreeM (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat →
   | nop => dsimp only; exact ⟨next_ag h, Or.inr ⟨by simp [succs, State.next], next_ag h⟩⟩
   | jmp t =>
     dsimp only
-    exact ⟨⟨h.gpr, h.len, h.vr, h.flags, h.mem, rfl, rfl, h.tail, h.err⟩,
-      Or.inr ⟨by simp [succs], ⟨h.gpr, h.len, h.vr, h.flags, h.mem, rfl, rfl, h.tail, h.err⟩⟩⟩
+    exact ⟨⟨h.gpr, h.len, h.vr, h.flags, h.mem, h.addrs, rfl, rfl, h.tail, h.err⟩,
+      Or.inr ⟨by simp [succs], ⟨h.gpr, h.len, h.vr, h.flags, h.mem, h.addrs, rfl, rfl, h.tail, h.err⟩⟩⟩
   | jmpTail name => dsimp only; exact ⟨{ h with halted := rfl, tail := rfl }, Or.inl rfl⟩
   | vop op vex w d v1 v2 =>
     try dsimp only

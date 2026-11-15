@@ -285,6 +285,15 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## Lift: the log-address clause (commit N)
+
+`AgreeM` and `TagRel` now carry `addrs : s.mem.map Prod.fst = s'.mem.map Prod.fst` (both runs
+store at agreeing addresses: the writers prepend identical addresses, `MemCells.storeCells_addrs`
+makes a stored value's cells address-independent for the copies).  `exit_facts`/`frame_lift`
+export it, so `Foot`/`InRange` (address-based footprints) of the actual run follow from the
+related run's.  Gap (1) of the x1 plan is closed.  Gap (2): `Gen/SseX1LW` generated (11 s, 549
+jobs building) and `Proofs/SseX1W` = the textual port of R2's `AvxX1W` (queued behind the build).
+
 ## sse_x1 / avx_x1 links: the state of the plan (commit M: `WinSseFront.run_front`)
 
 The windows `sse_x1` stream: pcs 0-8 push rbx, r8, rsi, rdi, rbp, r12-r15; 9 `sub rsp,192`;

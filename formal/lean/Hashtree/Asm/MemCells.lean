@@ -209,6 +209,10 @@ theorem storeVal_mem (s : State W32 Int) (a : Addr Int) (v : Val W32 Int) :
   | num lo hi => rfl
   | ptr p => rfl
 
+/-- The addresses a store writes do not depend on the value. -/
+theorem storeCells_addrs (a : Addr Int) (v w : Val W32 Int) : (storeCells a v).map Prod.fst = (storeCells a w).map Prod.fst := by
+  cases v <;> cases w <;> simp [storeCells, show List.range 8 = [0, 1, 2, 3, 4, 5, 6, 7] from rfl, plusI_int, Int.add_assoc]
+
 /-- Inside the written cells the lookup is the new cell, whatever the old log. -/
 theorem lookup_storeCells_inside (a : Addr Int) (v : Val W32 Int) (x : Addr Int) (hx : Cells a 8 x) :
     ∃ c, lookup x (storeCells a v) = .ok (some c) := by

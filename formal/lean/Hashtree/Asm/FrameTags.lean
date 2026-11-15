@@ -322,6 +322,8 @@ structure TagRel (mem0 : Addr Int → Cell W32 Int) (B : Nat → Int) (T : Tags)
   tagSlot : ∀ sl n, statusOf T (.slot sl) = some (some n) →
     slotVal mem0 B s sl = Except.ok (s0.getG n) ∧ slotVal mem0 B s' sl = Except.ok (s0'.getG n)
   mem : ∀ a, ¬ InTagged B T a → Hashtree.Asm.lookup a s.mem = Hashtree.Asm.lookup a s'.mem
+  /-- the logs have the same addresses -/
+  addrs : s.mem.map Prod.fst = s'.mem.map Prod.fst
   len : s.gpr.length = s'.gpr.length
   len16 : s.gpr.length = 16
   vr : s.vr = s'.vr

@@ -51,6 +51,7 @@ theorem tagRel_agreeM (h : TagRel mem0 B T s0 s0' s s') :
   vr := h.vr
   flags := fun _ => h.flags
   mem := h.mem
+  addrs := h.addrs
   pc := h.pc
   halted := h.halted
   tail := h.tail
@@ -537,6 +538,7 @@ theorem agreeM_srcs (hrel : TagRel mem0 B T s0 s0' s s') (hu : regsUntagged T (s
   vr := hrel.vr
   flags := fun _ => hrel.flags
   mem := hrel.mem
+  addrs := hrel.addrs
   pc := hrel.pc
   halted := hrel.halted
   tail := hrel.tail
@@ -695,7 +697,7 @@ theorem general_step (hB : BaseRel B) (h01 : Bases01 T) (h8 : Sizes8 T) (hb : f.
       rcases hA2 with hA2 | ⟨_, hA3⟩
       · rw [hA2] at hpc'; omega
       · exact hA3.gpr r (List.mem_append_left _ hrd)
-  refine ⟨⟨?_, ?_, ?_, ?_, hA1.len, by rw [exec_gpr_len]; exact hrel.len16, hA1.vr, hA1.flags rfl, hA1.pc, hA1.halted, hA1.tail, hA1.err⟩, hpc⟩
+  refine ⟨⟨?_, ?_, ?_, ?_, hA1.addrs, hA1.len, by rw [exec_gpr_len]; exact hrel.len16, hA1.vr, hA1.flags rfl, hA1.pc, hA1.halted, hA1.tail, hA1.err⟩, hpc⟩
   · intro r hr0
     rw [general_reg_status hg] at hr0
     split at hr0
@@ -770,7 +772,7 @@ theorem store_rel (hB : BaseRel B) (h01 : Bases01 T) (h8 : Sizes8 T) {T1 : Tags}
     TagRel mem0 B T' s0 s0' u u' := by
   obtain ⟨hc1, hc2, _⟩ := clearOverlap?_some hco
   subst hT'
-  refine ⟨?_, ?_, ?_, ?_, hlen, hlen16, hvr, hfl, hpc, hh, htl, he⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, hlen, hlen16, hvr, hfl, hpc, hh, htl, he⟩
   · intro q hq
     rw [statusOf_setStatus_ne _ (by simp), hc1] at hq
     exact hug0 q hq
@@ -829,6 +831,7 @@ theorem store_rel (hB : BaseRel B) (h01 : Bases01 T) (h8 : Sizes8 T) {T1 : Tags}
           | none => exact absurd hst ht
           | some st => simp
         · exact ht
+  · rw [hum, hum', storeVal_mem, storeVal_mem, List.map_append, List.map_append, storeCells_addrs _ _ (s'.getG r), hrel.addrs]
 
 
 /-! ### Exec forms of the copies -/
@@ -909,7 +912,7 @@ theorem load_rel (hrel : TagRel mem0 B T s0 s0' s s') {sl : Slot} (d : Nat) {v v
     (hpc : u.pc = u'.pc) (hh : u.halted = u'.halted) (htl : u.tail = u'.tail) (he : u.err = u'.err) :
     TagRel mem0 B T' s0 s0' u u' := by
   subst hT'
-  refine ⟨?_, ?_, ?_, ?_, hlen, hlen16, hvr, hfl, hpc, hh, htl, he⟩
+  refine ⟨?_, ?_, ?_, ?_, by rw [hum, hum']; exact hrel.addrs, hlen, hlen16, hvr, hfl, hpc, hh, htl, he⟩
   · intro q hq
     by_cases hqd : q = d
     · subst hqd
@@ -945,10 +948,11 @@ theorem load_rel (hrel : TagRel mem0 B T s0 s0' s s') {sl : Slot} (d : Nat) {v v
 the written register without knowing the register file length. -/
 theorem setG_agree (hrel : TagRel mem0 B T s0 s0' s s') {u u' : CS}
     (hlen : u.gpr.length = u'.gpr.length) (hvr : u.vr = u'.vr) (hfl : u.flags = u'.flags) (hpc : u.pc = u'.pc)
-    (hh : u.halted = u'.halted) (htl : u.tail = u'.tail) (he : u.err = u'.err) (d : Nat) (v : Val W32 Int) :
+    (hh : u.halted = u'.halted) (htl : u.tail = u'.tail) (he : u.err = u'.err)
+    (had : u.mem.map Prod.fst = u'.mem.map Prod.fst) (d : Nat) (v : Val W32 Int) :
     (u.setG d v).getG d = (u'.setG d v).getG d ∧ (u.setG d v).gpr.length = (u'.setG d v).gpr.length := by
   have hA : AgreeM [] true (fun _ => False) u u' :=
-    ⟨fun _ h => by simp at h, hlen, hvr, fun _ => hfl, fun _ h => h.elim, hpc, hh, htl, he⟩
+    ⟨fun _ h => by simp at h, hlen, hvr, fun _ => hfl, fun _ h => h.elim, had, hpc, hh, htl, he⟩
   have := setG_ag hA d v
   exact ⟨this.gpr d (by simp), this.len⟩
 
@@ -998,7 +1002,9 @@ theorem push_step (hB : BaseRel B) (h01 : Bases01 T) (h8 : Sizes8 T) (hb : f.sp.
     (by rw [storeVal_gpr, storeVal_gpr]; exact hrel.len) (by rw [storeVal_vr, storeVal_vr]; exact hrel.vr)
     (by rw [storeVal_flags, storeVal_flags]; exact hrel.flags) (by rw [storeVal_pc, storeVal_pc]; exact hrel.pc)
     (by rw [storeVal_halted, storeVal_halted]; exact hrel.halted) (by rw [storeVal_tail, storeVal_tail]; exact hrel.tail)
-    (by rw [storeVal_err, storeVal_err]; exact hrel.err) rsp (.ptr ⟨rStack, B f.sp.1 + (f.sp.2 - 8)⟩)
+    (by rw [storeVal_err, storeVal_err]; exact hrel.err)
+    (by rw [storeVal_mem, storeVal_mem, List.map_append, List.map_append, storeCells_addrs _ _ (s'.getG r), hrel.addrs])
+    rsp (.ptr ⟨rStack, B f.sp.1 + (f.sp.2 - 8)⟩)
   refine ⟨store_rel hB h01 h8 (sl := (f.sp.1, f.sp.2 - 8, 8)) hb rfl hrel r hco hT'.symm rfl rfl ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_,
     by simp only [State.next, State.setG, storeVal_pc]⟩
   · intro q hq
@@ -1095,7 +1101,7 @@ theorem pop_step (hB : BaseRel B) (h01 : Bases01 T) (hb : f.sp.1 = 0 ∨ f.sp.1 
   obtain ⟨v', hv', hvv⟩ := load_other hB h01 hrel (sl := (f.sp.1, f.sp.2, 8)) hb rfl hst hnh hv
   rw [exec_pop r hh hsp hv, exec_pop r hh' hsp' hv']
   have hag := setG_agree hrel (u := s.setG r v) (u' := s'.setG r v') (by simp [State.setG, hrel.len])
-    hrel.vr hrel.flags hrel.pc hrel.halted hrel.tail hrel.err rsp (.ptr (Addr.plusI ⟨rStack, B f.sp.1 + f.sp.2⟩ 8))
+    hrel.vr hrel.flags hrel.pc hrel.halted hrel.tail hrel.err hrel.addrs rsp (.ptr (Addr.plusI ⟨rStack, B f.sp.1 + f.sp.2⟩ 8))
   have hlen16 : (s.setG r v).gpr.length = 16 := by simp [State.setG, hrel.len16]
   have hlen16' : (s'.setG r v').gpr.length = 16 := by simp [State.setG, ← hrel.len, hrel.len16]
   refine ⟨load_rel hrel (sl := (f.sp.1, f.sp.2, 8)) r hst hv hv' hvv hT' rfl rfl ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_, rfl⟩
@@ -1137,6 +1143,7 @@ theorem agreeM_regs (hrel : TagRel mem0 B T s0 s0' s s') (rs : List Nat) (hu : r
   vr := hrel.vr
   flags := fun _ => hrel.flags
   mem := hrel.mem
+  addrs := hrel.addrs
   pc := hrel.pc
   halted := hrel.halted
   tail := hrel.tail
@@ -1146,7 +1153,7 @@ theorem agreeM_regs (hrel : TagRel mem0 B T s0 s0' s s') (rs : List Nat) (hu : r
 theorem store_nonstack (hrel : TagRel mem0 B T s0 s0' s s') {a : Addr Int} (ha : a.region ≠ rStack)
     {v : Val W32 Int} :
     TagRel mem0 B T s0 s0' (storeVal s a v).next (storeVal s' a v).next := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro q hq; rw [getG_next, getG_storeVal, getG_next, getG_storeVal]; exact hrel.reg q hq
   · intro q n hq; rw [getG_next, getG_storeVal, getG_next, getG_storeVal]; exact hrel.tagReg q n hq
   · intro t n ht
@@ -1168,6 +1175,8 @@ theorem store_nonstack (hrel : TagRel mem0 B T s0 s0' s s') {a : Addr Int} (ha :
     by_cases hc : Cells a 8 x
     · exact lookup_storeVal_inside _ _ _ _ _ hc
     · exact lookup_storeVal_outside _ _ _ _ _ hc (hrel.mem x hx)
+  · show (storeVal s a v).mem.map Prod.fst = (storeVal s' a v).mem.map Prod.fst
+    rw [storeVal_mem, storeVal_mem, List.map_append, List.map_append, hrel.addrs]
   · show (storeVal s a v).gpr.length = (storeVal s' a v).gpr.length
     rw [storeVal_gpr, storeVal_gpr]; exact hrel.len
   · show (storeVal s a v).gpr.length = 16
@@ -1322,7 +1331,7 @@ theorem movload_step (hB : BaseRel B) (h01 : Bases01 T) (hb : f.sp.1 = 0 ∨ f.s
       exact loadVal_memAg (M := Outside B T) hrel.mem mem0 rfl rfl _
         (M8_of_cells _ _ (fun x hx => outside_of_region (by rw [cells_region hx]; exact hreg')))
     rw [exec_mov64mem d m hh ha hv, exec_mov64mem d m hh' ha' hv']
-    refine ⟨⟨?_, ?_, ?_, ?_, by simp [State.setG, hrel.len], hlen16, hrel.vr, hrel.flags, congrArg (· + 1) hrel.pc,
+    refine ⟨⟨?_, ?_, ?_, ?_, hrel.addrs, by simp [State.setG, hrel.len], hlen16, hrel.vr, hrel.flags, congrArg (· + 1) hrel.pc,
       hrel.halted, hrel.tail, hrel.err⟩, rfl⟩
     · intro q hq
       by_cases hqd : q = d
@@ -1722,7 +1731,7 @@ theorem tagRel_mono {T T' : Tags} (hle : leqTags T T' = true) {s s' : CS}
     rcases h2 p hp with h' | h'
     · rw [hpn] at h'; cases h'
     · rw [hpi, hpn] at h'; exact h'
-  refine ⟨?_, ?_, ?_, ?_, h.len, h.len16, h.vr, h.flags, h.pc, h.halted, h.tail, h.err⟩
+  refine ⟨?_, ?_, ?_, ?_, h.addrs, h.len, h.len16, h.vr, h.flags, h.pc, h.halted, h.tail, h.err⟩
   · intro r hr; exact h.reg r (unl _ hr)
   · intro r n hr; exact h.tagReg r n (tg _ n hr)
   · intro t n ht; exact h.tagSlot t n (tg _ n ht)
@@ -1939,7 +1948,7 @@ theorem entry_rel (cs : List Nat) {s0 s0' : CS} (hreg : ∀ r, r ∉ cs → s0.g
     (hfl : s0.flags = s0'.flags) (hmem : s0.mem = s0'.mem) (hpc : s0.pc = s0'.pc) (hh : s0.halted = s0'.halted)
     (htl : s0.tail = s0'.tail) (he : s0.err = s0'.err) (hnd : cs.Nodup) :
     TagRel mem0 B (entryTags cs) s0 s0' s0 s0' := by
-  refine ⟨?_, ?_, ?_, ?_, hlen, hlen16, hvr, hfl, hpc, hh, htl, he⟩
+  refine ⟨?_, ?_, ?_, ?_, by rw [hmem], hlen, hlen16, hvr, hfl, hpc, hh, htl, he⟩
   · intro r hr; rw [entryTags_reg cs hnd] at hr; split at hr; · cases hr
     exact hreg r ‹_›
   · intro r n hr; rw [entryTags_reg cs hnd] at hr; split at hr
@@ -1954,12 +1963,13 @@ theorem exit_facts {D : Int} {segs : List (Nat × Option Fact)} {TT : TagSegs} {
     (hinv : Inv (B := B) (mem0 := mem0) (s0 := s0) (s0' := s0') D segs TT cs s s') (hh : s.halted = true) :
     (∀ r ∈ cs, s.getG r = s0.getG r ∧ s'.getG r = s0'.getG r) ∧
     (∀ a : Addr Int, (a.region ≠ rStack ∨ a.off < B 0 - D ∨ B 0 ≤ a.off) → lookup a s.mem = lookup a s'.mem) ∧
+    s.mem.map Prod.fst = s'.mem.map Prod.fst ∧
     s.getG 4 = s'.getG 4 ∧ s.vr = s'.vr ∧ s.flags = s'.flags ∧ s.pc = s'.pc ∧ s.halted = s'.halted ∧
     s.tail = s'.tail ∧ s.err = s'.err := by
   rcases hinv with ⟨h0, _⟩ | ⟨_, T, hex, hwin, hrel⟩
   · rw [h0] at hh; cases hh
   · simp only [FrameTags.exitOk, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at hex
-    refine ⟨fun r hr => hrel.tagReg r r (hex.1 r hr), fun a ha => hrel.mem a ?_, hrel.reg 4 hex.2, hrel.vr,
+    refine ⟨fun r hr => hrel.tagReg r r (hex.1 r hr), fun a ha => hrel.mem a ?_, hrel.addrs, hrel.reg 4 hex.2, hrel.vr,
       hrel.flags, hrel.pc, hrel.halted, hrel.tail, hrel.err⟩
     rintro ⟨t, ht, hta⟩
     have hw := hwin t ht a hta
@@ -2062,6 +2072,7 @@ theorem frame_lift {n : Nat} {D : Int} {prog : Array Instr} {segs : List (Nat ×
     (∀ r ∈ cs, (run prog 4 mem0 orc k s0).getG r = s0.getG r ∧ (run prog 4 mem0 orc k s0').getG r = s0'.getG r) ∧
     (∀ a : Addr Int, (a.region ≠ rStack ∨ a.off < B 0 - D ∨ B 0 ≤ a.off) →
       lookup a (run prog 4 mem0 orc k s0).mem = lookup a (run prog 4 mem0 orc k s0').mem) ∧
+    (run prog 4 mem0 orc k s0).mem.map Prod.fst = (run prog 4 mem0 orc k s0').mem.map Prod.fst ∧
     (run prog 4 mem0 orc k s0).getG 4 = (run prog 4 mem0 orc k s0').getG 4 ∧
     (run prog 4 mem0 orc k s0).vr = (run prog 4 mem0 orc k s0').vr ∧
     (run prog 4 mem0 orc k s0).flags = (run prog 4 mem0 orc k s0').flags ∧
