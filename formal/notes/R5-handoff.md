@@ -285,6 +285,52 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## Frame-slot lift, engine layer DONE (`Asm/RunAgreeM`, `Asm/MemCells`); the lift proof is next
+
+* `RunAgreeM.AgreeM R fl M s1 s2`: `RunAgree.Agree` with `mem : ∀ a, M a → lookup a s1.mem = lookup
+  a s2.mem` (agreement on the lookups of an address set).  Read lemmas in memory-only form
+  (`MemAg M m1 m2`, `readCell/loadLane/loadLanes/pbRest/loadVal_memAg` with `M4`/`MLanes`/`M8`
+  cell conditions), the writers (same cells appended on both sides keep `M`), `AgreeME`, and
+  `exec_agreeM` over all 46 constructors with the extra hypothesis `ReadsM ro M s1 i` (the
+  memory reads of `i` on the addresses the first run computes lie in `M`; `VReadsM`/`GReadsM`
+  for vector / general sources, `pop`/`ret` through `rsp`).  Generated from `RunAgree.lean` by a
+  textual transformation (only the eight memory-reading cases differ); builds in 6 s.
+* `MemCells` (concrete `Int`/`W32`): `Cells a n` = `[a, a+n)` in `a`'s region;
+  `lookup_cons_ne`/`_self`, `lookup_storeLane/storeLanes/storeVal_untouched` (lookups outside
+  the written cells unchanged), `lookup_storeLane_cells`, `loadVal_ptr`, `loadVal_storeVal`
+  (the eight cells of a stored value read back; data via `Hom.bytes_reassemble`), the
+  offset-comparison simp lemmas `beq_add_right`/`beq_self_add`.
+* `FrameTags.tagStep` now FAILS on a partial overwrite of a tagged slot (`clearOverlap?`: every
+  tagged slot an rsp-based write overlaps must be covered; the remaining cells of a partially
+  overwritten slot would still differ between the two runs).  The three tables still verify.
+  The `push r8` slot (`-16`) staying untagged is expected: r8 is an argument register, not
+  callee-saved on Win64.
+
+Lift plan (`Asm/FrameLift.lean`, to write): `TagRel` projects to `AgreeM (untagged regs) true
+(fun a => ¬ InTagged B T a)`; general instructions go through `exec_agreeM` (ReadsM from the
+certificate's `readSlots`-disjointness for rsp-based reads + the region-disjointness hypothesis
+for the others) plus `RunExit.exec_shape` (registers outside `dsts` unchanged) and
+`lookup_store*_untouched` (tagged slot values survive disjoint writes); the four copies
+(`push`/`pop`/`movst 64 [rsp+k]`/`mov 64 r, [rsp+k]`) directly with `loadVal_storeVal` and
+`RspOk` (the slot address is `B base + δ + k`).  Instance side condition per kernel: the
+non-rsp memory operands are rIn/rOut/rodata pointers, never rStack (region disjointness, one
+`simp`), as the coordinator asked.
+
+## Windows avx_x4 pilot certificate: BUILT (`Gen/WinAvxX4P`, not committed: packs at integration)
+
+`lake build Hashtree.Gen.WinAvxX4P.Final` succeeded under the scheduler (428 jobs, 24m41s wall
+at `LEAN_NUM_THREADS=4`, MemoryMax 60G); `Hashtree.Gen.WinAvxX4P.out_final` (the count-4 run of
+`Kernels.X86Win.AvxX4.prog` from `mapState env0 σ (entrySW 24)`: every output byte is the SHA-256
+byte of its block) has axioms propext/Classical.choice/Quot.sound + `byte_bswap`/`loadLane_hom`/
+`SpecQ.qW_*` and its own `Gen.WinAvxX4P.shape*` bv_decide axioms; no sorryAx.  The tree
+`Hashtree/Gen/WinAvxX4P` (411 files, deterministic: regenerate with `lake exe x86proofv wx4
+Hashtree/Gen/WinAvxX4P --split`, identical to the scratch run) is untracked (Hashtree/Gen is the
+pinned archive) and is packed at integration with `pack-gen.sh`.  The `X4WinCert` interface
+still needs the W-mode generalisation over counts on the windows stream (R2's tooling).
+
+ArmNeonX1P.P1: the SAT timeout in the Finals pass was contention; the isolated retry (my count
+0, others ≤ 2) took 26 s wall.  `ArmNeonX1P.Final` + `make audit` are queued (queue 13).
+
 ## Frame-slot certificate, steps 2-3 DONE (`Asm/FrameTags`, `Proofs/WinFrameTags`)
 
 Checker `tagCert n prog segs TT cs` (segment tag tables `TagSegs`, `atT`; `tagStep`; `exitOk`;

@@ -11,9 +11,10 @@ frame slots `(base, offset, size)` (from the verified rsp map, `Asm/RspMap`), an
 must-analysis over the CFG (computed like `RunAgree.live`, verified per pc like `certB`):
 
 * entry: every callee-saved register is tagged with itself;
-* `push r` / `mov [rsp+k], r` copy the tag of `r` to the slot (after clearing every overlapping
-  slot); `pop r` / `mov r, [rsp+k]` copy the slot's tag to `r`; every other write clears the tag
-  of what it writes (registers in `dsts`, rsp-based memory operands by overlap);
+* `push r` / `mov [rsp+k], r` copy the tag of `r` to the slot; `pop r` / `mov r, [rsp+k]` copy the
+  slot's tag to `r`; every other write clears the tag of what it writes (registers in `dsts`;
+  an rsp-based write drops the tags of the slots it *covers* and fails on a partial overwrite of
+  a tagged slot, whose remaining cells would still differ);
 * **no instruction reads a tagged item** except as the source of a push/save (a register) or
   of a pop/restore (a slot): registers in `srcs` must be untagged, and an rsp-based memory read
   must not overlap a tagged slot;
@@ -65,9 +66,14 @@ def setTag (T : Tags) (i : Item) : Option Nat → Tags
 
 def overlaps (s t : Slot) : Bool := s.1 = t.1 && s.2.1 < t.2.1 + t.2.2 && t.2.1 < s.2.1 + s.2.2
 
-/-- Clear every slot overlapping `s` (a write of unknown data into `s`). -/
-def clearOverlap (T : Tags) (s : Slot) : Tags :=
-  T.filter fun p => match p.1 with | .slot t => !overlaps s t | _ => true
+/-- `s` covers `t` (every cell of `t` is written by a write of `s`). -/
+def covers (s t : Slot) : Bool := s.1 = t.1 && s.2.1 ≤ t.2.1 && t.2.1 + t.2.2 ≤ s.2.1 + s.2.2
+
+/-- A write of `s`: every tagged slot it overlaps must be covered (its cells are then rewritten
+with agreeing data, so the tag is dropped); a partial overwrite of a tagged slot is a failure. -/
+def clearOverlap? (T : Tags) (s : Slot) : Option Tags :=
+  if T.any (fun p => match p.1 with | .slot t => overlaps s t && !covers s t | _ => false) then none
+  else some (T.filter fun p => match p.1 with | .slot t => !overlaps s t | _ => true)
 
 /-- Some slot overlapping `s` is tagged (a read of `s` would read tagged data). -/
 def hitsTagged (T : Tags) (s : Slot) : Bool :=
@@ -95,14 +101,14 @@ def tagStep (f : Fact) (i : Instr) (T : Tags) : Option Tags :=
   | .push r =>
     if tagOf T (.reg 4) ≠ none then none else
     let s : Slot := (f.sp.1, f.sp.2 - 8, 8)
-    some (setTag (clearOverlap T s) (.slot s) (tagOf T (.reg r)))
+    (clearOverlap? T s).map fun T1 => setTag T1 (.slot s) (tagOf T (.reg r))
   | .pop r =>
     if tagOf T (.reg 4) ≠ none ∨ r = 4 then none else
     some (setTag T (.reg r) (tagOf T (.slot (f.sp.1, f.sp.2, 8))))
   | .movst 64 m s =>
     if !regsUntagged T (memRegs m) then none else
     match slotOf f m 8 with
-    | some sl => some (setTag (clearOverlap T sl) (.slot sl) (tagOf T (.reg s)))
+    | some sl => (clearOverlap? T sl).map fun T1 => setTag T1 (.slot sl) (tagOf T (.reg s))
     | none => if tagOf T (.reg s) ≠ none then none else some T
   | .mov 64 d (.mem m) =>
     if !regsUntagged T (memRegs m) then none else
@@ -115,11 +121,10 @@ def tagStep (f : Fact) (i : Instr) (T : Tags) : Option Tags :=
     if !regsUntagged T (srcs i) then none else
     if (readSlots f i).any (hitsTagged T) then none else
     let T1 := (dsts i).foldl (fun acc r => clearItem acc (.reg r)) T
-    let T2 := match i with
-      | .vstore w m _ => match slotOf f m (4 * w) with | some sl => clearOverlap T1 sl | none => T1
-      | .movst w m _ => match slotOf f m (w / 8) with | some sl => clearOverlap T1 sl | none => T1
-      | _ => T1
-    some T2
+    match i with
+    | .vstore w m _ => match slotOf f m (4 * w) with | some sl => clearOverlap? T1 sl | none => some T1
+    | .movst w m _ => match slotOf f m (w / 8) with | some sl => clearOverlap? T1 sl | none => some T1
+    | _ => some T1
 
 /-- The exit condition: every callee-saved register tagged with itself, rsp untagged. -/
 def exitOk (cs : List Nat) (T : Tags) : Bool :=

@@ -70,6 +70,8 @@ import Hashtree.Proofs.WinRspMap
 import Hashtree.Proofs.WinAvx512Final
 import Hashtree.Asm.FrameTags
 import Hashtree.Proofs.WinFrameTags
+import Hashtree.Asm.RunAgreeM
+import Hashtree.Asm.MemCells
 import Hashtree.Proofs.AvxX4ToX1
 import Hashtree.Proofs.AvxX4LoopWAll
 import Hashtree.Proofs.AvxX4X1WAgree
@@ -588,3 +590,11 @@ import Hashtree.Proofs.Avx512X16WOut
 #print axioms Hashtree.Proofs.WinFrameTags.sse_exitOk
 #print axioms Hashtree.Proofs.WinFrameTags.avx1_exitOk
 #print axioms Hashtree.Proofs.WinFrameTags.avx2_exitOk
+
+-- R5: the memory-conditioned agreement engine (RunAgreeM: agreement on the lookups of an address
+-- set M, one step with the instruction's memory reads inside M) and the concrete cell lemmas
+-- (stores leave other cells untouched, a stored 64-bit value reads back) for the frame-slot lift.
+#print axioms Hashtree.Asm.RunAgreeM.exec_agreeM
+#print axioms Hashtree.Asm.MemCells.lookup_storeVal_untouched
+#print axioms Hashtree.Asm.MemCells.lookup_storeLanes_untouched
+#print axioms Hashtree.Asm.MemCells.loadVal_storeVal
