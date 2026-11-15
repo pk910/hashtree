@@ -72,6 +72,7 @@ import Hashtree.Asm.FrameTags
 import Hashtree.Proofs.WinFrameTags
 import Hashtree.Asm.RunAgreeM
 import Hashtree.Asm.MemCells
+import Hashtree.Asm.FrameLift
 import Hashtree.Proofs.AvxX4ToX1
 import Hashtree.Proofs.AvxX4LoopWAll
 import Hashtree.Proofs.AvxX4X1WAgree
@@ -598,3 +599,10 @@ import Hashtree.Proofs.Avx512X16WOut
 #print axioms Hashtree.Asm.MemCells.lookup_storeVal_untouched
 #print axioms Hashtree.Asm.MemCells.lookup_storeLanes_untouched
 #print axioms Hashtree.Asm.MemCells.loadVal_storeVal
+
+-- R5: the frame-slot lift, general case: every instruction that is not one of the four copies
+-- preserves TagRel (FrameLift.general_step, through RunAgreeM.exec_agreeM, RunExit.exec_shape and
+-- the MemCells untouched lemmas); the reads-outside lemma readsM_of_cert.
+#print axioms Hashtree.Asm.FrameLift.general_step
+#print axioms Hashtree.Asm.FrameLift.readsM_of_cert
+#print axioms Hashtree.Asm.FrameLift.slot_untouched

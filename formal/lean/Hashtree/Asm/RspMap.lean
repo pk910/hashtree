@@ -116,18 +116,19 @@ def compute (prog : Array Instr) : List (Nat × Option Fact) := segsOf (computeT
 
 /-! ## Frame slots -/
 
-/-- Memory operands of an instruction with their byte sizes (lanes are 4 bytes). -/
+/-- Memory operands of an instruction with their byte sizes (lanes are 4 bytes; a 64-bit `mov`/`movst`
+moves 8 bytes, every other general operand is read as a 32-bit lane or not at all). -/
 def memOps : Instr → List (MemRef × Nat)
   | .vop _ _ w _ _ (.mem m) => [(m, 4 * w)]
   | .vload _ w _ (.mem m) => [(m, 4 * w)]
   | .vstore w m _ => [(m, 4 * w)]
   | .inserti128 _ _ m _ => [(m, 16)]
   | .inserti64x4 _ _ m _ => [(m, 32)]
-  | .mov w _ (.mem m) => [(m, w / 8)]
-  | .movst w m _ => [(m, w / 8)]
-  | .alu _ w _ (.mem m) => [(m, w / 8)]
-  | .sub w _ (.mem m) => [(m, w / 8)]
-  | .cmp w _ (.mem m) => [(m, w / 8)]
+  | .mov w _ (.mem m) => [(m, if w = 64 then 8 else 4)]
+  | .movst w m _ => [(m, if w = 64 then 8 else 4)]
+  | .alu _ _ _ (.mem m) => [(m, 4)]
+  | .sub _ _ (.mem m) => [(m, 4)]
+  | .cmp _ _ (.mem m) => [(m, 4)]
   | _ => []
 
 /-- The rsp-relative slots `(base, offset, size)` of an instruction at a pc with fact `f`
@@ -140,9 +141,9 @@ def slotsAt (i : Instr) (f : Fact) : List (Nat × Int × Nat) :=
   | _ => (memOps i).filterMap fun (m, sz) =>
       if m.base = some 4 ∧ m.index = none then some (f.sp.1, f.sp.2 + m.disp, sz) else none
 
-/-- Whether an instruction's rsp-based memory operand is indexed (unsupported for slots). -/
+/-- Whether an instruction's rsp-based memory operand is indexed or rip-relative (unsupported for slots). -/
 def rspIndexed (i : Instr) : Bool :=
-  (memOps i).any fun (m, _) => m.base = some 4 ∧ m.index ≠ none
+  (memOps i).any fun (m, _) => m.base = some 4 ∧ (m.index ≠ none ∨ m.ro ≠ none)
 
 def slotsAux (segs : List (Nat × Option Fact)) : Nat → List Instr → List (Nat × Int × Nat)
   | _, [] => []

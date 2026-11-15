@@ -285,6 +285,37 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## Frame-slot lift: GENERAL STEP PROVED (`Asm/FrameLift.general_step`); copies + run level next
+
+Status lattice (commit I): `Tags := List (Item × Option Nat)`; absent = agreeing, `some n` =
+tagged (holds the entry value of register `n`), `none` = free (no guarantee: the join of a tagged
+and an agreeing path -- the loop heads of sse_x1/avx_x1 join the tagged entry path with the
+written loop path, so the callee-saved registers are *free* in the bodies, never read there).
+`leqTags` (free is top; verified at every successor), `meet` (disagreement -> free), `tableOk`
+(listed slots are 8-byte cells on base 0/1) and `statusOf T (.reg 4) = none` are checked per pc;
+`overlaps` is exact on the same base and goes through `phys` (base-1 slots sit 16..47 below the
+entry rsp: `BaseRel B`) across bases; a general write frees the listed slots it covers and fails
+on a partial overwrite (`clearOverlap?`); `memOps` sizes: 64-bit mov/movst 8 bytes, every other
+general operand 4; rsp-based operands must be unindexed with `ro = none` (`slotsOk`).  The three
+tables still verify (28/28/18 segments).
+
+`FrameLift`: `TagRel` (one initial memory; `InTagged` through `statusOf`), `Outside`, `BaseRel`,
+`Bases01`, `Sizes8`; slot/cell geometry (`inSlot_phys`, `not_overlaps_disjoint`, `effAddr_rsp`,
+`MLanes/M4/M8_of_cells`, `outside_of_not_hits`); status algebra (`statusOf_filter/_map`,
+`clearRegs`, `clearOverlap?_some`, `general_reg_status`, `general_slot_status`); `readsM_of_cert`
+(ReadsM of the engine from the certificate's `readSlots` + the region hypothesis for non-rsp
+operands); exec forms `exec_vstore`/`exec_movst32`; `slot_untouched` (a slot listed after the step
+is disjoint from the step's write); **`general_step`**: for `isCopy i = false`, from `TagRel` at
+`T`, `RspOk`, `tagStep f i T = some T'`, the operand hypotheses and a successful first step,
+`TagRel` at `T'` for both stepped states and `pc ∈ succs ∨ halted`.  Axioms standard.
+
+Next: the four copies (`push`: `loadVal_storeVal` at `B b + δ - 8`; `pop`; `movst 64`; `mov 64
+r, [rsp+k]`), the rsp-map step (`RspOk` at the successor, with the `and rsp,-32` base), the
+per-pc glue (`tagAt` + `leqTags` monotonicity of `TagRel`), the run-level corollary, and the
+exit clauses (`exitOk` -> `RegsOkW`'s callee-saved equalities and memory equal outside the
+frame).  Instance side condition per kernel: the non-rsp memory operands are rIn/rOut/rodata
+pointers (region disjointness, one `simp`).
+
 ## Frame-slot lift, engine layer DONE (`Asm/RunAgreeM`, `Asm/MemCells`); the lift proof is next
 
 * `RunAgreeM.AgreeM R fl M s1 s2`: `RunAgree.Agree` with `mem : ∀ a, M a → lookup a s1.mem = lookup

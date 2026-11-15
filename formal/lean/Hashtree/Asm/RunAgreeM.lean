@@ -411,7 +411,7 @@ def ReadsM (ro : Region) (M : Addr γ → Prop) (s : State α γ) : Instr → Pr
   | .vload _ w _ v => VReadsM ro M s w v
   | .inserti128 _ _ m _ => ∀ a, effAddr ro s m = .ok a → MLanes M a 4
   | .inserti64x4 _ _ m _ => ∀ a, effAddr ro s m = .ok a → MLanes M a 8
-  | .mov _ _ (.mem m) => ∀ a, effAddr ro s m = .ok a → M8 M a ∧ M4 M a
+  | .mov w _ (.mem m) => ∀ a, effAddr ro s m = .ok a → (w = 64 → M8 M a) ∧ (w ≠ 64 → M4 M a)
   | .alu _ _ _ g => GReadsM ro M s g
   | .pop _ => ∀ sp, s.getG rsp = .ptr sp → M8 M sp
   | .ret => ∀ sp, s.getG rsp = .ptr sp → M8 M sp
@@ -544,12 +544,15 @@ theorem exec_agreeM (ro : Region) (mem0 : Addr γ → Cell α γ) (orc : Nat →
     | imm v => simp only [gData32_ag h ro mem0 hs trivial]; ag_lift
     | mem m =>
       simp only [ReadsM] at hr
-      simp only [effAddr_ag h ro hs, gData32_ag h ro mem0 hs (fun a ha => (hr a ha).2)]
+      simp only [effAddr_ag h ro hs]
       split
-      · apply AgreeME.bind; intro a ha
-        rw [loadVal_ag h mem0 a (hr a ha).1]
+      · rename_i hw
+        apply AgreeME.bind; intro a ha
+        rw [loadVal_ag h mem0 a ((hr a ha).1 hw)]
         ag_lift
-      · ag_lift
+      · rename_i hw
+        simp only [gData32_ag h ro mem0 hs (fun a ha => (hr a ha).2 hw)]
+        ag_lift
   | movst w m src =>
     try dsimp only
     simp only [srcs] at hs; simp only [dsts, writesF, List.nil_append, Bool.false_or, succs]

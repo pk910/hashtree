@@ -19,7 +19,10 @@ must-analysis over the CFG (computed like `RunAgree.live`, verified per pc like 
   of a pop/restore (a slot): registers in `srcs` must be untagged, and an rsp-based memory read
   must not overlap a tagged slot;
 * at every exit (`ret`, tail jumps) every callee-saved register is tagged with itself, so the
-  caller sees them restored, and rsp is never tagged.
+  caller sees them restored, and rsp is never tagged;
+* at a join every path carries the same tags (verified as equality of tag maps at every
+  successor): an item that differs between the runs on one path and agrees on another would be
+  neither.
 
 A pc the rsp map leaves unmapped (dead code) carries no tags and is not checked.
 `tagCert` is the decidable per-pc check; `tags` computes the table (fixpoint of `tagStep` over
@@ -55,38 +58,60 @@ inductive Item where
   | slot (s : Slot)
   deriving DecidableEq, Repr, Inhabited
 
-/-- The tagged items of a pc with their source register. -/
-abbrev Tags := List (Item × Nat)
+/-- The status of an item: absent = the two runs agree on it; `some n` = it holds the entry value
+of register `n` (tagged); `none` = free (no guarantee; the join of a tagged and an agreeing
+path).  Tagged and free items may only be read by the copies. -/
+abbrev Tags := List (Item × Option Nat)
 
-def tagOf (T : Tags) (i : Item) : Option Nat := (T.find? (·.1 = i)).map (·.2)
+/-- `some st` for a listed item (`st = some n` tagged, `st = none` free), `none` = agreeing. -/
+def statusOf (T : Tags) (i : Item) : Option (Option Nat) := (T.find? (·.1 = i)).map (·.2)
+def tagOf (T : Tags) (i : Item) : Option Nat := (statusOf T i).getD none
 def clearItem (T : Tags) (i : Item) : Tags := T.filter (·.1 ≠ i)
-def setTag (T : Tags) (i : Item) : Option Nat → Tags
-  | some n => (i, n) :: clearItem T i
+/-- Give `i` the status `st` (absent = agreeing). -/
+def setStatus (T : Tags) (i : Item) : Option (Option Nat) → Tags
+  | some st => (i, st) :: clearItem T i
   | none => clearItem T i
 
-def overlaps (s t : Slot) : Bool := s.1 = t.1 && s.2.1 < t.2.1 + t.2.2 && t.2.1 < s.2.1 + s.2.2
+/-- The cells of a slot as an interval relative to the entry rsp (base 0): a base-1 slot (after
+`and rsp, -32` at entry rsp - 16) sits between `B 0 - 47` and `B 0 - 16` below the entry rsp, so
+its interval is widened by that slack (the physical relation `B 1 - B 0 ∈ [-47, -16]` is a
+hypothesis of the lift, `BaseRel`).  Other bases are not supported (an all-covering interval). -/
+def phys (s : Slot) : Int × Int :=
+  if s.1 = 0 then (s.2.1, s.2.1 + s.2.2)
+  else if s.1 = 1 then (s.2.1 - 47, s.2.1 + s.2.2 - 16)
+  else (-1000000000, 1000000000)
 
-/-- `s` covers `t` (every cell of `t` is written by a write of `s`). -/
+/-- Possibly overlapping cells: exact on the same base, through `phys` across bases. -/
+def overlaps (s t : Slot) : Bool :=
+  if s.1 = t.1 then s.2.1 < t.2.1 + t.2.2 && t.2.1 < s.2.1 + s.2.2
+  else (phys s).1 < (phys t).2 && (phys t).1 < (phys s).2
+
+/-- `s` covers `t` exactly enough (same base, every cell of `t` written). -/
 def covers (s t : Slot) : Bool := s.1 = t.1 && s.2.1 ≤ t.2.1 && t.2.1 + t.2.2 ≤ s.2.1 + s.2.2
 
-/-- A write of `s`: every tagged slot it overlaps must be covered (its cells are then rewritten
-with agreeing data, so the tag is dropped); a partial overwrite of a tagged slot is a failure. -/
+/-- A listed slot overlapping the write `s` becomes free. -/
+def freeOv (s : Slot) (p : Item × Option Nat) : Item × Option Nat :=
+  match p.1 with | .slot t => if overlaps s t then (p.1, none) else p | _ => p
+
+/-- A write of `s` with agreeing data: every listed slot it overlaps must be covered, and becomes
+free (its cells are rewritten with agreeing data, which the relation then need not know); a
+partial overwrite of a listed slot is a failure. -/
 def clearOverlap? (T : Tags) (s : Slot) : Option Tags :=
   if T.any (fun p => match p.1 with | .slot t => overlaps s t && !covers s t | _ => false) then none
-  else some (T.filter fun p => match p.1 with | .slot t => !overlaps s t | _ => true)
+  else some (T.map (freeOv s))
 
-/-- Some slot overlapping `s` is tagged (a read of `s` would read tagged data). -/
+/-- Some listed slot overlaps `s` (a read of `s` could read a tagged or free cell). -/
 def hitsTagged (T : Tags) (s : Slot) : Bool :=
   T.any fun p => match p.1 with | .slot t => overlaps s t | _ => false
 
-def regsUntagged (T : Tags) (rs : List Nat) : Bool := rs.all fun r => tagOf T (.reg r) = none
+/-- The registers are all agreeing (not listed). -/
+def regsUntagged (T : Tags) (rs : List Nat) : Bool := rs.all fun r => statusOf T (.reg r) = none
 
 /-- The rsp-relative slot of a memory operand, if it is rsp-based and unindexed. -/
 def slotOf (f : Fact) (m : MemRef) (size : Nat) : Option Slot :=
-  if m.base = some 4 ∧ m.index = none then some (f.sp.1, f.sp.2 + m.disp, size) else none
+  if m.base = some 4 ∧ m.index = none ∧ m.ro = none then some (f.sp.1, f.sp.2 + m.disp, size) else none
 
-/-- The rsp-based memory operands (as slots) an instruction reads, and whether it has a non-rsp or
-indexed memory operand (whose cells are outside the frame by the lift's hypothesis). -/
+/-- The rsp-based memory operands (as slots) an instruction reads. -/
 def readSlots (f : Fact) : Instr → List Slot
   | .pop _ => [(f.sp.1, f.sp.2, 8)]
   | .ret => [(f.sp.1, f.sp.2, 8)]
@@ -94,50 +119,79 @@ def readSlots (f : Fact) : Instr → List Slot
   | .movst _ _ _ => []
   | i => (memOps i).filterMap fun (m, sz) => slotOf f m sz
 
-/-- One instruction's effect on the tags; `none` = the certificate fails here (a tagged item is
-read other than by a copy). -/
+/-- The registers written by an instruction become agreeing. -/
+def clearRegs (T : Tags) (D : List Nat) : Tags := T.filter fun p => match p.1 with | .reg r => !decide (r ∈ D) | _ => true
+
+/-- The rsp-based slot a general instruction writes. -/
+def writeSlot (f : Fact) : Instr → Option Slot
+  | .vstore w m _ => slotOf f m (4 * w)
+  | .movst w m _ => slotOf f m (if w = 64 then 8 else 4)
+  | _ => none
+
+/-- A general instruction (not one of the four copies): every register it reads is agreeing,
+every rsp-based read misses the listed slots; its register writes clear, its rsp-based write
+frees the slots it covers (and fails on a partial overwrite). -/
+def generalStep (f : Fact) (i : Instr) (T : Tags) : Option Tags :=
+  if regsUntagged T (srcs i) && !(readSlots f i).any (hitsTagged T) then
+    match writeSlot f i with
+    | some sl => clearOverlap? (clearRegs T (dsts i)) sl
+    | none => some (clearRegs T (dsts i))
+  else none
+
+/-- The four copies: `push`, `pop`, `mov [rsp+k], r` and `mov r, [rsp+k]` (64-bit). -/
+def isCopy : Instr → Bool
+  | .push _ => true
+  | .pop _ => true
+  | .movst w _ _ => w == 64
+  | .mov w _ (.mem _) => w == 64
+  | _ => false
+
+/-- One instruction's effect on the statuses; `none` = the certificate fails here (a listed item
+is read other than by a copy, or a listed slot is partially overwritten). -/
 def tagStep (f : Fact) (i : Instr) (T : Tags) : Option Tags :=
   match i with
   | .push r =>
-    if tagOf T (.reg 4) ≠ none then none else
+    if statusOf T (.reg 4) ≠ none then none else
     let s : Slot := (f.sp.1, f.sp.2 - 8, 8)
-    (clearOverlap? T s).map fun T1 => setTag T1 (.slot s) (tagOf T (.reg r))
+    (clearOverlap? T s).map fun T1 => setStatus T1 (.slot s) (statusOf T (.reg r))
   | .pop r =>
-    if tagOf T (.reg 4) ≠ none ∨ r = 4 then none else
-    some (setTag T (.reg r) (tagOf T (.slot (f.sp.1, f.sp.2, 8))))
-  | .movst 64 m s =>
-    if !regsUntagged T (memRegs m) then none else
-    match slotOf f m 8 with
-    | some sl => (clearOverlap? T sl).map fun T1 => setTag T1 (.slot sl) (tagOf T (.reg s))
-    | none => if tagOf T (.reg s) ≠ none then none else some T
-  | .mov 64 d (.mem m) =>
-    if !regsUntagged T (memRegs m) then none else
-    match slotOf f m 8 with
-    | some sl => some (setTag T (.reg d) (tagOf T (.slot sl)))
-    | none => some (clearItem T (.reg d))
-  | _ =>
-    -- a general instruction: every register it reads is untagged, every rsp-based read misses the
-    -- tagged slots; its register writes clear, its rsp-based writes clear by overlap
-    if !regsUntagged T (srcs i) then none else
-    if (readSlots f i).any (hitsTagged T) then none else
-    let T1 := (dsts i).foldl (fun acc r => clearItem acc (.reg r)) T
-    match i with
-    | .vstore w m _ => match slotOf f m (4 * w) with | some sl => clearOverlap? T1 sl | none => some T1
-    | .movst w m _ => match slotOf f m (w / 8) with | some sl => clearOverlap? T1 sl | none => some T1
-    | _ => some T1
+    if statusOf T (.reg 4) ≠ none ∨ r = 4 then none else
+    some (setStatus T (.reg r) (statusOf T (.slot (f.sp.1, f.sp.2, 8))))
+  | .movst w m s =>
+    if w = 64 then
+      if !regsUntagged T (memRegs m) then none else
+      match slotOf f m 8 with
+      | some sl => (clearOverlap? T sl).map fun T1 => setStatus T1 (.slot sl) (statusOf T (.reg s))
+      | none => if statusOf T (.reg s) ≠ none then none else some T
+    else generalStep f i T
+  | .mov w d (.mem m) =>
+    if w = 64 then
+      if !regsUntagged T (memRegs m) then none else
+      match slotOf f m 8 with
+      | some sl => some (setStatus T (.reg d) (statusOf T (.slot sl)))
+      | none => some (clearItem T (.reg d))
+    else generalStep f i T
+  | _ => generalStep f i T
 
-/-- The exit condition: every callee-saved register tagged with itself, rsp untagged. -/
+/-- The exit condition: every callee-saved register tagged with itself, rsp agreeing. -/
 def exitOk (cs : List Nat) (T : Tags) : Bool :=
-  cs.all (fun r => tagOf T (.reg r) = some r) && tagOf T (.reg 4) = none
+  cs.all (fun r => statusOf T (.reg r) = some (some r)) && statusOf T (.reg 4) = none
 
 def isExit : Instr → Bool
   | .ret => true | .jmpTail _ => true | .jccTail _ _ => true | _ => false
 
-/-- `T ⊆ T'` as tag maps. -/
-def subTags (T T' : Tags) : Bool := T.all fun p => tagOf T' p.1 = some p.2
+/-- `T ⊑ T'`: every item's status in `T'` is free, or equal to its status in `T` (so what `T`
+guarantees implies what `T'` guarantees). -/
+def leqTags (T T' : Tags) : Bool :=
+  (T.all fun p => statusOf T' p.1 = some none ∨ statusOf T' p.1 = some p.2) &&
+  (T'.all fun p => p.2 = none ∨ statusOf T p.1 = some p.2)
 
 /-- The entry tags of a callee-saved set. -/
-def entryTags (cs : List Nat) : Tags := cs.map fun r => (.reg r, r)
+def entryTags (cs : List Nat) : Tags := cs.map fun r => (.reg r, some r)
+
+/-- Every listed slot is an 8-byte cell on base 0 or 1 (what the lift's slot values read). -/
+def tableOk (T : Tags) : Bool :=
+  T.all fun p => match p.1 with | .slot t => (t.1 == 0 || t.1 == 1) && t.2.2 == 8 | _ => true
 
 /-- The tag table as segments `(start pc, tags)` (as the rsp map: a pc takes the value of the last
 segment starting at or before it; `none` = unvisited). -/
@@ -147,19 +201,21 @@ def atT (TT : TagSegs) (p : Nat) : Option Tags :=
   TT.foldl (fun acc s => if s.1 ≤ p then s.2 else acc) none
 
 /-- The check at one pc: an unmapped or unvisited pc is not checked; otherwise the step is
-defined, exits satisfy `exitOk` (after the step), and every successor's tags are contained in the
-stepped tags. -/
+defined, rsp is agreeing and the listed slots are 8-byte cells on base 0/1 (`tableOk`), exits
+satisfy `exitOk` (after the step), and the stepped tags are below every successor's tags
+(`leqTags`). -/
 def tagAt (n : Nat) (segs : List (Nat × Option Fact)) (TT : TagSegs) (cs : List Nat)
     (p : Nat) (i : Instr) : Bool :=
   match at? segs p, atT TT p with
   | none, _ => true
   | some _, none => true
   | some f, some T =>
+    statusOf T (.reg 4) = none && tableOk T &&
     match tagStep f i T with
     | none => false
     | some T' =>
       (!isExit i || exitOk cs T') &&
-      (nexts p i).all fun q => q < n && (match atT TT q with | some Tq => subTags Tq T' | none => false)
+      (nexts p i).all fun q => q < n && (match atT TT q with | some Tq => leqTags T' Tq | none => false)
 
 def tagAux (n : Nat) (segs : List (Nat × Option Fact)) (TT : TagSegs) (cs : List Nat) :
     Nat → List Instr → Bool
@@ -173,8 +229,16 @@ def tagCert (n : Nat) (prog : Array Instr) (segs : List (Nat × Option Fact)) (T
 
 /-! ## Computing the table -/
 
-/-- Intersection of tag maps (a join of the must-analysis). -/
-def meet (T T' : Tags) : Tags := T.filter fun p => tagOf T' p.1 = some p.2
+/-- The join: equal statuses are kept, a disagreement (tagged vs agreeing, or different sources)
+becomes free. -/
+def meet (T T' : Tags) : Tags :=
+  let items := (T.map (·.1) ++ T'.map (·.1)).eraseDups
+  items.filterMap fun i =>
+    match statusOf T i, statusOf T' i with
+    | some a, some b => if a = b then some (i, a) else some (i, none)
+    | some _, none => some (i, none)
+    | none, some _ => some (i, none)
+    | none, none => none
 
 /-- One in-order sweep. -/
 def tagPass (prog : Array Instr) (segs : List (Nat × Option Fact)) (TT : Array (Option Tags)) :
@@ -229,23 +293,24 @@ open Hashtree.Asm
 def inSlot (B : Nat → Int) (sl : Slot) (a : Addr Int) : Prop :=
   a.region = rStack ∧ B sl.1 + sl.2.1 ≤ a.off ∧ a.off < B sl.1 + sl.2.1 + (sl.2.2 : Int)
 
-/-- `a` lies in a tagged slot of `T`. -/
+/-- `a` lies in a listed (tagged or free) slot of `T`. -/
 def InTagged (B : Nat → Int) (T : Tags) (a : Addr Int) : Prop :=
-  ∃ p ∈ T, ∃ sl, p.1 = .slot sl ∧ inSlot B sl a
+  ∃ sl, statusOf T (.slot sl) ≠ none ∧ inSlot B sl a
 
 /-- The 8-byte value of a slot (as `pop` would read it). -/
 def slotVal (mem0 : Addr Int → Cell W32 Int) (B : Nat → Int) (s : State W32 Int) (sl : Slot) :=
   Hashtree.Asm.loadVal mem0 s ⟨rStack, B sl.1 + sl.2.1⟩
 
-/-- **The tag relation** at a pc with tags `T`: two runs (`s`, `s'`, from entry states `s0`, `s0'`)
-agree on every untagged register and every cell outside the tagged slots; a register tagged `n`
-holds its own run's entry value of `n`, a slot tagged `n` holds it as its 8-byte value; the
-vector file, flags, pc, halted, tail and err agree. -/
-structure TagRel (mem0 mem0' : Addr Int → Cell W32 Int) (B : Nat → Int) (T : Tags) (s0 s0' s s' : State W32 Int) : Prop where
-  reg : ∀ r, tagOf T (.reg r) = none → s.getG r = s'.getG r
-  tagReg : ∀ r n, tagOf T (.reg r) = some n → s.getG r = s0.getG n ∧ s'.getG r = s0'.getG n
-  tagSlot : ∀ sl n, tagOf T (.slot sl) = some n →
-    slotVal mem0 B s sl = Except.ok (s0.getG n) ∧ slotVal mem0' B s' sl = Except.ok (s0'.getG n)
+/-- **The tag relation** at a pc with tags `T`: two runs (`s`, `s'`, from entry states `s0`, `s0'`,
+over the same initial memory)
+agree on every agreeing (unlisted) register and every cell outside the listed slots; a register
+tagged `n` holds its own run's entry value of `n`, a slot tagged `n` holds it as its 8-byte value;
+free items are unconstrained; the vector file, flags, pc, halted, tail and err agree. -/
+structure TagRel (mem0 : Addr Int → Cell W32 Int) (B : Nat → Int) (T : Tags) (s0 s0' s s' : State W32 Int) : Prop where
+  reg : ∀ r, statusOf T (.reg r) = none → s.getG r = s'.getG r
+  tagReg : ∀ r n, statusOf T (.reg r) = some (some n) → s.getG r = s0.getG n ∧ s'.getG r = s0'.getG n
+  tagSlot : ∀ sl n, statusOf T (.slot sl) = some (some n) →
+    slotVal mem0 B s sl = Except.ok (s0.getG n) ∧ slotVal mem0 B s' sl = Except.ok (s0'.getG n)
   mem : ∀ a, ¬ InTagged B T a → Hashtree.Asm.lookup a s.mem = Hashtree.Asm.lookup a s'.mem
   len : s.gpr.length = s'.gpr.length
   vr : s.vr = s'.vr
@@ -267,15 +332,15 @@ model's region discipline). -/
 def LiftSpec (n : Nat) (prog : Array Instr) (segs : List (Nat × Option Fact)) (TT : TagSegs)
     (cs : List Nat) (D : Int) : Prop :=
   RspMap.ok n prog segs = true → tagCert n prog segs TT cs = true →
-  ∀ (mem0 mem0' : Addr Int → Cell W32 Int) (B : Nat → Int) (orc : Nat → Bool) (s0 s0' s s' : State W32 Int)
+  ∀ (mem0 : Addr Int → Cell W32 Int) (B : Nat → Int) (orc : Nat → Bool) (s0 s0' s s' : State W32 Int)
     (f : Fact) (T : Tags),
     at? segs s.pc = some f → atT TT s.pc = some T →
-    RspOk B f s → TagRel mem0 mem0' B T s0 s0' s s' →
+    RspOk B f s → TagRel mem0 B T s0 s0' s s' →
     (X86.run prog 4 mem0 orc 1 s).err = none →
     (∀ i, prog[s.pc]? = some i → ∀ m ∈ memOps i, m.1.base ≠ some 4 →
       ∀ a : Addr Int, X86.effAddr 4 s m.1 = Except.ok a → a.region = rStack → ¬ (B 0 - D ≤ a.off ∧ a.off < B 0)) →
     ∃ T', atT TT (X86.run prog 4 mem0 orc 1 s).pc = some T' ∧
-      TagRel mem0 mem0' B T' s0 s0' (X86.run prog 4 mem0 orc 1 s) (X86.run prog 4 mem0' orc 1 s')
+      TagRel mem0 B T' s0 s0' (X86.run prog 4 mem0 orc 1 s) (X86.run prog 4 mem0 orc 1 s')
 
 end Semantics
 
