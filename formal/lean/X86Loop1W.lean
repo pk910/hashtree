@@ -7,6 +7,9 @@ import Hashtree.Asm.X86LoopW2
 import Hashtree.Asm.Scan
 import Hashtree.Kernels.X86.SseX1
 import Hashtree.Kernels.X86.AvxX1
+import Hashtree.Kernels.X86Win.SseX1
+import Hashtree.Kernels.X86Win.AvxX1
+import Hashtree.Asm.X86SymWin
 
 /-!
 (Library part copied from X86Proof1.lean.)
@@ -32,12 +35,34 @@ structure Kern where
   gen : String       -- Gen namespace / directory suffix
   prog : Array Instr
   rodata : List Nat
+  /-- the concrete call state (`X86Run.entry win`): `false` = SysV (rdi/rsi/rdx), `true` = Win64 (rcx/rdx/r8) -/
+  win : Bool := false
+  /-- the symbolic call state of the certificate and its Lean text -/
+  start : State E Lin := entryW
+  entryName : String := "entryW"
+  /-- an extra import of the generated modules (the module defining the symbolic call state) -/
+  extraImport : String := ""
+  /-- the registers advancing over the input and the output (SysV rsi/rdi, Win64 rdx/rcx) -/
+  inReg : Nat := 6
+  outReg : Nat := 7
+  /-- the argument registers at the call (count, input, output): never renamed to fresh symbols -/
+  argRegs : List Nat := [2, 6, 7]
+  /-- the lowest stack byte the body touches, relative to the entry rsp -/
+  spLo : Int := -200
 
 def kerns : List (String × Kern) := [
   ("sse", ⟨"hashtree_sha256_sse_x1", "Hashtree.Kernels.X86.SseX1", "SseX1L",
-    Hashtree.Kernels.X86.SseX1.prog, Hashtree.Kernels.X86.SseX1.rodata⟩),
+    Hashtree.Kernels.X86.SseX1.prog, Hashtree.Kernels.X86.SseX1.rodata, false, entryW, "entryW", "", 6, 7, [2, 6, 7], -200⟩),
   ("avx", ⟨"hashtree_sha256_avx_x1", "Hashtree.Kernels.X86.AvxX1", "AvxX1L",
-    Hashtree.Kernels.X86.AvxX1.prog, Hashtree.Kernels.X86.AvxX1.rodata⟩)]
+    Hashtree.Kernels.X86.AvxX1.prog, Hashtree.Kernels.X86.AvxX1.rodata, false, entryW, "entryW", "", 6, 7, [2, 6, 7], -200⟩),
+  -- the windows streams from the wrapper's Win64 call state (`entryWinS`): nine pushes and eight
+  -- xmm saves in the prologue (lane cells, keyed), body scratch down to `-264`
+  ("wsse", ⟨"hashtree_sha256_sse_x1", "Hashtree.Kernels.X86Win.SseX1", "WinSseX1L",
+    Hashtree.Kernels.X86Win.SseX1.prog, Hashtree.Kernels.X86Win.SseX1.rodata, true, entryWinS, "entryWinS",
+    "import Hashtree.Asm.X86SymWin\n", 2, 1, [8, 2, 1], -264⟩),
+  ("wavx", ⟨"hashtree_sha256_avx_x1", "Hashtree.Kernels.X86Win.AvxX1", "WinAvxX1L",
+    Hashtree.Kernels.X86Win.AvxX1.prog, Hashtree.Kernels.X86Win.AvxX1.rodata, true, entryWinS, "entryWinS",
+    "import Hashtree.Asm.X86SymWin\n", 2, 1, [8, 2, 1], -264⟩)]
 
 def randInput (seed n : Nat) : Array Nat := Id.run do
   let mut x := seed * 6364136223846793005 + 1442695040888963407
@@ -480,7 +505,7 @@ def ok! {α : Type} [Inhabited α] (r : Except String α) : IO α := match r wit
   | .error e => throw (IO.userError e)
 
 def main (args : List String) : IO Unit := do
-  let some kern := kerns.lookup (args.headD "sse") | throw (IO.userError "kernel: sse | avx")
+  let some kern := kerns.lookup (args.headD "sse") | throw (IO.userError "kernel: sse | avx | wsse | wavx")
   let dir := args.getD 1 "Gen"
   let seg := args.getD 2 "all"
   let prog := kern.prog
@@ -506,23 +531,31 @@ def main (args : List String) : IO Unit := do
       k := k + 1
     return k
   -- prologue
-  let e2 := Hashtree.Asm.X86Run.entry false 2 24
+  let e2 := Hashtree.Asm.X86Run.entry kern.win 2 24
   let (h0c1, NP) := toHead m1 e2
   let (h0c2, _) := toHead m2 e2
-  let KP := abstract (run prog 4 (mem0sW 4 kern.rodata []) (fun _ => false) NP entryW)
+  let KP := abstract (run prog 4 (mem0sW 4 kern.rodata []) (fun _ => false) NP kern.start)
   if KP.err.isSome then throw (IO.userError s!"prologue: {KP.err}")
   let lo : Int := KP.mem.foldl (fun acc p => match stackRel p.1.off with | some o => min acc o | none => acc) 0
-  let pushL : List (Int × Cell E Lin) := KP.mem.filterMap fun p => match stackRel p.1.off, p.2 with
+  -- the prologue's pointer pushes, and (windows) its lane stores: the saved lanes enter the
+  -- symbolic initial memory as memory-keyed variables (`MemKeyed`), their lanes stay in `pushD`
+  let pushP : List (Int × Cell E Lin) := KP.mem.filterMap fun p => match stackRel p.1.off, p.2 with
     | some k, .pb a j => some (k, .pb a j)
     | _, _ => none
-  if pushL.length != KP.mem.length then throw (IO.userError "prologue log: not all pointer pushes")
+  let pushD : List (Int × E × Nat) := KP.mem.filterMap fun p => match stackRel p.1.off, p.2 with
+    | some k, .dat x j => some (k, x, j)
+    | _, _ => none
+  if pushP.length + pushD.length != KP.mem.length then throw (IO.userError "prologue log: not all pointer pushes / lane stores")
+  let pushL : List (Int × Cell E Lin) := pushP ++ pushD.map fun q => (q.1, .dat (.var (.m rStack (sAt q.1))) q.2.2)
   let pushText := listLean (fun (q : Int × Cell E Lin) => s!"(({q.1} : Int), {q.2.toLean})") pushL
+  let pushPText := listLean (fun (q : Int × Cell E Lin) => s!"(({q.1} : Int), {q.2.toLean})") pushP
+  let pushDText := listLean (fun (q : Int × E × Nat) => s!"(({q.1} : Int), {q.2.1.toLean}, {q.2.2})") pushD
   -- registers holding entry-symbol pointers that the loop does not advance (rax = output, rcx = count
   -- at the wrapper call) get fresh symbols 13, 14, … at the loop head
   let mut gH := KP.gpr
   let mut extra : List Lin := []
   for g in [0:KP.gpr.length] do
-    if !([2, 6, 7].contains g) then
+    if !(kern.argRegs.contains g) then
       match KP.gpr[g]! with
       | .ptr a =>
         if (a.off.c.take 3).any (· != 0) then
@@ -548,7 +581,7 @@ def main (args : List String) : IO Unit := do
   let tauOf (KF : State E Lin) : String :=
     let off (g : Nat) : String := match KF.getG g with | .ptr a => a.off.toLean | _ => "?"
     let fl := match KF.flags with | some (a, b) => s!"{a.toLean}, {b.toLean}" | none => "?, ?"
-    s!"[{off 6}, {off 7}, (⟨-1, [0, 0, 1]⟩ : Lin), {fl}]"
+    s!"[{off kern.inReg}, {off kern.outReg}, (⟨-1, [0, 0, 1]⟩ : Lin), {fl}]"
   let hdr := s!"open Hashtree.Asm Hashtree.Asm.X86 Hashtree.Asm.X86Sym Hashtree.Asm.X86SymW {kern.ns} Hashtree.Asm.SpecQ Hashtree.Spec\n" ++
     "set_option maxRecDepth 200000\nset_option maxHeartbeats 0\nset_option linter.unusedSimpArgs false\nset_option linter.unusedVariables false\n\n"
   if seg = "head" || seg = "all" then
@@ -556,7 +589,7 @@ def main (args : List String) : IO Unit := do
       | some (a, b) => s!"[Lin.sym 0, Lin.sym 1, Lin.sym 2, {a.toLean}, {b.toLean}, " ++
           ", ".intercalate (((List.range 8).map fun i => s!"Lin.sym {i + 5}") ++ extra.map (fun (l : Lin) => l.toLean)) ++ "]"
       | none => "[]"
-    let body := s!"import Hashtree.Asm.Chain\nimport Hashtree.Asm.X86LoopW2\nimport {kern.ns}\n\n" ++ hdr ++
+    let body := s!"import Hashtree.Asm.Chain\nimport Hashtree.Asm.X86LoopW2\nimport {kern.ns}\n{kern.extraImport}\n" ++ hdr ++
       s!"namespace Hashtree.Gen.{G}\n\n" ++
       s!"/-- The prologue's cut at the loop head (pc {H}), {NP} steps. -/\ndef KP : State E Lin := {KP.toLean}\n\n" ++
       "/-- The first loop-head cut: the prologue's, without its log, flags as fresh symbols 3, 4. -/\n" ++
@@ -564,11 +597,21 @@ def main (args : List String) : IO Unit := do
       "/-- The loop-head cut after an iteration: registers set to constant pointers by the body. -/\n" ++
       s!"def KH1 : State E Lin := {KH1.toLean}\n\n" ++
       s!"def tauP : List Lin := {flagsText}\n\ndef NP : Nat := {NP}\ndef lo : Int := {lo}\n\n" ++
-      s!"/-- The prologue's pushes (stack offset relative to the entry rsp, cell). -/\ndef pushL : List (Int × Cell E Lin) := {pushText}\n\n" ++
-      s!"theorem slicePro : sliceCheck prog 4 (mem0sW 4 rodata []) (fun _ => false) {NP} entryW KP [] = true := by\n  decide +kernel\n\n" ++
+      (if pushD.isEmpty then
+        s!"/-- The prologue's pushes (stack offset relative to the entry rsp, cell). -/\ndef pushL : List (Int × Cell E Lin) := {pushText}\n\n"
+      else
+        s!"/-- The prologue's pointer pushes (stack offset relative to the entry rsp, cell). -/\ndef pushP : List (Int × Cell E Lin) := {pushPText}\n\n" ++
+        s!"/-- The prologue's lane stores (stack offset, lane, byte index). -/\ndef pushD : List (Int × E × Nat) := {pushDText}\n\n" ++
+        "/-- The prologue's stack cells as the symbolic initial memory sees them: the pushes, and the stored lanes as memory-keyed variables. -/\n" ++
+        "def pushL : List (Int × Cell E Lin) := pushP ++ pushD.map fun q => (q.1, .dat (.var (.m rStack (sAt q.1))) q.2.2)\n\n") ++
+      s!"theorem slicePro : sliceCheck prog 4 (mem0sW 4 rodata []) (fun _ => false) {NP} {kern.entryName} KP [] = true := by\n  decide +kernel\n\n" ++
       "theorem KP_assume : KP.assume = [] := by decide\n" ++
       "theorem KP_inst : { KP with mem := [], assume := [] } = KH0.substL tauP := by decide\n" ++
-      "theorem KP_push : ∀ q ∈ pushL, lkIsW ⟨rStack, sAt q.1⟩ KP.mem q.2 = true := by decide\n" ++
+      (if pushD.isEmpty then
+        "theorem KP_push : ∀ q ∈ pushL, lkIsW ⟨rStack, sAt q.1⟩ KP.mem q.2 = true := by decide\n"
+      else
+        "theorem KP_pushP : ∀ q ∈ pushP, lkIsW ⟨rStack, sAt q.1⟩ KP.mem q.2 = true := by decide\n" ++
+        "theorem KP_pushD : ∀ q ∈ pushD, lkIsW ⟨rStack, sAt q.1⟩ KP.mem (.dat q.2.1 q.2.2) = true := by decide\n") ++
       "theorem pushL_keyed : pushKeyed pushL = true := by decide\n" ++
       "theorem KP_log : ∀ p ∈ KP.mem, p.1.region = rStack ∧ stackRel p.1.off = some p.1.off.k ∧ lo ≤ p.1.off.k ∧ p.1.off.k < 0 := by decide\n" ++
       "theorem pushL_range : ∀ q ∈ pushL, lo ≤ q.1 ∧ q.1 < 0 := by decide\n" ++
@@ -586,30 +629,30 @@ def main (args : List String) : IO Unit := do
       s!"theorem KF_inst (env0 : Key → W32) (σ : Nat → Int) :\n    mapState (EF env0) σ KF = mapState (EF env0) σ \{ KF with gpr := (KH1.substL tauE).gpr, vr := KH1.vr } :=\n" ++
       s!"  mapState_inst (E{C - 1} env0) σ _ _ _ _ _ _ _ _ slice{C - 1} (KH1.substL tauE).gpr KH1.vr KF_gpr KF_vr\n\n" ++
       s!"end Hashtree.Gen.{G}.{sg}\n"
-  let spLo : Int := -200
+  let spLo : Int := kern.spLo
   if seg = "it0" || seg = "all" then
-    let KF ← genSeg kern dir "It0" "KH0" memT keyedT "(hσ : 1 ≤ σ 2)" sls0 1 spLo lo ""
+    let KF ← genSeg kern dir "It0" "KH0" memT keyedT "(hσ : 1 ≤ σ 2)" sls0 1 spLo lo kern.extraImport
     IO.FS.writeFile s!"{dir}/It0/Shape.lean" (shapeFile "It0" "KH0" KF sls0.size)
   if seg = "it" || seg = "all" then
     let (h2c1, _) := toHead m1 h1c1
     let _ := h2c1
     let sls ← ok! (segRun prog m0H KH1 h1c1 h1c2 m1 m2 (tab i1 64) (tab i2 64) NI)
-    let KF ← genSeg kern dir "It" "KH1" memT keyedT "(hσ : 1 ≤ σ 2)" sls 1 spLo lo ""
+    let KF ← genSeg kern dir "It" "KH1" memT keyedT "(hσ : 1 ≤ σ 2)" sls 1 spLo lo kern.extraImport
     IO.FS.writeFile s!"{dir}/It/Shape.lean" (shapeFile "It" "KH1" KF sls.size)
   if seg = "t0a" || seg = "all" then
-    let e0 := Hashtree.Asm.X86Run.entry false 0 24
+    let e0 := Hashtree.Asm.X86Run.entry kern.win 0 24
     let (c1, _) := toHead m1 e0
     let (c2, _) := toHead m2 e0
     let n := toHalt m1 c1
     let sls ← ok! (segRun prog m0H KH0 c1 c2 m1 m2 (tab i1 0) (tab i2 0) n)
-    let _ ← genSeg kern dir "T0a" "KH0" memT keyedT "(hσ : σ 2 = 0)" sls 0 spLo lo ""
+    let _ ← genSeg kern dir "T0a" "KH0" memT keyedT "(hσ : σ 2 = 0)" sls 0 spLo lo kern.extraImport
   if seg = "t0b" || seg = "all" then
-    let e1 := Hashtree.Asm.X86Run.entry false 1 24
+    let e1 := Hashtree.Asm.X86Run.entry kern.win 1 24
     let (c1, _) := toHead m1 e1
     let (c2, _) := toHead m2 e1
     let (c1, _) := toHead m1 c1
     let (c2, _) := toHead m2 c2
     let n := toHalt m1 c1
     let sls ← ok! (segRun prog m0H KH1 c1 c2 m1 m2 (tab i1 64) (tab i2 64) n)
-    let _ ← genSeg kern dir "T0b" "KH1" memT keyedT "(hσ : σ 2 = 0)" sls 0 spLo lo ""
+    let _ ← genSeg kern dir "T0b" "KH1" memT keyedT "(hσ : σ 2 = 0)" sls 0 spLo lo kern.extraImport
   IO.println "done"
