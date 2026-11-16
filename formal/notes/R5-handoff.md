@@ -285,6 +285,23 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## Statements for R2c (commit T, text only, nothing proved)
+
+* `Proofs/WinAvx2X8Bridge.lean`: `KSpecC8` (the avx2_x8 link obligation from `entryWin`: return at
+  `c = 0` or tail to avx_x4 with `PreLink … (c - c % 8) (c % 8) … D8 L4`, `D8 = 1296`,
+  `L4 = [8,4,2,1]`, hypothesis `σ 9 % 16 = 8`), `TurnOut8` / `TurnOut8Last` (output bytes and
+  footprint of the linux `Avx2X8WAll.x8_runW_abi` / `x8_runW_last_abi` runs; literals
+  `x8RunSteps j = 16 + (6062 + (j * 6062 + (6035 + 31)))`, `x8LastSteps = 16 + (6035 + 31)`,
+  checked against R2's `TURNLEN = 6062`, `BODYLEN = 6035` in the amd64 clone; frame bound `D8L = 984`).
+* `Proofs/WinAvxX4WOut.lean`: `TurnOut4W` / `TurnOut4WLast` (output bytes and footprint of the
+  windows `WinAvxX4WAll.x4w_runW_all` / `x4w_runW_last_all` runs, frame `[σ 9 - 568, σ 9)`).
+
+## Clean-clone integration at 8520056 (queue 26): GREEN
+
+`/root/r5scratch/hashtree` (own `.lake`): `make gen`, ArmNeonX1P isolated (third try; the first two
+hit `bv_decide` SAT timeouts under load), `make build` EXIT=0, `lake build` EXIT=0, `make audit`
+EXIT=0, 398 prints, 0 sorryAx.  Queue 28 repeats it at 4bd38aa (the winx4 merge + avx_x1 link).
+
 ## avx_x1 chain link DONE (commit S): `Proofs/WinAvxX1Link.lean` (`tail1`, `last1`)
 
 * `tail1`: from `PreLink env σ c d r inp D L1 s` (`d + r = c`, `264 ≤ D`, `WfMemW` of the avx_x1
