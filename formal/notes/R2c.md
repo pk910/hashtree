@@ -62,3 +62,26 @@ was rebuilt from source in this worktree (real copies, no hardlinks).
 Gotchas: core Lean only — no `ring`/`set`; `omega` does not look inside structure projections of
 literals (`show` the goal first) nor through `σ (0 + 1)` (normalise the index); conjunctions with
 a non-arithmetic conjunct must be split before `omega`.
+
+## avx_x4 W-mode loop (`TurnOut4`)
+
+`Hashtree.Proofs.AvxX4LoopWOut.TurnOut4` / `x4RunSteps` are R5's text (`WinAvxX4Bridge`), copied
+verbatim: under `WfMemW rodata [] env0 σ mem0c`, `OutLogW σ M`, `σ 2 = 4 (j + 1) + s` with
+`4 ≤ s < 8` and the input bytes at `σ 0`, every cell of the log of
+`run prog 4 mem0c orcC (x4RunSteps j) (fr M (mapState env0 σ entryW))` is in `M`, an output cell in
+`[σ 1, σ 1 + 128 (j + 2))` or a cell of the kernel's own stack frame `[σ 9 - 568, σ 9)`, and
+`OutOk inp (σ 1) (4 (j + 2))` holds on it.
+
+`theorem turnOut4 : TurnOut4` — proved; `#print axioms`: `propext`, `Classical.choice`,
+`Quot.sound` and generated `*_native.bv_decide.ax_*` (134 of `Gen.AvxX4P`, the rest of
+`Asm.byte_bswap` / `Asm.SpecQ`); no `sorryAx`, no `native_decide` / `ofReduceBool`.
+
+Same route as x16: the W slices re-checked with the pilot's (`Gen.AvxX4P`) trees
+(`AvxX4LoopWOutChk1..8`), labels (`…Lab`), the lifted invariant chains (`…Inv`, via the new
+`invC_lift'`, which allows S and W slices of different lengths), the two tails with the turn's log
+shape and the 128 digest cases (`…Tail`); `AvxX4LoopWOut` composes entry pass (72 + body + 23), `j`
+framed turns (`loop_out4`) and the final pass (68 + body + 27) along `AvxX4LoopWAll.x4_runW`.
+Generator: `tools/gen_r2c_x4.py <slice table> <pilot out_final text>` writes Lab/Chk/Inv/Tail.
+Cost: Tail 60 s, Out 114 s (1 thread).  Gotcha: `funext o; congr 1; omega` on
+`inp (256 (j+1) + o) = inp (64 (4 (j+1)) + o)` never finished (`congr`'s closing `rfl` unfolds
+`Nat.mul` on a variable); `exact congrArg inp (by omega)` is instant.

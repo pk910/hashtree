@@ -35,6 +35,8 @@ import Hashtree.Proofs.Avx2X8WEntry
 import Hashtree.Proofs.Avx512X16WLoop
 /- R2c: x16 output correctness -/
 import Hashtree.Proofs.Avx512X16WOut
+/- R2c: x4 output correctness -/
+import Hashtree.Proofs.AvxX4LoopWOut
 
 #print axioms Hashtree.Proofs.Shani.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -114,3 +116,9 @@ import Hashtree.Proofs.Avx512X16WOut
 #print axioms Hashtree.Proofs.Avx512X16WOut.invW_body
 #print axioms Hashtree.Proofs.Avx512X16WOut.invV_body
 #print axioms Hashtree.Proofs.Avx512X16WOut.invC_lift
+
+/- R2c: x4 output correctness -/
+#print axioms Hashtree.Proofs.AvxX4LoopWOut.turnOut4
+#print axioms Hashtree.Proofs.AvxX4LoopWOut.loop_out4
+#print axioms Hashtree.Proofs.AvxX4LoopWOut.iter_out4
+#print axioms Hashtree.Proofs.AvxX4LoopWOut.final_out4
