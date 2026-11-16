@@ -285,6 +285,25 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## avx_x1 chain link DONE (commit S): `Proofs/WinAvxX1Link.lean` (`tail1`, `last1`)
+
+* `tail1`: from `PreLink env σ c d r inp D L1 s` (`d + r = c`, `264 ≤ D`, `WfMemW` of the avx_x1
+  rodata at `σ`, the input bytes) the windows avx_x1 stream returns after `WinAvxX1W.steps r`
+  with `err = none`, `tail = none` and `PostLink σ c inp D`.  `last1`: the same as the last
+  clause of `KSpecC` for `winSpecs` (step function `fun c => steps (c % 4)`).
+* Proof: `envV` puts the hand-over vector file `V` on the vector symbols (`vId`) and the viewed
+  memory `view M' m0` on the memory keys, so the comparison state is `fr M' (mapState envV σ'
+  entryWin)` (`mapState_envV`); `run_fr` + `WinAvxX1W.correctW` on `view M' m0` (`wf_view`:
+  `M'` is output/below-`σ 9` only); `run_agree` on the avx_x1 liveness certificate extended by
+  `CSR = [3,4,5,12,13,14,15]` at every pc (`cert_const`: a constant addition keeps a `Cert`), so the
+  actual run has the same log/status and the `RegsOkW` registers; `outOk_new` + `blk_shift_n`
+  join the `c % 4` new blocks to the hand-over's `d`.  Checks in ~7 s.  Axioms: standard +
+  `_native.bv_decide` only.
+* Also merged `research/formal-r2-winx4` (R2: `WinAvxX4WAll.x4w_runW_all/_last_all`, the windows
+  x4 W-mode loop at `entryWin`, and `WinAvxX4Small.small_prefixW`, the early exit for `0 < c < 4`).
+* Remaining for the avx_x4 link (`X4WinCert`): the windows x4 output lemma (the `TurnOut4`
+  analogue on `WinAvxX4W`'s exit cuts) and the exit-register facts at `KTE`/`KTEs`/`KSmW`.
+
 ## sse_x1 / avx_x1 windows links DONE (commit R): `Proofs/WinSseX1W`, `Proofs/WinAvxX1W`, `Proofs/WinWrapperAvx1`
 
 * Generator: pointer pushes whose address uses an argument symbol the loop advances get a fresh
