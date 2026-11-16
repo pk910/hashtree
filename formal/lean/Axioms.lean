@@ -78,7 +78,12 @@ import Hashtree.Asm.RegionTags
 import Hashtree.Proofs.WinRegionTags
 import Hashtree.Proofs.RegionLift
 import Hashtree.Proofs.WinRegionLift
+import Hashtree.Proofs.WinX1Front
+import Hashtree.Proofs.WinX1Back
 import Hashtree.Proofs.WinSseFront
+import Hashtree.Proofs.WinSseBack
+import Hashtree.Proofs.WinAvxFront
+import Hashtree.Proofs.WinAvxBack
 import Hashtree.Proofs.AvxX4ToX1
 import Hashtree.Proofs.AvxX4LoopWAll
 import Hashtree.Proofs.AvxX4X1WAgree
@@ -647,4 +652,11 @@ import Hashtree.Proofs.Avx512X16WOut
 
 -- R5: the windows sse_x1 prologue replay (nine pushes, sub rsp 192, eight xmm saves: 18 steps
 -- from the call state to the body entry, concrete state frontSt).
+#print axioms Hashtree.Proofs.WinX1Front.run_front
+#print axioms Hashtree.Proofs.WinX1Back.run_back
+#print axioms Hashtree.Proofs.WinX1Back.backFinal_getG_saved
+#print axioms Hashtree.Proofs.WinX1Back.backFinal_getV
 #print axioms Hashtree.Proofs.WinSseFront.run_front
+#print axioms Hashtree.Proofs.WinSseBack.run_back
+#print axioms Hashtree.Proofs.WinAvxFront.run_front
+#print axioms Hashtree.Proofs.WinAvxBack.run_back

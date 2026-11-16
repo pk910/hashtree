@@ -285,6 +285,51 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## x1 prologue/epilogue replays, generic in the stream (commit P); route (B) started (commit Q)
+
+* `Proofs/WinX1Front.lean`: `run_front prog p0 …` (18 steps from pc `p0`: nine pushes, `sub rsp,192`,
+  eight xmm saves; lookups as hypotheses), `run_front_nop` (19 steps behind an `endbr64`), the
+  `frontSt p0` projections.  Instances: `WinSseFront.run_front` (p0 = 0, same statement as before),
+  `WinAvxFront.run_front` (nop at 0, p0 = 1).  Axioms standard.
+* `Proofs/WinX1Back.lean`: `run_back prog q0 vex …` (19 steps from the first restore pc `q0`: eight
+  `vload` restores (VEX flag `vex`), `add rsp,192`, nine pops, `ret`) from `t0.mem = W ++ saveLog st
+  (a-264) 8 (pushLog st a 9 tail)` with `Outside (a-200) 208 W` and the return pointer in `tail`;
+  `backFinal_{halted,mem,err,tail,rsp,gpr_len,getG_saved,getG_other,getV}`.  Instances
+  `WinSseBack.run_back` (4198, false), `WinAvxBack.run_back` (4068, true); lookups from the
+  kernel-checked `WinSseX1`/`WinAvxX1` scans plus one `decide +kernel` per `ret`.  Axioms standard
+  + `bytes_reassemble` bv_decide.  Trap found and removed: the first version's `backFinal_mem`
+  (`exact epiSt_mem …` against the computed `popSt … 9` state) took 61 minutes; every projection
+  of `restSt/addSt/popSt/backFinal` is now a rewrite lemma (`popSt_succ`, `addSt_eq`, …), the
+  whole module checks in 2 s.  Same family: a `rw [loadVal_mem_eq (s := …) rfl _]` with the
+  `t` state left to unification.
+* Audit: EXIT=0, 442 prints, families unchanged (standard + `_native.bv_decide`).
+* Reproducibility (queue 19): `x86loop1w sse` and `x86proofv wx4 --split` regenerated into a scratch
+  directory are byte-identical to the committed `Gen/SseX1LW` and `Gen/WinAvxX4P` (`diff -r`).
+  `make check-models`: EXIT=0 (8m51s), x86check/armcheck linux+mac/rvcheck all `failures: 0`.
+* Clean-clone integration check (`/root/r5scratch/hashtree`, branch at 5b2a0ff, no shared `.lake`,
+  `make gen` + `make build`, 8-wide then capped to 6 cores): 545 min, 7526 modules, EXIT=2 with
+  exactly one failing module, `Gen/ArmNeonX1P/P1` (three `bv_decide` SAT timeouts under load; the
+  same P1 passes in isolation in 26 s) — re-run isolated in queue 20b, then `lake build` (the audit
+  needs `GoProof`/`Glue`, which `make build` does not list) and `make audit`; results in the next commit.
+* Route (B) (coordinator's decision): the x1 links will not transfer the linux loop certificates
+  (their initial-memory model puts the linux push cells and return marker inside the windows xmm
+  save area; no choice of shift/view gives the real run and the certificate one `mem0`, and the
+  agreement engine's `addrs` clause forbids differing logs).  Instead `x86loop1w` gets windows
+  records: `Kern` gains `win/start/entryName/extraImport/inReg/outReg/argRegs/spLo` (defaults = the
+  linux values), records `wsse`/`wavx` (`Kernels.X86Win.{SseX1,AvxX1}`, start `entryWinS` — the
+  symbolic twin of `WinWrapper.entryWin`, added to `Asm/X86SymWin` —, in/out registers rdx/rcx,
+  scratch down to −264), and the prologue log may hold lane stores: `pushP` (pointer pushes) and
+  `pushD` (offset, lane, byte) with `pushL := pushP ++ pushD.map (keyed `.m rStack (sAt k)` cells)`
+  so `MemKeyed` still holds; `KP_pushP`/`KP_pushD` replace `KP_push` only when `pushD ≠ []`.
+  The linux records regenerate **byte-identically** (`SSEX1LW_IDENTICAL`, `AVXX1LW_IDENTICAL`).
+  `Gen/WinSseX1LW` (527 files, 17 MB; prologue 23 steps, lo −200, iteration 4175 steps, It0/It 129
+  slices, T0a/T0b 21 steps, 0 outputs without proof) and `Gen/WinAvxX1LW` (527 files; prologue 24,
+  iteration 4044) generated in 4 s / 8 s, committed with `git add -f`; their builds are queue 22.
+  Next: `Proofs/WinSseX1W` / `WinAvxX1W` = the `AvxX1W` port with `PushOkW` split into the pointer
+  pushes (as before) and the lane cells (`∃ x, lookup … M = .ok (some (.dat x b))`, matched by the
+  restart environment `ecomb` through `cellX`), `RegsOkW`-shaped exit registers (nine pops), and
+  the windows contract `KSpecW` from `correctW` directly (no transfer).
+
 ## sse_x1 W-mode certificate + audit green (commit O)
 
 * `Gen/SseX1LW` (527 files, 17 MB, `lake exe x86loop1w sse Hashtree/Gen/SseX1LW all`, 11 s; entries
