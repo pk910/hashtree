@@ -31,8 +31,10 @@ verify:         ## check the restored tree against the pinned hashes
 # not a library module, so it is not a valid `lake build` target.
 PROOF_MODULES = $(shell find Hashtree/Proofs Hashtree/Gen -name '*.lean' 2>/dev/null | sed -e 's|/|.|g' -e 's|\.lean$$||')
 
+# `Hashtree` (the library root) is listed too: Axioms.lean imports Hashtree.GoProof and
+# Hashtree.Glue, which live outside Proofs/Gen, so without it `make audit` fails in a clean clone.
 build: gen      ## restore the generated proofs and check every proof module
-	$(LAKE) build $(PROOF_MODULES)
+	$(LAKE) build Hashtree $(PROOF_MODULES)
 
 regen:          ## regenerate Hashtree/Gen from the committed models (KERNEL=name for one)
 	./regen.sh $(KERNEL)
