@@ -546,8 +546,6 @@ def main (args : List String) : IO Unit := do
     | some k, .dat x j => some (k, x, j)
     | _, _ => none
   if pushP.length + pushD.length != KP.mem.length then throw (IO.userError "prologue log: not all pointer pushes / lane stores")
-  let pushL : List (Int × Cell E Lin) := pushP ++ pushD.map fun q => (q.1, .dat (.var (.m rStack (sAt q.1))) q.2.2)
-  let pushText := listLean (fun (q : Int × Cell E Lin) => s!"(({q.1} : Int), {q.2.toLean})") pushL
   let pushPText := listLean (fun (q : Int × Cell E Lin) => s!"(({q.1} : Int), {q.2.toLean})") pushP
   let pushDText := listLean (fun (q : Int × E × Nat) => s!"(({q.1} : Int), {q.2.1.toLean}, {q.2.2})") pushD
   -- registers holding entry-symbol pointers that the loop does not advance (rax = output, rcx = count
@@ -562,6 +560,20 @@ def main (args : List String) : IO Unit := do
           gH := gH.set g (.ptr ⟨a.region, Lin.sym (13 + extra.length)⟩)
           extra := extra ++ [a.off]
       | _ => pure ()
+  -- pointer pushes whose address uses an argument symbol (0..2; the loop advances those): the
+  -- pushed cell keeps the entry value under a fresh symbol (`tauR` renames it in `pushL`, `tauP`
+  -- maps the fresh symbol back to the entry one)
+  let mut tauR : List Lin := [Lin.sym 0, Lin.sym 1, Lin.sym 2]
+  for sy in [0:3] do
+    if pushP.any (fun q => match q.2 with | .pb a _ => a.off.c.getD sy 0 != 0 | _ => false) then
+      tauR := tauR.set sy (Lin.sym (13 + extra.length))
+      extra := extra ++ [Lin.sym sy]
+  let renamed := tauR != [Lin.sym 0, Lin.sym 1, Lin.sym 2]
+  let pushL : List (Int × Cell E Lin) :=
+    (if renamed then pushP.map (fun q => (q.1, q.2.substL tauR)) else pushP) ++
+      pushD.map fun q => (q.1, .dat (.var (.m rStack (sAt q.1))) q.2.2)
+  let pushText := listLean (fun (q : Int × Cell E Lin) => s!"(({q.1} : Int), {q.2.toLean})") pushL
+  let tauRText := listLean (fun (l : Lin) => l.toLean) tauR
   let KH0 : State E Lin := { KP with gpr := gH, mem := [], flags := some (Lin.sym 3, Lin.sym 4) }
   let memT := "(mem0sW 4 rodata pushL)"
   let keyedT := "(mem0sW_keyed 4 rodata pushL (by decide))"
@@ -597,17 +609,18 @@ def main (args : List String) : IO Unit := do
       "/-- The loop-head cut after an iteration: registers set to constant pointers by the body. -/\n" ++
       s!"def KH1 : State E Lin := {KH1.toLean}\n\n" ++
       s!"def tauP : List Lin := {flagsText}\n\ndef NP : Nat := {NP}\ndef lo : Int := {lo}\n\n" ++
-      (if pushD.isEmpty then
+      (if pushD.isEmpty && !renamed then
         s!"/-- The prologue's pushes (stack offset relative to the entry rsp, cell). -/\ndef pushL : List (Int × Cell E Lin) := {pushText}\n\n"
       else
         s!"/-- The prologue's pointer pushes (stack offset relative to the entry rsp, cell). -/\ndef pushP : List (Int × Cell E Lin) := {pushPText}\n\n" ++
         s!"/-- The prologue's lane stores (stack offset, lane, byte index). -/\ndef pushD : List (Int × E × Nat) := {pushDText}\n\n" ++
-        "/-- The prologue's stack cells as the symbolic initial memory sees them: the pushes, and the stored lanes as memory-keyed variables. -/\n" ++
-        "def pushL : List (Int × Cell E Lin) := pushP ++ pushD.map fun q => (q.1, .dat (.var (.m rStack (sAt q.1))) q.2.2)\n\n") ++
+        s!"/-- Argument symbols the loop advances, renamed in the pushed cells to fresh symbols (`tauP` maps them back). -/\ndef tauR : List Lin := {tauRText}\n\n" ++
+        "/-- The prologue's stack cells as the symbolic initial memory sees them: the pushes (entry symbols renamed), and the stored lanes as memory-keyed variables. -/\n" ++
+        "def pushL : List (Int × Cell E Lin) := pushP.map (fun q => (q.1, q.2.substL tauR)) ++ pushD.map fun q => (q.1, .dat (.var (.m rStack (sAt q.1))) q.2.2)\n\n") ++
       s!"theorem slicePro : sliceCheck prog 4 (mem0sW 4 rodata []) (fun _ => false) {NP} {kern.entryName} KP [] = true := by\n  decide +kernel\n\n" ++
       "theorem KP_assume : KP.assume = [] := by decide\n" ++
       "theorem KP_inst : { KP with mem := [], assume := [] } = KH0.substL tauP := by decide\n" ++
-      (if pushD.isEmpty then
+      (if pushD.isEmpty && !renamed then
         "theorem KP_push : ∀ q ∈ pushL, lkIsW ⟨rStack, sAt q.1⟩ KP.mem q.2 = true := by decide\n"
       else
         "theorem KP_pushP : ∀ q ∈ pushP, lkIsW ⟨rStack, sAt q.1⟩ KP.mem q.2 = true := by decide\n" ++

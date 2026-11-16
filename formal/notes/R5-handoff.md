@@ -285,6 +285,19 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## sse_x1 / avx_x1 windows links DONE (commit R): `Proofs/WinSseX1W`, `Proofs/WinAvxX1W`, `Proofs/WinWrapperAvx1`
+
+* Generator: pointer pushes whose address uses an argument symbol the loop advances get a fresh
+  symbol (`tauR` renames it in `pushL`, `tauP` maps it back); linux records still regenerate
+  byte-identically (`SSEX1LW_IDENTICAL`, `AVXX1LW_IDENTICAL`, queue 24); `Gen/WinSseX1LW` and
+  `Gen/WinAvxX1LW` regenerated and rebuilt (31 min / 27 min at 4 threads).
+* `WinSseX1W.correctW`/`kspecW : KSpecW prog rodata steps 264`, same for `WinAvxX1W` (+ `fitsW_avx1`);
+  each checks in ~9 s.  `WinWrapperAvx1.wrapper_correctW_noavx2`: the windows wrapper is correct
+  with no kernel hypothesis whenever the feature bytes pick `shani_x2` or `avx_x1`.
+* Audit (scratch import, 6 prints): standard axioms + `_native.bv_decide` only, 0 sorryAx.
+  Added to `Axioms.lean`.
+* Next: the avx2_x8 / avx512_x16 / avx_x4 windows contracts (`FitsW` for the remaining picks).
+
 ## x1 prologue/epilogue replays, generic in the stream (commit P); route (B) started (commit Q)
 
 * `Proofs/WinX1Front.lean`: `run_front prog p0 …` (18 steps from pc `p0`: nine pushes, `sub rsp,192`,

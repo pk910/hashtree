@@ -14,6 +14,9 @@ import Hashtree.Proofs.SseX1All
 import Hashtree.Proofs.AvxX1All
 import Hashtree.Proofs.AvxX1W
 import Hashtree.Proofs.SseX1W
+import Hashtree.Proofs.WinSseX1W
+import Hashtree.Proofs.WinAvxX1W
+import Hashtree.Proofs.WinWrapperAvx1
 import Hashtree.Proofs.WrapperAmd64
 import Hashtree.Proofs.Avx2X8Body
 import Hashtree.Proofs.Avx512X16Body
@@ -97,6 +100,10 @@ import Hashtree.Proofs.Avx512X16WOut
 #print axioms Hashtree.Proofs.AvxX1L.correct
 #print axioms Hashtree.Proofs.AvxX1W.correctW
 #print axioms Hashtree.Proofs.SseX1W.correctW
+#print axioms Hashtree.Proofs.WinSseX1W.kspecW
+#print axioms Hashtree.Proofs.WinAvxX1W.kspecW
+#print axioms Hashtree.Proofs.WinAvxX1W.fitsW_avx1
+#print axioms Hashtree.Proofs.WinWrapperAvx1.wrapper_correctW_noavx2
 #print axioms Hashtree.Proofs.WrapperAmd64.wrapper_correct
 #print axioms Hashtree.Go.sha256_1_generic_eq
 #print axioms Hashtree.Glue.Hash_spec
