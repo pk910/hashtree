@@ -7,20 +7,24 @@ set_option maxHeartbeats 0
 /-!
 # Dead-register analysis of `hashtree_sha256_avx_x4`
 
-The x8 kernel tail-calls x4 with every register of the wrapper call state restored except two
-scratch values it does not bother to clear: `rcx` (left on the x8 table) and the flags.  The x4
-kernel reads neither before writing it: `cmp rdx,0` at pc 1 sets the flags before the `jne` at
-pc 2 reads them, and `lea rcx,[rip+..]` at pc 8 writes `rcx` before its first read (pc 9).  On
-the count-0 return (pc 3) and the small-count exit (`jl` at pc 6 to `add rsp,408; jmp avx_x1`
-at 4142-4143) `rcx` is never written, so it is still a may-differ register there -- harmless,
-since the x1 hand-off tolerates `rcx` (`AvxX1Agree`, set `{0, 1, 9}`).
+The x8 kernel tail-calls x4 with every register of the wrapper call state restored except three
+scratch values it does not bother to clear: `rax` (the wrapper's own, which x8 never touches
+but which the loop-shifted x4 entry state does not name), `rcx` (left on the x8 table) and the
+flags.  The x4 kernel never reads `rax` at all (`raxFree`: no instruction reads or writes
+general register 0), and reads neither of the other two before writing it: `cmp rdx,0` at pc 1
+sets the flags before the `jne` at pc 2 reads them, and `lea rcx,[rip+..]` at pc 8 writes `rcx`
+before its first read (pc 9).  On the count-0 return (pc 3) and the small-count exit (`jl` at
+pc 6 to `add rsp,408; jmp avx_x1` at 4142-4143) `rcx` is never written, so it is still a
+may-differ register there -- harmless, since the x1 hand-off tolerates `rcx` (`AvxX1Agree`,
+set `{0, 1, 9}`).
 
-`Dsx4` is the analysis table from the entry set `{rcx, flags}` and `hsound` is its soundness
-for the shipped `prog`, in the factored form of `AvxX1Agree`: the nine-instruction prologue and
-the two-instruction exit are kernel-checked, the 4133-instruction body (`Dsx4 pc = []`) is
-symbolic, and the flag side condition is one kernel pass over `prog.toList`.  With
-`X86Agree.run_agree` this makes the x4 run from the x8 exit state agree, outside `{rcx}`, with
-the run from the exact wrapper-shaped entry state the x4 W-mode link is stated at.
+`Dsx4` is the analysis table from the entry set `{rax, rcx, flags}` and `hsound` is its
+soundness for the shipped `prog`, in the factored form of `AvxX1Agree`: the nine-instruction
+prologue and the two-instruction exit are kernel-checked, the 4133-instruction body
+(`Dsx4 pc = [0]`) is symbolic given `raxFree`, and the flag side condition is one kernel pass
+over `prog.toList`.  With `X86Agree.run_agree` this makes the x4 run from the x8 exit state
+agree, outside `{rax, rcx}`, with the run from the exact wrapper-shaped entry state the x4
+W-mode link is stated at.
 -/
 
 namespace Hashtree.Proofs.AvxX4Agree
@@ -30,35 +34,44 @@ open Hashtree.Asm Hashtree.Asm.X86 Hashtree.Kernels.X86.AvxX4
 /-! ## The analysis table -/
 
 /-- May-differ registers at every pc of `hashtree_sha256_avx_x4` from the entry set
-`{rcx, flags}`: the flags are written at pc 1, `rcx` at pc 8; the exits at pc 3 and at
-4142-4143 are reached without writing `rcx`. -/
+`{rax, rcx, flags}`: `rax` is never touched, the flags are written at pc 1, `rcx` at pc 8; the
+exits at pc 3 and at 4142-4143 are reached without writing `rcx`. -/
 def Dsx4 (pc : Nat) : List Nat :=
-  if pc ≤ 1 then [1, 16]
-  else if pc ≤ 8 then [1]
-  else if pc ≤ 4141 then []
-  else [1]
+  if pc ≤ 1 then [0, 1, 16]
+  else if pc ≤ 8 then [0, 1]
+  else if pc ≤ 4141 then [0]
+  else [0, 1]
 
-theorem Dsx4_entry : Dsx4 0 = [1, 16] := by decide
+theorem Dsx4_entry : Dsx4 0 = [0, 1, 16] := by decide
 
 /-- The analysis set at the `jmpTail` into x1 (pc 4143) and at the count-0 `ret` (pc 3). -/
-theorem Dsx4_exit : Dsx4 4143 = [1] := by decide
-theorem Dsx4_ret : Dsx4 3 = [1] := by decide
+theorem Dsx4_exit : Dsx4 4143 = [0, 1] := by decide
+theorem Dsx4_ret : Dsx4 3 = [0, 1] := by decide
 
-theorem Dsx4_body {pc : Nat} (h1 : 9 ≤ pc) (h2 : pc ≤ 4141) : Dsx4 pc = [] := by
+/-- `rax` is in every analysis set. -/
+theorem zero_mem_Dsx4 (pc : Nat) : 0 ∈ Dsx4 pc := by
+  unfold Dsx4
+  split
+  · simp
+  · split
+    · simp
+    · split <;> simp
+
+theorem Dsx4_body {pc : Nat} (h1 : 9 ≤ pc) (h2 : pc ≤ 4141) : Dsx4 pc = [0] := by
   have h1' : ¬ pc ≤ 1 := by omega
   have h8 : ¬ pc ≤ 8 := by omega
   unfold Dsx4
   rw [if_neg h1', if_neg h8, if_pos h2]
 
-/-- `Dsx4` only ever contains `rcx` and the flag pseudo-index. -/
-theorem mem_Dsx4 (i pc : Nat) (hi : i ∈ Dsx4 pc) : i = 1 ∨ i = 16 := by
+/-- `Dsx4` only ever contains `rax`, `rcx` and the flag pseudo-index. -/
+theorem mem_Dsx4 (i pc : Nat) (hi : i ∈ Dsx4 pc) : i = 0 ∨ i = 1 ∨ i = 16 := by
   unfold Dsx4 at hi
   split at hi
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hi; omega
   · split at hi
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at hi; omega
     · split at hi
-      · simp at hi
+      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hi; omega
       · simp only [List.mem_cons, List.not_mem_nil, or_false] at hi; omega
 
 theorem eraseAll_nil : ∀ ws : List Nat, eraseAll ([] : List Nat) ws = [] := by
@@ -87,22 +100,50 @@ theorem checkAt_lt_9 : (List.range 9).all checkAt = true := by decide +kernel
 theorem checkAt_exit : (List.range 2).all (fun k => checkAt (4142 + k)) = true := by
   decide +kernel
 
-/-- The loop body, symbolically: `Dsx4` is empty there, so both local conditions are vacuous.
-This covers the loop-back `jmp 5` at 4141 as well (its transfer set is empty). -/
+/-- No instruction reads or writes `rax` (one kernel pass). -/
+theorem raxFree :
+    prog.toList.all (fun i => decide (0 ∉ readsOf i) && decide (0 ∉ writesOf i)) = true := by
+  decide +kernel
+
+theorem prog_size : prog.size = 4144 := by decide +kernel
+
+theorem mem_toList_of_get {pc : Nat} {i : Instr} (hget : prog[pc]? = some i) :
+    i ∈ prog.toList := by
+  have hlt : pc < prog.size := by
+    by_cases h : pc < prog.size
+    · exact h
+    · rw [Array.getElem?_eq_none (show prog.size ≤ pc from by omega)] at hget
+      cases hget
+  have h1 := Array.getElem?_eq_getElem hlt
+  rw [hget] at h1
+  rw [show i = prog[pc] from Option.some.inj h1]
+  exact Array.getElem_mem_toList hlt
+
+/-- The loop body, symbolically: `Dsx4` is `[rax]` there, which no instruction reads and
+every successor keeps.  This covers the loop-back `jmp 5` at 4141 as well. -/
 theorem checkAt_body {pc : Nat} (h1 : 9 ≤ pc) (h2 : pc ≤ 4141) : checkAt pc = true := by
-  have hpc : Dsx4 pc = [] := Dsx4_body h1 h2
+  have hpc : Dsx4 pc = [0] := Dsx4_body h1 h2
   unfold checkAt
   split
   · rfl
-  · rw [hpc]
+  · rename_i i hget
+    have hi : i ∈ prog.toList := mem_toList_of_get hget
+    have hfree := List.all_eq_true.mp raxFree i hi
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at hfree
+    rw [hpc]
     simp only [Bool.and_eq_true, List.all_eq_true]
     constructor
-    · intro r _; rfl
-    · intro s _
-      rw [eraseAll_nil]
-      simp
-
-theorem prog_size : prog.size = 4144 := by decide +kernel
+    · intro r hr
+      apply decide_eq_true
+      simp only [List.mem_cons, List.not_mem_nil, or_false]
+      intro h0
+      exact hfree.1 (h0 ▸ hr)
+    · intro s _ r hr
+      have h0 : r ∈ [0] := mem_eraseAll [0] (writesOf i) hr
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at h0
+      apply decide_eq_true
+      rw [h0]
+      exact zero_mem_Dsx4 s
 
 theorem checkAt_all : ∀ pc, pc < prog.size → checkAt pc = true := by
   intro pc hpc
@@ -134,11 +175,7 @@ theorem hsound : ∀ (pc : Nat) (i : Instr), prog[pc]? = some i →
     · rw [Array.getElem?_eq_none (show prog.size ≤ pc from by omega)] at hget
       cases hget
   have hc : checkAt pc = true := checkAt_all pc hlt
-  have hi : i ∈ prog.toList := by
-    have h1 := Array.getElem?_eq_getElem hlt
-    rw [hget] at h1
-    rw [show i = prog[pc] from Option.some.inj h1]
-    exact Array.getElem_mem_toList hlt
+  have hi : i ∈ prog.toList := mem_toList_of_get hget
   have hc' := hc
   unfold checkAt at hc'
   rw [hget] at hc'
@@ -150,11 +187,11 @@ theorem hsound : ∀ (pc : Nat) (i : Instr), prog[pc]? = some i →
   · intro p' hp' r hr
     exact of_decide_eq_true (hsucc p' hp' r hr)
 
-/-- **The x4 run congruence.**  Two states that agree outside `{rcx, flags}` at the entry run
-to states that agree outside `Dsx4` at the final pc, provided the reference run does not fail
-(`X86Agree.run_agree` with the analysis above). -/
+/-- **The x4 run congruence.**  Two states that agree outside `{rax, rcx, flags}` at the entry
+run to states that agree outside `Dsx4` at the final pc, provided the reference run does not
+fail (`X86Agree.run_agree` with the analysis above). -/
 theorem run_agree4 (ro : Region) (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool)
-    (n : Nat) (s1 s2 : State W32 Int) (h0 : s1.pc = 0) (hpre : AgreeOn [1, 16] s1 s2)
+    (n : Nat) (s1 s2 : State W32 Int) (h0 : s1.pc = 0) (hpre : AgreeOn [0, 1, 16] s1 s2)
     (herr : (run prog ro mem0c orcC n s1).err = none) :
     AgreeOn (Dsx4 (run prog ro mem0c orcC n s1).pc) (run prog ro mem0c orcC n s1)
       (run prog ro mem0c orcC n s2) := by

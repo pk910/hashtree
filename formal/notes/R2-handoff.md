@@ -1,4 +1,4 @@
-# R2 handoff (linux/amd64, VM1) — updated 2026-11-15
+# R2 handoff (linux/amd64, VM1) — updated 2026-11-16
 
 Written so a successor can continue without the controller transcript.  VM1 is
 `root@46.101.165.150`; repo `/root/ht/hashtree`, branch `research/formal-r2-amd64`; scratch
@@ -46,6 +46,18 @@ builds under `lake build`, not `lake env lean -o`.
   loop with the output-only log `OutLogO` (drops `24 ≤ σ 9` from the x16 loop theorems);
   `x8Pre` uses `OutLogO M`; `outLogO_outLog : OutLogO M → OutLog M`.  `AxiomsR2b.lean`: 38
   prints, no sorryAx.  (The x16 `OutOk` lemma is R2c's workstream, VM2.)
+
+* x8 -> x4 hand-off (this commit): `Avx2X8ExitShape` (32x16 vector file at `KTE r`/`KTEs r`),
+  `Avx2X8WAt` (`x8_runW_at`/`x8_runW_last_at`: the x8 W-mode runs with the x8 table at a fresh
+  region `r8`, by `run_swap_chain`), `AvxX4Agree` (the dead set now also holds `rax`:
+  `Dsx4 0 = [0,1,16]`, `raxFree`), `Avx2X8X4WAgree`: the resumed x8 exit cut agrees with the x4
+  entry state up to `{rax, rcx}` (`x4cut_agree`, `cutEnv8`), and `x8_x4_W_last/_small/_zero`
+  (`c = 8 (j+1) + s`, `s` in [12,16) / [9,12) / 8) and `x8_x4_W1_*` (`8 <= c < 16`): the x8 run to
+  its exit cut, then the x4 link to `K201W` (behind the x8 log), its small path (`KSm`), or its
+  count-0 return.  Trap found and removed: `x8_runW_at` states its log as `(KTEs r).mem.map …`,
+  the goals as `(mapState … (KTEs r)).mem`; passing it unchanged made Lean unfold the cut (each
+  theorem > 90 min); `mapState_mem_eq` (generic `rfl`) + `rw` first: the module checks in 23 s.
+* Next on amd64: `x8 -> x4 -> x1` (compose with `AvxX4X1WAgree.x4_x1_W` and the x1 small path).
 
 ## In flight
 
