@@ -62,7 +62,14 @@ builds under `lake build`, not `lake env lean -o`.
   `r1`) from the resumed x4 state: halted, no error, no tail, its log = own writes over the x4
   cut log, x4 log and renamed x8 log, `InRange`/`OutOk` of the `s - 12` blocks, `RegsOk`.  Proof:
   `x1cut_framed` at the exact framed cut + `X86.run_agree` with `AvxX1Agree.Dsx` from `[0, 1]`.
-  Remaining x8 -> x4 -> x1 cases: `9 <= s < 12` (x4 small path, `KSm`), the single-pass `W1_*`.
+* x8 -> x4 -> x1, remaining cases (same module): `x8_x4_x1_W_small` (`9 <= s < 12`, x4 small
+  path `KSm`), `x8_x4_x1_W1_small` (`9 <= c < 12`), `x8_x4_x1_W1_last` (`12 <= c < 16`).
+  The small path needs an x1 environment over the swapped viewed memory: `envSw env' σ4 m` keeps
+  the cut's numbered variables and reads memory keys from `m = (swap 4 r1).mem (view L mem0c)`,
+  so `EnvMem` holds by `rfl`; `mapState_entryW_congr` (entryW has no memory keys, `noMk` decided)
+  moves `resume_KSm`'s entry state to that environment; `x1_ksm_framed` is the generic x1 post
+  behind the log.  Module checks in 4.4 s; audit 0 sorryAx, gate 0.  Every x8 -> x4 -> x1 case
+  with an x1 tail is proved; next: the x8 all-count closure (case split over `c`).
 
 ## In flight
 
