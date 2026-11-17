@@ -86,6 +86,16 @@ builds under `lake build`, not `lake env lean -o`.
   Next on amd64: the chain spec form (`callChain`/`KSpecC`) for the wrapper, and the output
   facts of the x8/x4 parts (R2c's `TurnOut8`/`turnOut4`) to state `OutOk` for all `c` blocks.
 
+* Chain form (`Avx2X8ChainC`): `x8_tails` (the x8 run always ends without error on the tail
+  call into avx_x4; when `c % 8 != 0` the x4 run from the resumed x8 state ends on the tail call
+  into avx_x1, from the cut facts `KTE_*`/`KTEs`/`x8Sm_facts` and the x4 agreements' `tail`
+  field against `KSm`/`K201W`), `x8Specs` (links x8 at `r8`, x4 at 4, x1 at `r1`, step functions
+  `x8StepsAll`, `x4Steps (c % 8)`, `steps (c % 4)`, exact hand-over states as pre, run-level `Ret`
+  as post; x1 entered only when `c % 8 != 0`), `x8KSpecC` (KSpecC for every `c >= 1`) and
+  `x8_callChain` (the wrapper's `callChain` returns normally).  16 s; audit 0 sorryAx, gate 0.
+  Next: the output clause (`OutOk` of all `c` blocks over the chain log) from R2c's `TurnOut8`
+  (hypothesis) + `turnOut4`, then the linux wrapper's `callK` -> `callChain` switch.
+
 ## In flight
 
 * Windows x4 port, clone `/root/ht/hashtree-r5win`, branch `research/formal-r2-winx4` (off
