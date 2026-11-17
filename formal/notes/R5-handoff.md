@@ -22,6 +22,39 @@ over ssh, push to GitHub); the VM has no GitHub credentials.  Logs: `results/r5-
   `run_nowrite` (non-writing segment keeps the log).  These give `shani_call`'s `hcond`/`hpc`/`hnh`,
   `RegsOkW`'s callee-saved preservation, and the linux tail `add rsp,88; ret` leaving `mem` alone.
 
+## Windows avx2_x8 W-mode loop, every count `c >= 8` (commits 5802a2f, 625442a): `WinAvx2X8W{Shift,StripDefs,Loop,All,Out}`
+
+The linux `Avx2X8WLoop` port (residues) with the saved-cell handling of the windows avx_x4 loop.
+Pilot `Gen/WinAvx2X8P` (count 8, `entrySW 24`, 211 slices `K1..K212`; queue 29).
+
+* `WinAvx2X8WShift`: `x8P` (6 instructions to the `and rsp,-32` at pc 7), `x8A r`,
+  `align_hom8`/`run1_align` (residue `r = (σ 9 - 16) % 32`; ABI `σ 9 % 16 = 8` gives 8 or 24,
+  `residue_abi`), `shiftK8 r` (pilot offset `k ≥ 8 ↦ sAt (k - 24)`, `k < 8 ↦ sAt (k - 16 - r)`;
+  pushed `rbp` and saved `r12..r15` become pointer bytes; `rbx`, `r12..r15` take the wrapper's
+  pointers), `K2W r` (flags of `sub rsp,1248`), loop head `K3` (pc 25: every `ymm` is loaded
+  before read from there), `KT r` (24 instructions `K211 → pc 25`), `KTE r` (42 instructions to
+  the `jmp avx_x4`, gpr = `exitGprW`: `entryWin` with rcx+256, rdx+512, r8-8), `BODYLEN = 6039`.
+* `WinAvx2X8WStripDefs`: `pushC r` (368 saved cells: rbp/r12..r15 pointer bytes, rsi and the
+  ten ymm saves address-keyed data bytes), `m8P r`, `strip368`, `stripK8 r`, `KHs r` (`K3` with
+  all 16 `ymm` fixed and the dead `rsi` on the table), `KH4s r` (ymm7..15), `KH5s r`
+  (ymm14, 15), `KTs r`, `KTEs r`, `stripOk r`.
+* Kernel-check memory: one `decide +kernel` of the whole `shiftOk r`/`stripOk r` exceeds 80 GB
+  (memcg OOM at 40 G and 85 G).  Split per conjunct (`WinAvx2X8WShift{8,24}{a,b,c}`,
+  `WinAvx2X8WStrip{8,24}{a..d}`, one theorem per conjunct, 1-3 min and <40 G each), assembled
+  by `simp only` in `WinAvx2X8WShift{8,24}`/`WinAvx2X8WStrip{8,24}`.
+* `tools/winx8w.py <r> [--pass2]`: the 208 pass-1 slices 3..210 at `shiftK8 r` (`BodyR{r}P1..4`,
+  `body_runW`) and the 205 pass-2 slices 6..210 at `stripK8 r` (`BodyR{r}S1..4`, `bodyS_runW`;
+  head slices 3..5 from `stripOk`).
+* `WinAvx2X8WLoop`: `CutsW r`/`BodyW r`, invariant `WfMemW rodata []` + `SaveOk8 r` (data bytes
+  of the right index, pointer bytes exactly) + `OutLogW`; `wfP_of_saveOk8` gives the push-list
+  relation under `ecomb`; `entry_runW` (24 steps), `first_turnW`, `iter_stepS`, `loopW`,
+  `first_exitW`, `final_runW`, `x8w_runW_last`, `x8w_runW`.
+* `WinAvx2X8WAll`: `x8w_runW_last_abi` (`8 ≤ c < 16`, `24 + (BODYLEN + 42)` steps to `KTE r`)
+  and `x8w_runW_abi` (`c = 8 (j+1) + s`, to `KTEs r` at `sIt8 (j+1) σ`).
+* `WinAvx2X8WOut` (statements for R2c, nothing proved): `TurnOut8W`/`TurnOut8WLast` over exactly
+  those runs, footprint `[σ 9 - 1296, σ 9)`.  Next: the avx2_x8 link `KSpecC8` from them (as
+  `WinAvxX4Cert` from `TurnOut4W`), plus the small path `0 < c < 8` (jb at pc 24 to the restores).
+
 ## Checkpoint (a): DONE — module `Proofs/WinShaniBridge.lean`
 
 `shani_KSpecW : KSpecW winProg Kernels.X86Win.Shani.rodata stepsW 248` and `fitsW_shani : FitsW
