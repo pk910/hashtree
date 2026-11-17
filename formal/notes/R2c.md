@@ -176,3 +176,11 @@ Gotcha (elaboration): `exact outShape8_sound (KT r) …` against a goal stated w
 `(KT r).mem.map …` instead of `(mapState e σ (KT r)).mem` never finished (the unifier unfolds the
 computed cut `KT r`); stating `mapState_mem` once for a variable cut and `rw [mapState_mem] at h`
 is instant.  Also `x8RunSteps_eq` is by `unfold …; omega`, not `rfl`.
+
+## Clean-worktree readiness of `fff81b9` (2026-11-17)
+
+`git worktree add --detach … fff81b9` (own `.lake`, nothing copied): `make all` rc 0 (6534 jobs;
+the first run at 4 workers was cgroup-OOM-killed late, the retry at 3 workers finished in 2345 s),
+`make gate` 0.  `make audit` needs the library root first (`Axioms.lean` imports `GoProof`/`Glue`,
+which are outside the module list of `make build`; fixed on r3r4 in 944ddb9): after `lake build`,
+`make audit` rc 0, 77 prints, no `sorryAx`, no `ofReduceBool`/`native_decide`.
