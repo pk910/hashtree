@@ -24,6 +24,11 @@ import Hashtree.Proofs.WrapperAmd64
 import Hashtree.Proofs.Avx2X8Body
 import Hashtree.Proofs.Avx512X16Body
 import Hashtree.Proofs.AvxX4LoopTurn
+import Hashtree.Proofs.Avx2X8Align
+import Hashtree.Proofs.AvxX4Agree
+import Hashtree.Proofs.Avx2X8WAll
+import Hashtree.Proofs.Avx2X8X4WAgree
+import Hashtree.Proofs.Avx2X8X1WAgree
 import Hashtree.GoProof
 import Hashtree.Glue
 import Hashtree.Gen.AvxX4P.Final
@@ -119,6 +124,24 @@ import Hashtree.Proofs.AvxX4LoopWOut
 #print axioms Hashtree.Proofs.Avx2X8Body.body_run
 #print axioms Hashtree.Proofs.Avx512X16Body.body_run
 #print axioms Hashtree.Proofs.AvxX4LoopTurn.turn_run
+#print axioms Hashtree.Proofs.AvxX4ToX1.x4_small_to_x1
+#print axioms Hashtree.Proofs.AvxX4LoopWAll.x4_runW_last
+#print axioms Hashtree.Proofs.AvxX4LoopWAll.x4_runW
+#print axioms Hashtree.Proofs.AvxX4X1WAgree.x4_x1_W
+#print axioms Hashtree.Proofs.Avx2X8Align.align_hom8
+#print axioms Hashtree.Proofs.Avx2X8Align.smOk_all
+#print axioms Hashtree.Proofs.Avx2X8Align.x8_small_run
+#print axioms Hashtree.Proofs.AvxX4Agree.hsound
+#print axioms Hashtree.Proofs.AvxX4Agree.run_agree4
+#print axioms Hashtree.Proofs.Avx2X8WAll.x8_runW_last_abi
+#print axioms Hashtree.Proofs.Avx2X8WAll.x8_runW_abi
+#print axioms Hashtree.Proofs.Avx2X8X4WAgree.x8_x4_W_last
+#print axioms Hashtree.Proofs.Avx2X8X4WAgree.x8_x4_W_small
+#print axioms Hashtree.Proofs.Avx2X8X4WAgree.x8_x4_W_zero
+#print axioms Hashtree.Proofs.Avx2X8X4WAgree.x8_x4_W1_last
+#print axioms Hashtree.Proofs.Avx2X8X4WAgree.x8_x4_W1_small
+#print axioms Hashtree.Proofs.Avx2X8X4WAgree.x8_x4_W1_zero
+#print axioms Hashtree.Proofs.Avx2X8X1WAgree.x8_x4_x1_W_last
 
 #print axioms Hashtree.Gen.AvxX4P.out_final
 #print axioms Hashtree.Gen.Avx2X8P.out_final

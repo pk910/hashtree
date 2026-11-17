@@ -1,153 +1,91 @@
-# R2 handoff (linux/amd64, VM1) — 2026-11-13
+# R2 handoff (linux/amd64, VM1) — updated 2026-11-16
 
-Written so a successor can continue without the controller transcript.  Everything below is
-on VM1 (`root@46.101.165.150`), repo `/root/ht/hashtree`, branch `research/formal-r2-amd64`.
-Scratch (not in the repo): `/root/r2w/`.  Lean commands run from `/root/ht/hashtree/formal/lean`
-with `export PATH=/root/.elan/bin:$PATH`.  `lake` here has no `-j` flag (it uses all cores).
+Written so a successor can continue without the controller transcript.  VM1 is
+`root@46.101.165.150`; repo `/root/ht/hashtree`, branch `research/formal-r2-amd64`; scratch
+`/root/r2w/`.  Lean commands run from `/root/ht/hashtree/formal/lean` with
+`export PATH=/root/.elan/bin:$PATH`; this `lake` has no `-j` flag and ignores CPU affinity
+for its job count (cap it with a `systemd-run` cgroup: `MemoryMax`, `CPUQuota`).
 
-## Branch state
+Publishing: the VM has no GitHub credentials.  From the control machine:
+`git --git-dir=relay-vm1.git fetch root@VM:/root/ht/hashtree research/formal-r2-amd64:research/formal-r2-amd64`
+then `git --git-dir=relay-vm1.git push https://github.com/pk910/hashtree research/formal-r2-amd64`
+(the control machine has `gh` auth).  Same with `relay-vm1-x8x16.git` for the R2b clone.
+Never amend or force-push `research/formal-r2-amd64` (R5 merges it); signature changes to
+`x4_runW`/`K201W`/`upd15`/`sIt` must be announced before pushing.
 
-* Head before this note: `779901f` (= `origin/research/formal-r2-amd64` = control relay
-  `relay-vm1.git`).  Tree clean except the untracked files below.
-* `formal/proofs.json` is identical to HEAD and to `/root/proofs.json.bak`; the earlier
-  "uncommitted theorem-ID fix" was another agent's edit, saved to `/tmp/proofs.json.dirty.diff`
-  (copied off the VM) and reverted; nothing to preserve.
-* `/root/ht/hashtree-x8x16` (R2b, `research/formal-r2b-x8x16`) is at `ebe04b6`, clean, pushed
-  to origin and to `relay-vm1-x8x16.git`; its W-mode x16 build (`WBodyV`/`WTurn`/`WLoop`) is
-  green (oleans 09:36 postdate the sources).  Nothing left to commit there.
-  `/root/ht/hashtree-r2b-int` is a detached worktree of `ebe04b6` (source only; its `.lake`
-  was removed — do not hard-link `.lake` dirs between clones, lake may rewrite shared inodes).
-* Untracked in `/root/ht/hashtree`:
-  - `formal/lean/Hashtree/Proofs/AvxX4X1WAgree.lean` (657 lines, from the crashed session) —
-    the framed x4 -> x1 edge at the W-mode exit cut; see "Critical path" below.
-  - `formal/lean/Hashtree/Proofs/Avx512X16Entry.lean` — an R2b draft stranded in this clone
-    (R2.md already records it); not part of this branch, leave it.
-  - `formal/lean/lake-manifest.json` — lake-generated.
+Shell gotcha that cost two cycles: `pkill -f`/`pgrep -f` with a pattern that also occurs in the
+ssh command line kills the ssh shell itself; anchor patterns (`^/bin/bash /root/r2w/...`,
+`^/root/.elan/toolchains/[^ ]*/bin/lake build ...`).  Do not put Lean text in an unquoted
+heredoc inside a single-quoted ssh command (backticks, `σ'`); scp a file instead.
 
-## Critical path: `AvxX4X1WAgree.lean` (x4 -> x1 at the W-mode cut, framed route)
+Memory: a global OOM on 2026-11-15 00:46 (a 50 GB single lean compile from another clone)
+took the box offline for two hours; a memcg OOM at 11.7 GB killed one pass-1 part under a
+too-small `MemoryMax`.  Oleans written without lake's `.trace` files get rebuilt, so keep the
+builds under `lake build`, not `lake env lean -o`.
 
-Content (all stated, no sorry): `agreeOn_fr` (AgreeOn survives `fr L` on both sides),
-`mem_view_eq`/`view_in`/`wfAt_view`/`wfAt_cut` (an `OutLogW` log never shadows the table, the
-return marker `σ 9 + k`, or the input: `WfMemAtW` holds at `view L mem0c`), `cutEnv` (memory keys
-read the framed memory through the renaming, so `EnvMem` is `rfl`; numbered vars `≥ 100` are
-the cut's own vector lanes), `K201L`/`E201L` register lists, `cut_gpr_pointwise`, `x1cut_agree`
-(`AgreeOn [0,1,9] (cutBare e' σ') (refCut (swap 4 r) e' σ' mem0c M')`), `resume_cut_fr`/
-`run_cut_fr` (`run_fr` at the resumed cut), `x1cut_bridge`/`x1cut_framed` (log-framed
-InRange/OutOk/RegsOk post via `AvxX1Agree.correctWAt_agree`), and `x4_x1_W` (the all-count
-x4 run `x4_runW` composed with the x1 edge for `c = 4(j+1)+s`).
+## Landed
 
-Shadowing check (the "stop and report" item): `OutLogW` writes are at `rOut` or at `rStack`
-strictly below `σ 9`; the x1 kernel reads region `r` (≠ rOut, rStack), `rIn`, and
-`rStack, σ 9 + k` with `0 ≤ k < 8`.  No write in L hits a cell the kernel reads — no finding.
+* `9a2d747` — `AvxX4X1WAgree.lean`: the `c >= 4` x4 -> x1 edge at the W-mode exit cut behind
+  the log (`x4_x1_W`).  R2.md checkpoint (6).
+* `3cc8e61` — `Avx2X8Align.lean`: the x8 `and rsp,-32` at `entryW`, residue parameterised
+  (`align_hom8`, `run1_align`, `x8A r`), the small path `0 < c < 8` at all 32 residues
+  (`smOk_all`), `x8_small_run`, `x8Sm_resume`, `x8Sm_outLogW`, `residue_abi`.
+* `9910d41` — `AvxX4Agree.lean`: x4 dead-register analysis from `{rcx, flags}` (`Dsx4`,
+  `hsound`, `run_agree4`); `X86Agree.readsOf` no longer lists the flags as read by `cmp`/`test`.
+* `f6636f5`, `207b233`, `59b86cb`, `8dcb714` and the loop commit — the x8 W-mode loop:
+  `Avx2X8WShift` (rebased pilot cuts per residue, `BODYLEN := 6035`, `KT r`, `KTE r`, `exitGpr`,
+  kernel facts for r = 0 and 16), `tools/avx_x8w.py`, the pass-1 parts `Avx2X8WBodyR{0,16}P1..4`
+  and compositions `Avx2X8WBodyR{0,16}`, `Avx2X8WStripDefs` (`pushC r`, `m8P r`, `stripK8`,
+  `KTs r`/`KHs r`/`KTEs r`, `stripOk r`), `Avx2X8WStrip{0,16}` (one `decide +kernel` each,
+  ~4.5 min), the pass-2 parts `Avx2X8WBodyR{0,16}S1..4` and compositions `Avx2X8WBodyR{0,16}S`,
+  `Avx2X8WLoop` (residue-generic loop over `CutsW r`/`BodyW r`), `Avx2X8WAll`
+  (`x8_runW_last_abi`, `x8_runW_abi`, residue selected by `σ 9 % 16 = 8`).  R2.md section
+  "x8 W-mode loop, all counts".  Gate exit 0, audit exit 0, standard axioms plus
+  `loadLane_hom._native.bv_decide.ax_1_6`.
+* R2b clone (`/root/ht/hashtree-x8x16`, `research/formal-r2b-x8x16`): `45d55df` frames the x16
+  loop with the output-only log `OutLogO` (drops `24 ≤ σ 9` from the x16 loop theorems);
+  `x8Pre` uses `OutLogO M`; `outLogO_outLog : OutLogO M → OutLog M`.  `AxiomsR2b.lean`: 38
+  prints, no sorryAx.  (The x16 `OutOk` lemma is R2c's workstream, VM2.)
 
-Check history:
-* The crashed session's check (`lake env lean Hashtree/Proofs/AvxX4X1WAgree.lean`, PID
-  428174, log `/tmp/wagree.log`) ran 40 min with no output and died at its `timeout 2400`
-  (EXIT=124).
-* Bisection (prefix copies `/root/r2w/WA_p1..p4.lean`, logs `WA_p*.log`): lines 1-310 check
-  in 34 s, 1-384 and 1-427 in 75 s (EXIT 0).  Lines 1-478 (through `x1cut_agree`) do not
-  finish.  Bullet variants (`WA_vA..vF.lean`, each bullet of `x1cut_agree` except the kept
-  ones replaced by `sorry` — scratch only): vB (vr), vC (assume+flags), vD (glen), vE (gpr)
-  finish in 90-110 s; vF (gpr16) fails only because `omega` does not know `flg = 16`
-  (`WA_vF.lean:451:64`, `:452:64`); vA (the five `rfl` bullets pc/halted/tail/err/mem) does
-  not finish — `rfl` on `(cutBare e' σ').pc = (refCut …).pc` makes `isDefEq` unify the two
-  states first, which unfolds `mapState e' σ' K201W` and evaluates the symbolic exit run
-  (`K201W := abstract (run … 27 K200W)`) in the elaborator.
-* Fix (scratch `/root/r2w/x1cut_fix.lean`, spliced into the full file as
-  `/root/r2w/WA_fix.lean` = repo lines 1-427 + fix + repo lines 478-657): projection lemmas
-  `cutBare_{pc,halted,tail,err,mem,assume,vr,gpr}` and `refCut_{…,flags}` stated against
-  literals/plain `map`s (each `rfl`, which only reduces the projection), the bullets rewritten
-  with them, and `have hf : flg = 16 := rfl` for the gpr16 bullet.  Running:
-  `(time timeout 2400 lake env lean /root/r2w/WA_fix.lean) > /root/r2w/WA_fix.log`, EXIT line
-  appended at the end.  `WA_vA` is also still running (log `/root/r2w/WA_vA.log`).
+* x8 -> x4 hand-off (this commit): `Avx2X8ExitShape` (32x16 vector file at `KTE r`/`KTEs r`),
+  `Avx2X8WAt` (`x8_runW_at`/`x8_runW_last_at`: the x8 W-mode runs with the x8 table at a fresh
+  region `r8`, by `run_swap_chain`), `AvxX4Agree` (the dead set now also holds `rax`:
+  `Dsx4 0 = [0,1,16]`, `raxFree`), `Avx2X8X4WAgree`: the resumed x8 exit cut agrees with the x4
+  entry state up to `{rax, rcx}` (`x4cut_agree`, `cutEnv8`), and `x8_x4_W_last/_small/_zero`
+  (`c = 8 (j+1) + s`, `s` in [12,16) / [9,12) / 8) and `x8_x4_W1_*` (`8 <= c < 16`): the x8 run to
+  its exit cut, then the x4 link to `K201W` (behind the x8 log), its small path (`KSm`), or its
+  count-0 return.  Trap found and removed: `x8_runW_at` states its log as `(KTEs r).mem.map …`,
+  the goals as `(mapState … (KTEs r)).mem`; passing it unchanged made Lean unfold the cut (each
+  theorem > 90 min); `mapState_mem_eq` (generic `rfl`) + `rw` first: the module checks in 23 s.
+* x8 -> x4 -> x1 (this commit): `Avx2X8X1WAgree.x8_x4_x1_W_last` (`c = 8 (j+1) + s`, `12 <= s < 16`):
+  the x8 run to `KTEs r`, the x4 link to `K201W` up to `{rax, rcx}`, and the x1 link (table at
+  `r1`) from the resumed x4 state: halted, no error, no tail, its log = own writes over the x4
+  cut log, x4 log and renamed x8 log, `InRange`/`OutOk` of the `s - 12` blocks, `RegsOk`.  Proof:
+  `x1cut_framed` at the exact framed cut + `X86.run_agree` with `AvxX1Agree.Dsx` from `[0, 1]`.
+  Remaining x8 -> x4 -> x1 cases: `9 <= s < 12` (x4 small path, `KSm`), the single-pass `W1_*`.
 
-On outcome:
-* `WA_fix` EXIT 0: copy `/root/r2w/WA_fix.lean` over
-  `formal/lean/Hashtree/Proofs/AvxX4X1WAgree.lean`, `lake build Hashtree.Proofs.AvxX4X1WAgree`,
-  add `import Hashtree.Proofs.AvxX4X1WAgree` and
-  `#print axioms Hashtree.Proofs.AvxX4X1WAgree.x4_x1_W` to `formal/lean/Axioms.lean`
-  (R2 block, after the `x4_runW` line), `make gate`, `make audit` (both from `formal/lean`),
-  commit ("formal: the x4 -> x1 edge at the W-mode cut behind the log"), push, update R2.md.
-* `WA_fix` errors: fix them in `/root/r2w/WA_fix.lean` and re-run; the only unverified parts
-  are the new projection lemmas and `x1cut_agree`'s bullets (everything else checked in p4
-  and in the full-file tail, which is unchanged).
-* If `WA_vA` ever finishes, it only confirms the diagnosis; no action.
+## In flight
 
-## Second thread: the x8 alignment gap (new files, R2-owned)
+* Windows x4 port, clone `/root/ht/hashtree-r5win`, branch `research/formal-r2-winx4` (off
+  R5's `ee0bb0c`; R5's pilot sources are read-only for R2).  `d91b49b`:
+  `Hashtree/Proofs/WinAvxX4WShift.lean` (`m0W`, `wRegW`, `shiftKW`, `K1W`, `sliceE`/`sliceE1`,
+  `KT` 25 steps, `KTE` 37 steps with the avx_x1 tail, `exitGprW`, `tailOk`; 3m07s) and
+  `tools/winx4w.py` (emits `WinAvxX4WBodyP1..4` for slices 2..202 with orcs `[1715]` at
+  slices 51/83, and `WinAvxX4WBody`).  Facts: 203 pilot slices `K1..K204`, cut pcs K1=9,
+  K2=17, K203=4128, K204=4162; the kernel never writes rbx/rbp/rsi/rdi/r10-15; xmm6..15 are
+  saved at `[rsp+384..543]` (160 `.dat` cells in every cut's log -- the x8 "spilled cells"
+  situation again, so the loop needs the stripped pass-2 cuts: strip the 160 cells plus the
+  memory-keyed push list, `wfix` at K2/K3).  Scheduler `/root/r2w/sched8.sh`
+  (`r2sched8`, logs `/root/r2w/winbody_P*.log`, `/root/r2w/sched8.log`) builds the four parts
+  then the composition.
+* Next on amd64: the x8 -> x4 hand-off (`run_agree4` at `KTE r`/`KTEs r`; `cutEnv` for the
+  vector lanes as in `AvxX4X1WAgree`), then `x8 -> x4 -> x1`.
 
-Problem: `avx2_x8` does `push rbp; mov rbp,rsp; and rsp,-32; sub rsp,928`; at `entryW` the
-`and` on `sAt (-8)` throws `"and on symbolic pointer"` (`X86.lean:449`, R2b's
-`x8_align_blocked`).  No semantics change is needed.
+## Other
 
-Design (the R5/`align_hom` treatment ported):
-* The alignment is executed *concretely*: `exec` of `and rsp,-32` at `mapState env σ x8P`
-  (rsp = integer `σ 9 - 8`) equals `mapState env σ (x8A r)` with
-  `x8A r := {x8P with rsp := sAt (-8 - r), flags := none, pc := 7}` and the residue
-  `r = (σ 9 - 8) % 32` (`align_hom8`, `run1_align`).  A second stack symbol is impossible:
-  `AddrEq Lin` decides addresses by the difference of offsets, so any lookup walking past the
-  pushed `rbp` cells with a different stack symbol errors `"may alias"` (the epilogue's
-  `pop rbp` would).  Hence one stack symbol and a residue *parameter*, with the post-alignment
-  segments checked for every residue (32 for the small path; the loop body for the two the
-  wrapper ABI allows, `σ 9 ≡ 8 (mod 16)` ⇒ `r ∈ {0, 16}`, `residue_abi`; the linux wrapper
-  itself gives `r = 16`).
-* Pilot cuts rebased per residue (`shiftK8 r`, in `Avx2X8WShift.lean`): pilot stack offset
-  `k ≥ 16` (pushed rbp, marker) ↦ `sAt (k - 24)`, `k < 16` (frame) ↦ `sAt (k - 8 - r)`;
-  `rax`/`rbx`/`r12..r15` ↦ the wrapper's values (`wReg8`, rax on `entryWx`'s symbol 15);
-  saved-register cells (pilot `[-32,0)`) and the pushed rbp (`[16,24)`) ↦ pointer bytes.
-  Scan facts (`/root/r2w/X8Scan.lean`): the body (pc 17..6069) never writes rax, rbx, r8-r11,
-  r12-r15 (written only by the restores 6074-6077, read only by the saves 8-11) and never
-  reads rbp; every ymm is loaded before read from pc 15 (`ymm0,1` at 15-16, `ymm2..7` at
-  17-22, `ymm8..15` at 24-31).  So the loop head is the rebased `K2` (pc 17) with `ymm2..15`
-  fixed to the turn's end values (`KH r`), `K3` (pc 25) with `ymm9..15` fixed (`KH3 r`), and
-  the pass-1 cuts from `K4` on — only two slices need a second-pass re-check.
-* Validated in the kernel (`/root/r2w/X8Probe.lean`, EXIT 0, 3m20s): the prologue cut,
-  the entry slice `x8A r -> shiftK8 r K2` (10 instrs) at r = 0 and 16, body slices 2 and
-  100 at r = 0 and 16, and the 14-instruction small path at r = 0 and 5 with
-  `gpr = entryWx.gpr`, `vr = entryWx.vr`, a 40-cell log, `tail = some "hashtree_sha256_avx_x4"`.
-
-Files (scratch copies in `/root/r2w/`, to be moved into `formal/lean/Hashtree/Proofs/` and
-`formal/lean/tools/` once they elaborate):
-1. `Avx2X8Align.lean` — `m8` (chunked wrapper memory, `m8_eq`, `m8_keyed`), `x8P` + facts,
-   `alignI8`, `prog_6`, `x8A r`, `align_hom8`, `run1_align`, `orcSm`, `x8Sm r`, `A1Sm`/`asmSm`,
-   `smOk r` (slice check + tail/err/halted/pc/gpr/vr/assume/log-shape as one Bool),
-   `smOk_all : (List.range 32).all smOk = true` (decide +kernel), `x8Sm_facts`, `residue_lt`,
-   `x8_small_run` (from `fr M (mapState env0 σ entryW)`, `0 < c < 8`, 20 instructions reach
-   `fr M (mapState e' (upd15 σ) (x8Sm r))`), `x8Sm_resume` (the resumed cut is
-   `{mapState e σ entryWx with flags := …}` behind the small path's log), `x8Sm_outLogW`,
-   `residue_abi`.  Under check: `(time timeout 1500 lake env lean /root/r2w/Avx2X8Align.lean)
-   > /root/r2w/Align.log` (EXIT appended); the suspected slow part is `smOk_all` (32 symbolic
-   14-instruction runs, each evaluated several times).  If it times out, split `smOk` into the
-   slice check and the facts, or check residues in two halves.
-2. `Avx2X8WShift.lean` — the rebasing defs, `A0`/`asmge`, `orcB`/`orcEx`, `tau8`, `KT r`
-   (27-instr tail to pc 17), `vfixAt`/`wfixS`, `KH r`, `KH3 r`, `KTE r` (31-instr exit),
-   `AT`/`AX`/`asmT`/`asmX`, `exitGpr` (a guess of the exit register file — verify), and 17
-   `decide +kernel` facts per residue for r = 0 and 16 (`sliceE_r`, `sliceV2_r`, `sliceV3_r`,
-   `sliceT_r`, `sliceX_r`, `KT_shape_r`, `KT_pc_r`, `KT_assume_r`, `KT_logB_r`, `KH_nOnly_r`,
-   `KTE_{tail,err,halted,pc,assume,logB,gpr}_r`).  Not yet run; needs `Avx2X8Align` built
-   first.  `/root/r2w/WShiftProbe.lean` is the same file with `#eval`s of each fact (fast
-   feedback on which conjunct fails); run it first.  Also needs `def BODYLEN : Nat := 6035`
-   added (the loop file uses it; the generator states the body runs with it).
-3. `avx_x8w.py` (→ `formal/lean/tools/`) — emits `Hashtree/Proofs/Avx2X8WBodyR{r}P1..P4.lean`
-   (slices 2..209 at the rebased cuts, four files for parallel `lake build`) and
-   `Avx2X8WBodyR{r}.lean` (env chains `G2..G210`, `GV2..GV210`, `body_runW`, `body_memW`,
-   `bodyV_runW`, `bodyV_memW`).  Usage `python3 tools/avx_x8w.py 0` and `… 16`.  Its proofs
-   use `BODYLEN` unfolded by `rw [show BODYLEN = <nested sum> from rfl]` — add that line
-   (or state with the nested sum) before generating.  Slice table in `/root/r2w/x8slices.json`.
-   Expected cost ~25 s per slice check, 416 checks, 8 files in parallel.
-4. `Avx2X8WLoop.lean` (draft, residue-generic over bundles `CutsW r` / `BodyW r`):
-   `tau8_*`, `sIt8`, `outLogW_of_logB`, `TURNLEN := BODYLEN + 27`, `entry_runW` (16 instrs),
-   `turn_stepW`, `turn_runW`, `iter_stepW`, `loopW`, `final_runW`, `first_exitW`,
-   `first_turnW`, `x8_runW_last` (`8 ≤ c < 16`), `x8_runW` (`c = 8(j+1)+s`).  Untested; the
-   per-residue instantiation files (`cutsW_0 : CutsW 0 := ⟨sliceE_0, …⟩`, `bodyW_0`) are
-   still to be written.
-5. After the loop: the x8 -> x4 hand-off needs x4's dead-register contract (`rcx` and the
-   flags differ at `KTE r`; everything else is `entryWx` with rsi/rdi/rdx advanced —
-   `exitGpr`), i.e. an `AvxX1Agree`-style `Dsx` table for the x4 program, and the vector lanes
-   handled by a `cutEnv` as in `AvxX4X1WAgree`.
-
-## Other running/background items
-
-* `make audit` log `/root/r2w/audit_bg.log` (exit 0, no sorryAx); warm `lake build` of the
-  R2 modules (`/root/r2w/warm_bg.log`) — the first attempts used a non-existent target name
-  (`AvxX4Small` is a namespace in `AvxX4Entry.lean`); relaunched with `AvxX4Entry`.
-* R5's SseX1L build in `/root/hashtree-win` is what drives the load (~30-45); leave it.
+* `/root/ht/hashtree-r2b-int`: source-only worktree of `ebe04b6` (no `.lake`; never hard-link
+  `.lake` dirs, lake rewrites oleans in place).
+* Untracked in `/root/ht/hashtree`: `Avx512X16Entry.lean` (R2b draft, leave), `lake-manifest.json`.
+* Probes: `/root/r2w/WStripProbe.lean` (all 21 strip facts true at both residues, 15 s),
+  `/root/r2w/WinX4ShiftProbe*.lean`.
+* R5 builds in `/root/hashtree-win`; leave its processes alone.

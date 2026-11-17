@@ -431,8 +431,8 @@ def readsOf : Instr → List Nat
   | .bswap _ d => [d]
   | .push r => [rsp, r]
   | .pop r => [rsp]
-  | .cmp _ a b => a :: regsOfGSrc b ++ [flg]
-  | .test _ a _ => [a, flg]
+  | .cmp _ a b => a :: regsOfGSrc b
+  | .test _ a _ => [a]
   | .jcc _ _ => [flg]
   | .jmp _ => []
   | .jccTail _ _ => [flg]
@@ -1312,7 +1312,7 @@ theorem execE_agree {ro : Region} {mem0 : Addr γ → Cell α γ} {orc : Nat →
         simp [readsOf]))) (fun x => ?_)
       refine AgreeR.bind (gCtl_agree h b (fun r hr => hread r (by
         simp [readsOf, regsOfGSrc]
-        exact Or.inr (Or.inl hr)))) (fun y => ?_)
+        exact Or.inr hr))) (fun y => ?_)
       by_cases hz : y.region = rNum ∨ y.region = x.region
       · rw [if_pos hz, if_pos hz]
         exact AgreeR.pure ((h.setFlags rfl rfl).next)
