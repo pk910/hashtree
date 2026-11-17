@@ -285,6 +285,21 @@ record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `map
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
 
+## avx_x4 link DONE modulo R2c's output contracts (commit U): `Proofs/WinAvxX4Cert.lean`
+
+* `x4WinCert_of : TurnOut4W → TurnOut4WLast → X4WinCert` and `KSpecC4_of_turnOut4W` (the avx_x4
+  link `KSpecC4` with step function `if c = 0 then 4 else stepsW c`).  `stepsW c`: 28 for
+  `0 < c < 4` (`WinAvxX4Small.small_prefixW`), `x4wLastSteps` for `4 ≤ c < 8`
+  (`x4w_runW_last_all` to `KTE`), `x4wRunSteps (c / 4 - 2)` for `c ≥ 8` (`x4w_runW_all` with
+  `s = c % 4 + 4` to `KTEs`).  Registers from `exitGprW` (`KTE`/`KTEs`) or `entryWin` (`KSmW`);
+  callee-saved + rsi/rdi by `run_preserve_all` + `unwrittenScan`; log facts from `TurnOut4W*` on
+  the empty caller log.  Kernel facts in `WinAvxX4CertFacts` (3.7 min); the link checks in 3 s.
+  Axioms: standard + `loadLane_hom._native.bv_decide.ax_1_6`.
+* Trap (again): `rw` closes with `rfl`, and a goal `KTE.err = none` / `run … (16 + …) s = …` makes
+  that `rfl` evaluate the cut / the run.  Use `(congrArg State.err hf).trans …` terms and rewrite
+  the hypotheses into syntactic form first (`rw [e] at r8; rw [hf, r8]`); `congr 2` on
+  `Val.ptr ⟨…⟩` goals also timed out.
+
 ## Statements for R2c (commit T, text only, nothing proved)
 
 * `Proofs/WinAvx2X8Bridge.lean`: `KSpecC8` (the avx2_x8 link obligation from `entryWin`: return at
