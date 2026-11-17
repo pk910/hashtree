@@ -61,6 +61,9 @@ theorem tau48_9 (j : Nat) (σ : Nat → Int) : tau48 j σ 9 = σ 9 := by
   simp only [tau48]
   rw [sIt_s9, upd15_9, tau8_s9, sIt8_s9, upd15_9]
 
+theorem mem_resume_fr (L : CLog) (s : CS) : (resume (fr L s)).mem = s.mem ++ L := rfl
+theorem mem_resume (s : CS) : (resume s).mem = s.mem := rfl
+
 /-- **x8 -> x4 -> x1, `c = 8 (j + 1) + s` with `12 ≤ s < 16`.** -/
 theorem x8_x4_x1_W_last (j s : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ : Nat → Int)
     (mem0c : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (M : CLog) (r8 r1 : Region)
@@ -91,7 +94,9 @@ theorem x8_x4_x1_W_last (j s : Nat) (inp : Nat → Byte) (env0 : Key → W32) (�
             (resume ((swap 4 r8).state (fr M' (mapState e' (sIt8 (j + 1) (upd15 σ)) (KTEs r)))))))
         g.halted = true ∧ g.err = none ∧ g.tail = none ∧ g.mem = fin.mem ++ L1 ∧
           InRange (σ1 9) (σ1 1) (32 * (s - 12)) fin.mem ∧ OutOk inp (σ1 1) (s - 12) fin.mem ∧
-          RegsOk (cutEnv (swap 4 r1) e4 σ1 (view L1 mem0c)) σ1 g := by
+          RegsOk (cutEnv (swap 4 r1) e4 σ1 (view L1 mem0c)) σ1 g ∧
+          L1 = (run Hashtree.Kernels.X86.AvxX4.prog 4 mem0c orcC x4LastSteps
+            (resume ((swap 4 r8).state (fr M' (mapState e' (sIt8 (j + 1) (upd15 σ)) (KTEs r)))))).mem := by
   obtain ⟨r, e', M', hr, hrun, hlog, h3⟩ := x8_x4_W_last j s env0 σ mem0c orcC M r8 hrNum hrIn
     hrOut hrStack hrG hrRet hw8 hw4 hM hs hs16 hc habi
   obtain ⟨_, _, f2, f3, _⟩ := swap_fix r8 hrNum hrIn hrOut hrStack hrG
@@ -143,7 +148,11 @@ theorem x8_x4_x1_W_last (j s : Nat) (inp : Nat → Byte) (env0 : Key → W32) (�
     (steps (s - 12)) _ _ hpre herr1
   rw [hrunX] at hA
   refine ⟨hA.halted ▸ hhalt, hA.err ▸ herr, hA.tail ▸ htail, hA.mem.symm, hR, hO,
-    regsOk_agree hA (fun i hi => not_mem_Dsx i _ hi) hRegs⟩
+    regsOk_agree hA (fun i hi => not_mem_Dsx i _ hi) hRegs,
+    by have h := hag'.mem
+       rw [mem_resume_fr, mem_resume] at h
+       simp only [L1, cutLog]
+       exact h⟩
 
 
 /-! ## The x4 small path into x1 (`9 ≤ s < 12`) and the single-pass cases -/
@@ -437,7 +446,9 @@ theorem x8_x4_x1_W1_last (s : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ
             (resume ((swap 4 r8).state (fr M' (mapState e' (upd15 σ) (KTE r)))))))
         g.halted = true ∧ g.err = none ∧ g.tail = none ∧ g.mem = fin.mem ++ L1 ∧
           InRange (σ1 9) (σ1 1) (32 * (s - 4)) fin.mem ∧ OutOk inp (σ1 1) (s - 4) fin.mem ∧
-          RegsOk (cutEnv (swap 4 r1) e4 σ1 (view L1 mem0c)) σ1 g := by
+          RegsOk (cutEnv (swap 4 r1) e4 σ1 (view L1 mem0c)) σ1 g ∧
+          L1 = (run Hashtree.Kernels.X86.AvxX4.prog 4 mem0c orcC x4LastSteps
+            (resume ((swap 4 r8).state (fr M' (mapState e' (upd15 σ) (KTE r)))))).mem := by
   obtain ⟨r, e', M', hr, hrun, hlog, h3⟩ := x8_x4_W1_last env0 σ mem0c orcC M r8 hrNum hrIn
     hrOut hrStack hrG hrRet hw8 hw4 hM s hs hs8 hc habi
   obtain ⟨_, _, f2, f3, _⟩ := swap_fix r8 hrNum hrIn hrOut hrStack hrG
@@ -486,6 +497,10 @@ theorem x8_x4_x1_W1_last (s : Nat) (inp : Nat → Byte) (env0 : Key → W32) (σ
     (steps (s - 4)) _ _ hpre herr1
   rw [hrunX] at hA
   refine ⟨hA.halted ▸ hhalt, hA.err ▸ herr, hA.tail ▸ htail, hA.mem.symm, hR, hO,
-    regsOk_agree hA (fun i hi => not_mem_Dsx i _ hi) hRegs⟩
+    regsOk_agree hA (fun i hi => not_mem_Dsx i _ hi) hRegs,
+    by have h := hag'.mem
+       rw [mem_resume_fr, mem_resume] at h
+       simp only [L1, cutLog]
+       exact h⟩
 
 end Hashtree.Proofs.Avx2X8X1WAgree
