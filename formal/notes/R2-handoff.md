@@ -57,7 +57,12 @@ builds under `lake build`, not `lake env lean -o`.
   count-0 return.  Trap found and removed: `x8_runW_at` states its log as `(KTEs r).mem.map …`,
   the goals as `(mapState … (KTEs r)).mem`; passing it unchanged made Lean unfold the cut (each
   theorem > 90 min); `mapState_mem_eq` (generic `rfl`) + `rw` first: the module checks in 23 s.
-* Next on amd64: `x8 -> x4 -> x1` (compose with `AvxX4X1WAgree.x4_x1_W` and the x1 small path).
+* x8 -> x4 -> x1 (this commit): `Avx2X8X1WAgree.x8_x4_x1_W_last` (`c = 8 (j+1) + s`, `12 <= s < 16`):
+  the x8 run to `KTEs r`, the x4 link to `K201W` up to `{rax, rcx}`, and the x1 link (table at
+  `r1`) from the resumed x4 state: halted, no error, no tail, its log = own writes over the x4
+  cut log, x4 log and renamed x8 log, `InRange`/`OutOk` of the `s - 12` blocks, `RegsOk`.  Proof:
+  `x1cut_framed` at the exact framed cut + `X86.run_agree` with `AvxX1Agree.Dsx` from `[0, 1]`.
+  Remaining x8 -> x4 -> x1 cases: `9 <= s < 12` (x4 small path, `KSm`), the single-pass `W1_*`.
 
 ## In flight
 
