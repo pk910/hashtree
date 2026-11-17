@@ -107,6 +107,11 @@ import Hashtree.Proofs.AvxX4LoopWOut
 import Hashtree.Proofs.WinAvx2X8WSmall
 import Hashtree.Proofs.WinAvx2X8WOut
 import Hashtree.Proofs.WinAvx2X8WAll
+/- R2c: windows x4 output correctness -/
+import Hashtree.Proofs.WinAvxX4WOutAll
+/- R2c: x8 output correctness -/
+import Hashtree.Proofs.Avx2X8WOut
+import Hashtree.Proofs.Avx2X8WOutBridge
 
 #print axioms Hashtree.Proofs.Shani.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -639,6 +644,26 @@ import Hashtree.Proofs.WinAvx2X8WAll
 #print axioms Hashtree.Proofs.AvxX4LoopWOut.loop_out4
 #print axioms Hashtree.Proofs.AvxX4LoopWOut.iter_out4
 #print axioms Hashtree.Proofs.AvxX4LoopWOut.final_out4
+
+/- R2c: windows x4 output correctness -/
+#print axioms Hashtree.Proofs.WinAvxX4WOut.turnOut4W
+#print axioms Hashtree.Proofs.WinAvxX4WOut.turnOut4WLast
+#print axioms Hashtree.Proofs.WinAvxX4WOut.w4_loop
+#print axioms Hashtree.Proofs.WinAvxX4WOut.w4_iter
+#print axioms Hashtree.Proofs.WinAvxX4WOut.w4_final
+/- R2c: x8 output correctness -/
+#print axioms Hashtree.Proofs.Avx2X8WOut.turnOut8
+#print axioms Hashtree.Proofs.Avx2X8WOut.turnOut8Last
+#print axioms Hashtree.Proofs.Avx2X8WOut.turnOut8_R5
+#print axioms Hashtree.Proofs.Avx2X8WOut.turnOut8Last_R5
+#print axioms Hashtree.Proofs.Avx2X8WOut.loop_out
+#print axioms Hashtree.Proofs.Avx2X8WOut.first_out
+#print axioms Hashtree.Proofs.Avx2X8WOut.iter_out
+#print axioms Hashtree.Proofs.Avx2X8WOut.final_out
+#print axioms Hashtree.Proofs.Avx2X8WOut.first_exit_out
+#print axioms Hashtree.Proofs.Avx2X8WOut.outOk_tab
+#print axioms Hashtree.Proofs.Avx2X8WOut.invW0_body
+#print axioms Hashtree.Proofs.Avx2X8WOut.invS16_body
 
 -- R5: the unconditional windows avx512_x16 chain link: R2c's Avx512X16WOut.turnOut discharges
 -- TurnOut (turnOut512), giving KSpecC512 without hypotheses (KSpecC512_final) and the chain head
