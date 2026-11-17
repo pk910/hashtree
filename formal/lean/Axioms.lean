@@ -106,6 +106,7 @@ import Hashtree.Proofs.WinChainAll
 import Hashtree.Proofs.WinLinkSwap
 import Hashtree.Proofs.WinChainRegions
 import Hashtree.Proofs.WinWrapperChain
+import Hashtree.Proofs.WinWrapperShipped
 
 #print axioms Hashtree.Proofs.Shani.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -135,6 +136,7 @@ import Hashtree.Proofs.WinWrapperChain
 #print axioms Hashtree.Proofs.WinWrapperChain.withTables_ok
 #print axioms Hashtree.Proofs.WinWrapperChain.chainSpec512
 #print axioms Hashtree.Proofs.WinWrapperChain.chainSpec8
+#print axioms Hashtree.Proofs.WinWrapperShipped.wrapper_noavx2_shipped
 #print axioms Hashtree.Proofs.WinWrapperChain.wrapper_avx512_chain
 #print axioms Hashtree.Proofs.WinWrapperChain.wrapper_avx2_chain
 #print axioms Hashtree.Proofs.WrapperAmd64.wrapper_correct
