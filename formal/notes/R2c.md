@@ -184,3 +184,18 @@ the first run at 4 workers was cgroup-OOM-killed late, the retry at 3 workers fi
 `make gate` 0.  `make audit` needs the library root first (`Axioms.lean` imports `GoProof`/`Glue`,
 which are outside the module list of `make build`; fixed on r3r4 in 944ddb9): after `lake build`,
 `make audit` rc 0, 77 prints, no `sorryAx`, no `ofReduceBool`/`native_decide`.
+
+## avx_x4 one-pass W-mode exit (`TurnOut4Last`)
+
+`AvxX4LoopWOutLast.TurnOut4Last` is R2's `Avx2X8OutLink.TurnOut4Last` (research/formal-r2-amd64
+2da19f1, merged here with its head 76f83b3), text copied verbatim with `Avx2X8X4WAgree`'s literal
+`x4LastSteps`: for `4 ≤ σ 2 < 8`, the log of the one-pass run of `AvxX4LoopWAll.x4_runW_last`
+(entry 72 + body + exit tail 27 into `K201W`) over `M` holds only cells of `M`, output cells
+`[σ 1, σ 1 + 128)` and the frame `[σ 9 - 568, σ 9)`, and `OutOk inp (σ 1) 4` holds on it.
+`turnOut4Last` replays `x4_runW_last`'s run equation with the exit environment exposed and takes
+the invariant `stepW4_entry` → `invW4_body` → `stepW4_exit` at `L201`, the shape `K201W_outShape4`
+and the digests `outOk_K201W` of the x4 modules (no new tree checks).  `AvxX4LoopWOutLastBridge`
+proves R2's constant itself (`turnOut4Last_R2`, by unfolding `ShaniW.OutOk` and `x4LastSteps`).
+Axioms: `propext`, `Classical.choice`, `Quot.sound`, 142 generated `*_native.bv_decide.ax_*`
+(the pilot's `Gen.AvxX4P.shape*`, `byte_bswap`, `loadLane_hom`, `SpecQ.qW_*`); no `sorryAx`.
+Cost: 1.5 s + 2.6 s (the bridge needs `Avx2X8OutLink`, whose imports took 3170 s at 1 thread).

@@ -114,6 +114,8 @@ import Hashtree.Proofs.WinAvxX4WOutAll
 /- R2c: x8 output correctness -/
 import Hashtree.Proofs.Avx2X8WOut
 import Hashtree.Proofs.Avx2X8WOutBridge
+/- R2c: x4 one-pass exit output -/
+import Hashtree.Proofs.AvxX4LoopWOutLastBridge
 
 #print axioms Hashtree.Proofs.Shani.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -750,3 +752,7 @@ import Hashtree.Proofs.Avx2X8WOutBridge
 #print axioms Hashtree.Proofs.WinSseBack.run_back
 #print axioms Hashtree.Proofs.WinAvxFront.run_front
 #print axioms Hashtree.Proofs.WinAvxBack.run_back
+
+/- R2c: x4 one-pass exit output -/
+#print axioms Hashtree.Proofs.AvxX4LoopWOutLast.turnOut4Last
+#print axioms Hashtree.Proofs.AvxX4LoopWOutLast.turnOut4Last_R2
