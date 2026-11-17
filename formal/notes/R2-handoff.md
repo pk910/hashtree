@@ -69,7 +69,15 @@ builds under `lake build`, not `lake env lean -o`.
   so `EnvMem` holds by `rfl`; `mapState_entryW_congr` (entryW has no memory keys, `noMk` decided)
   moves `resume_KSm`'s entry state to that environment; `x1_ksm_framed` is the generic x1 post
   behind the log.  Module checks in 4.4 s; audit 0 sorryAx, gate 0.  Every x8 -> x4 -> x1 case
-  with an x1 tail is proved; next: the x8 all-count closure (case split over `c`).
+  with an x1 tail is proved.
+* x8 all-count closure (`Avx2X8ChainW.x8_chain_W`): for every `c >= 8` (`σ 2 = c`, ABI residue),
+  the x8 run for `x8Steps c`, the x4 run for `x4Steps (c % 8)` from the resumed x8 state and,
+  when `c % 8 ≠ 0`, the x1 run for `steps (c % 4)` from the resumed x4 state end halted, with no
+  error and no tail; the x1 input is the caller's at block `c - c % 4`.  The six per-case
+  theorems are the case split (`c < 16` single pass; else `j = c / 8 - 2`, `s = c % 8 + 8`).
+  18 s; audit 0 sorryAx, gate 0.  Next on amd64: `c < 8` (the x8 small path into the x4 W-mode
+  contract, `x8_small_run`/`x8Sm_resume`) to close every count, then the chain spec form
+  (`callChain`/`KSpecC`) for the wrapper.
 
 ## In flight
 

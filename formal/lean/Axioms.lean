@@ -22,6 +22,7 @@ import Hashtree.Proofs.AvxX4Agree
 import Hashtree.Proofs.Avx2X8WAll
 import Hashtree.Proofs.Avx2X8X4WAgree
 import Hashtree.Proofs.Avx2X8X1WAgree
+import Hashtree.Proofs.Avx2X8ChainW
 import Hashtree.GoProof
 import Hashtree.Glue
 import Hashtree.Gen.AvxX4P.Final
@@ -68,6 +69,7 @@ import Hashtree.Gen.RvCryptoP.Final
 #print axioms Hashtree.Proofs.Avx2X8X1WAgree.x8_x4_x1_W_small
 #print axioms Hashtree.Proofs.Avx2X8X1WAgree.x8_x4_x1_W1_small
 #print axioms Hashtree.Proofs.Avx2X8X1WAgree.x8_x4_x1_W1_last
+#print axioms Hashtree.Proofs.Avx2X8ChainW.x8_chain_W
 
 #print axioms Hashtree.Gen.AvxX4P.out_final
 #print axioms Hashtree.Gen.Avx2X8P.out_final
