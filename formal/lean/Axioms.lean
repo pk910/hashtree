@@ -103,6 +103,8 @@ import Hashtree.Proofs.Avx512X16WLoop
 import Hashtree.Proofs.Avx512X16WOut
 /- R2c: x4 output correctness -/
 import Hashtree.Proofs.AvxX4LoopWOut
+/- R2c: windows x4 output correctness -/
+import Hashtree.Proofs.WinAvxX4WOutAll
 
 #print axioms Hashtree.Proofs.Shani.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -629,6 +631,13 @@ import Hashtree.Proofs.AvxX4LoopWOut
 #print axioms Hashtree.Proofs.AvxX4LoopWOut.loop_out4
 #print axioms Hashtree.Proofs.AvxX4LoopWOut.iter_out4
 #print axioms Hashtree.Proofs.AvxX4LoopWOut.final_out4
+
+/- R2c: windows x4 output correctness -/
+#print axioms Hashtree.Proofs.WinAvxX4WOut.turnOut4W
+#print axioms Hashtree.Proofs.WinAvxX4WOut.turnOut4WLast
+#print axioms Hashtree.Proofs.WinAvxX4WOut.w4_loop
+#print axioms Hashtree.Proofs.WinAvxX4WOut.w4_iter
+#print axioms Hashtree.Proofs.WinAvxX4WOut.w4_final
 
 -- R5: the unconditional windows avx512_x16 chain link: R2c's Avx512X16WOut.turnOut discharges
 -- TurnOut (turnOut512), giving KSpecC512 without hypotheses (KSpecC512_final) and the chain head
