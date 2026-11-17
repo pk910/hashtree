@@ -22,6 +22,39 @@ over ssh, push to GitHub); the VM has no GitHub credentials.  Logs: `results/r5-
   `run_nowrite` (non-writing segment keeps the log).  These give `shani_call`'s `hcond`/`hpc`/`hnh`,
   `RegsOkW`'s callee-saved preservation, and the linux tail `add rsp,88; ret` leaving `mem` alone.
 
+## The windows chain assembled (this commit): `WinAvx2X8Link{Facts,Vr*}`, `WinLinkLift`, `WinChainAll`, `WinLinkSwap`, `WinChainRegions`
+
+* `WinAvx2X8Link.KSpecC8_of_turnOut8W : TurnOut8W → TurnOut8WLast → KSpecC8 s8 …` (the avx2_x8 link,
+  statement of `WinAvx2X8Bridge` unchanged): `c = 0` four-instruction return (`KZ8`), `0 < c < 8`
+  small path (`x8w_small_run`, 42 steps), `8 ≤ c < 16` (`x8w_runW_last_abi`), `c ≥ 16`
+  (`x8w_runW_abi`, `j = c/8 - 2`); registers from `exitGprW` (all call registers but rcx/rdx/r8
+  advanced), logs from `TurnOut8W*` on the empty caller log.  `KSpecC8U`: same with the hand-off on
+  `U = [1..8, 12..15]` under the exit cut's environment `e'` (the loop restores `rsi` from a data
+  cell whose value the invariant does not track, so the environment is existential).
+  Vector-file shapes of `KTE r`/`KTEs r`: one `decide +kernel` per module (`WinAvx2X8LinkVr{E,S}{8,24}`,
+  ~8 min and ~56 GB each; build them one at a time).
+* `WinLinkLift.lift`: generic — a link's call-state statement (`CallSpec`) plus its liveness
+  certificate (flags dead at entry) gives the link from any hand-over `PreLink … Lp s`: comparison
+  state `mapState (envV …) (shift σ d r) entryWin` over `view M' m0`, `run_agree` on the certificate
+  extended by a constant set `C ⊇ Ln ∪ CSR` (`cert_const`), `shift_shift`, logs appended,
+  `outOk_new`.  Standard axioms only.
+* `WinChainAll`: `callSpec4` (avx_x4 at the call state on `U`, from `WinAvxX4Cert.spec`),
+  `callSpec8`, the four clauses (`clause512` adds rbx/rdi to avx512's `L8` hand-over by
+  preservation), `win_KSpecC`, `win_chain_correct` (`chainRun` from `entryWin`: err none, tail
+  none, `PostLink σ c inp 1296`).  All links at region 4: the four `WfMemW` hypotheses are jointly
+  unsatisfiable (different tables in region 4) — superseded by:
+* `WinLinkSwap` (`Fix ρ`: renaming fixing the wrapper regions; `state_entryWin`, `agree_ren`,
+  `preLink_ren`, `postLink_ren`, `run_at` from `run_swap_chain`, `swap_mem_wf`, `swap_mem_in`) and
+  `WinChainRegions.win_chain_correct_regions`: avx512 at region 7, avx2_x8 at 8, avx_x4 at 4,
+  avx_x1 at 9 (`WfMemAtW` per table, one memory, no EnvMem hypothesis) — the full windows chain
+  theorem, conditional only on R2c's `TurnOut8W`, `TurnOut8WLast`, `TurnOut4W`, `TurnOut4WLast`.
+* R2c status (research/formal-r2c-x16out, not merged here; integration merges r2c last):
+  `turnOut4W`/`turnOut4WLast` proved at r2c 32a5e7e; `turnOut8W`/`turnOut8WLast` in progress.
+  Once both land, `win_chain_correct_regions` is unconditional at integration.
+* Next: connect
+  `specsR` to the wrapper model (`callChain` in the windows wrapper, the region layout of the
+  four tables).
+
 ## Windows avx2_x8 W-mode loop, every count `c >= 8` (commits 5802a2f, 625442a): `WinAvx2X8W{Shift,StripDefs,Loop,All,Out}`
 
 The linux `Avx2X8WLoop` port (residues) with the saved-cell handling of the windows avx_x4 loop.
