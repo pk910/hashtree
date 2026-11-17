@@ -85,3 +85,49 @@ Generator: `tools/gen_r2c_x4.py <slice table> <pilot out_final text>` writes Lab
 Cost: Tail 60 s, Out 114 s (1 thread).  Gotcha: `funext o; congr 1; omega` on
 `inp (256 (j+1) + o) = inp (64 (4 (j+1)) + o)` never finished (`congr`'s closing `rfl` unfolds
 `Nat.mul` on a variable); `exact congrArg inp (by omega)` is instant.
+
+## avx2_x8 W-mode loop (`TurnOut8`, `TurnOut8Last`)
+
+`Hashtree.Proofs.Avx2X8WOut.TurnOut8` / `TurnOut8Last` (with `x8RunSteps`, `x8LastSteps`, `D8L = 984`)
+are R5's text (`WinAvx2X8Bridge`), copied verbatim; `Avx2X8WOutBridge.turnOut8_R5` / `turnOut8Last_R5`
+prove R5's own constants by unfolding `TurnOut8*` and `WinWrapper.OutOk`.  Under the hypotheses of
+`Avx2X8WAll.x8_runW_abi` (`c = 8 (j + 1) + s`, `8 ≤ s < 16`) / `x8_runW_last_abi` (`8 ≤ c < 16`),
+`σ 9 % 16 = 8` and the input bytes at `σ 0`, every cell of the final log is in `M`, an output cell in
+`[σ 1, σ 1 + 256 (j + 2))` (resp. `+ 256`) or a stack cell in `[σ 9 - 984, σ 9)`, and
+`OutOk inp (σ 1) (8 (j + 2))` (resp. `8`) holds on it.
+
+`theorem turnOut8 : TurnOut8`, `theorem turnOut8Last : TurnOut8Last` — proved; `#print axioms`:
+`propext`, `Classical.choice`, `Quot.sound` and 144 generated `*_native.bv_decide.ax_*` (pilot
+`Gen.Avx2X8P.shape*`, `Asm.byte_bswap`, `Asm.loadLane_hom`, `Asm.SpecQ.qW_*`); no `sorryAx`, no
+`native_decide` / `ofReduceBool`.
+
+Route (generator `tools/gen_r2c_x8.py <pilot Final.lean> <pilot D210.lean>` writes Lab/Tab/Cut*/Inv*):
+
+* R2's body slices (first pass `Avx2X8WBodyR{r}.sliceW_k`, later pass `Avx2X8WBodyR{r}S.sliceV2s`,
+  `sliceV3s`, `sliceS_k`) are already checked with the pilot's trees and lengths, and the pilot's
+  labels `L0 = L1 = L2 = []`, so the entry/head replays need nothing: `Avx2X8WOutInvR{0,16}` lift
+  `step2 .. step209` by `invC_lift` (chains `invW{r}_body`, `invS{r}_body` from `True`).
+* Only the four tails per residue are re-checked with trees (`Avx2X8WOutCut{T,X,TS,XS}{r}`, one
+  `decide +kernel` each for the slice, the 256 output cells, and the log shape).  **Gotcha:** the
+  turn tails (`KT r`, `KTs r`, 27 steps) reload the IV into the two vector registers that hold the
+  digests of blocks 0/1 in the pilot's exit cut, so `sliceCheck … (KT 0) T210` is false (16 trees,
+  ids 100..107 / 116..123).  `Avx2X8WOutTab` drops them: `T210t`/`L211t` (`L211t` literal,
+  `L211t_eq` to the filter by `decide +kernel`), `slice210t` from `slice210` (`sliceCheck_filter`),
+  `invC_sub : InvC L211 → InvC L211t`; the output cells are memory labels and stay.
+* `outOk_tab`: one generic proof (any cut whose `tab8` cells check, at `InvC … L211t`) of the 8
+  digests from the pilot's `out_final` case table (256 cases); the per-cut cell facts are the
+  single-table `decide +kernel`s in the Cut files.
+* `Avx2X8WOut`: `OutR r B` bundles the four lifted tails and the cut facts; `first_out` /
+  `iter_out` / `first_exit_out` / `final_out` mirror `first_turnW` / `iter_stepS` / `first_exitW`
+  / `final_runW` with the pass's log exposed, `loop_out` (j later passes), `turnOut8_r` /
+  `turnOut8Last_r` compose along `x8_runW` / `x8_runW_last`; the residue is selected by
+  `residue_cases`.
+
+Cost (VM, 1-4 threads, shared box): Lab 34 s, Tab 53 s, each Cut file 264-355 s, Inv 7 s each,
+Out 3 s, Bridge 3 s.  R2's prerequisites rebuilt from source in this worktree (`Avx2X8WShift`
+3183 s, body parts 1900-4500 s each).
+
+Gotcha (elaboration): `exact outShape8_sound (KT r) …` against a goal stated with
+`(KT r).mem.map …` instead of `(mapState e σ (KT r)).mem` never finished (the unifier unfolds the
+computed cut `KT r`); stating `mapState_mem` once for a variable cut and `rw [mapState_mem] at h`
+is instant.  Also `x8RunSteps_eq` is by `unfold …; omega`, not `rfl`.
