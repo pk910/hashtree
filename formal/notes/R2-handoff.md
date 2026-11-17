@@ -110,6 +110,27 @@ builds under `lake build`, not `lake env lean -o`.
   `L1 = (x4 run).mem`.  Next: the linux wrapper's callK -> callChain switch (cf. R5
   `WinWrapperChain`), and R2c's TurnOut4Last.
 
+* Registers + the linux wrapper on the chain (this commit): `Avx2X8ChainRegs` carries the
+  restored registers (`ShaniW.RegsOk env0 σ`) to the end of the x8 -> x4 -> x1 chain for every
+  c >= 1 (`x8_chain_W_regs` six cases: x1 returns from `x1cut_framed`/`x1_ksm_framed` RegsOk at
+  the shifted cut symbols, x4 count-0 returns from `link_zero`'s getG facts across the
+  `{rax, rcx, flags}` agreement; every shift fixes symbols 5..12, `regsOk_congr`;
+  `x8_chain_small_regs` for 0 < c < 8), plus count 0 (`x8_zero_at`: one 4-instruction slice
+  `nop; cmp; jne; ret` at region 4 moved to `r8` by the swap, `run_halted` for the idle fuel);
+  `RetR`/`x8SpecsR`/`x8KSpecC_full` (c >= 1) and `x8Specs0`/`x8KSpecC_zero` (c = 0).
+  `WrapperAmd64Chain` (modelled on R5 `WinWrapperChain`): `wrapRunC links` (the wrapper text with
+  `callChain` over `links.map specOf`; `chainRun_links`), `links8 = [link8 8, link4, link1 9]`,
+  `Tables` (x8 table at region 8, x1 at 9; x4 at 4 via `WfMemW`), `withTables_ok` (non-vacuity,
+  with `wrapper_hyps_sat`), `ChainSpec` (KSpec analogue incl. RegsOk), `chainSpec8` (every count,
+  D = 984), `wrapper_chain` (copy of `wrapper_kernel` with callChain) and **`wrapper_avx2_chain`**:
+  HashtreeHash on avx2 hardware (`pick_avx2`, `links8_head`) returns via RET, rsp = SPe+8, rbp
+  restored, writes only outputs and [SPe-2056, SPe), all c outputs SHA-256 — every count,
+  conditional only on TurnOut8/TurnOut8Last (r2c 7151bbd) and TurnOut4Last (R2c).  Audit: standard
+  axioms + allowlisted bv_decide only.  Trap avoided: `congr 2; omega` on `σ 9 - 2056 + 2048 + 8 + 8`
+  timed out at whnf (literal unfolding); `rw [show … by omega]` instead.
+  Next: cite R2c's TurnOut4Last when it lands; optional: the dispatch theorem over all four
+  `pick` targets (avx512 needs R2b's x16 link).
+
 ## In flight
 
 * Windows x4 port, clone `/root/ht/hashtree-r5win`, branch `research/formal-r2-winx4` (off

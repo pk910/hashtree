@@ -28,6 +28,8 @@ import Hashtree.Proofs.Avx2X8ChainC
 import Hashtree.Proofs.Avx2X8OutLink
 import Hashtree.Proofs.Avx2X8ChainOut
 import Hashtree.Proofs.Avx2X8ChainOutAll
+import Hashtree.Proofs.Avx2X8ChainRegs
+import Hashtree.Proofs.WrapperAmd64Chain
 import Hashtree.GoProof
 import Hashtree.Glue
 import Hashtree.Gen.AvxX4P.Final
@@ -86,6 +88,14 @@ import Hashtree.Gen.RvCryptoP.Final
 #print axioms Hashtree.Proofs.Avx2X8ChainOut.x8_chain_W_out
 #print axioms Hashtree.Proofs.Avx2X8ChainOutAll.x8_chain_out_all
 #print axioms Hashtree.Proofs.Avx2X8ChainOutAll.x8_callChain_out
+#print axioms Hashtree.Proofs.Avx2X8ChainRegs.x8_chain_regs_all
+#print axioms Hashtree.Proofs.Avx2X8ChainRegs.x8_zero_at
+#print axioms Hashtree.Proofs.Avx2X8ChainRegs.x8KSpecC_full
+#print axioms Hashtree.Proofs.Avx2X8ChainRegs.x8KSpecC_zero
+#print axioms Hashtree.Proofs.WrapperAmd64Chain.withTables_ok
+#print axioms Hashtree.Proofs.WrapperAmd64Chain.chainSpec8
+#print axioms Hashtree.Proofs.WrapperAmd64Chain.wrapper_chain
+#print axioms Hashtree.Proofs.WrapperAmd64Chain.wrapper_avx2_chain
 
 #print axioms Hashtree.Gen.AvxX4P.out_final
 #print axioms Hashtree.Gen.Avx2X8P.out_final
