@@ -29,6 +29,12 @@ import Hashtree.Proofs.AvxX4Agree
 import Hashtree.Proofs.Avx2X8WAll
 import Hashtree.Proofs.Avx2X8X4WAgree
 import Hashtree.Proofs.Avx2X8X1WAgree
+import Hashtree.Proofs.Avx2X8ChainW
+import Hashtree.Proofs.Avx2X8SmallW
+import Hashtree.Proofs.Avx2X8ChainC
+import Hashtree.Proofs.Avx2X8OutLink
+import Hashtree.Proofs.Avx2X8ChainOut
+import Hashtree.Proofs.Avx2X8ChainOutAll
 import Hashtree.GoProof
 import Hashtree.Glue
 import Hashtree.Gen.AvxX4P.Final
@@ -147,6 +153,21 @@ import Hashtree.Proofs.Avx2X8WOutBridge
 #print axioms Hashtree.Proofs.Avx2X8X4WAgree.x8_x4_W1_small
 #print axioms Hashtree.Proofs.Avx2X8X4WAgree.x8_x4_W1_zero
 #print axioms Hashtree.Proofs.Avx2X8X1WAgree.x8_x4_x1_W_last
+#print axioms Hashtree.Proofs.Avx2X8X1WAgree.x8_x4_x1_W_small
+#print axioms Hashtree.Proofs.Avx2X8X1WAgree.x8_x4_x1_W1_small
+#print axioms Hashtree.Proofs.Avx2X8X1WAgree.x8_x4_x1_W1_last
+#print axioms Hashtree.Proofs.Avx2X8ChainW.x8_chain_W
+#print axioms Hashtree.Proofs.Avx2X8SmallW.x8_chain_small
+#print axioms Hashtree.Proofs.Avx2X8SmallW.x8_chain_W_all
+#print axioms Hashtree.Proofs.Avx2X8ChainC.x8_tails
+#print axioms Hashtree.Proofs.Avx2X8ChainC.x8KSpecC
+#print axioms Hashtree.Proofs.Avx2X8ChainC.x8_callChain
+#print axioms Hashtree.Proofs.Avx2X8OutLink.x8_out_at
+#print axioms Hashtree.Proofs.Avx2X8OutLink.x8_out_last_at
+#print axioms Hashtree.Proofs.Avx2X8OutLink.x4_last_out
+#print axioms Hashtree.Proofs.Avx2X8ChainOut.x8_chain_W_out
+#print axioms Hashtree.Proofs.Avx2X8ChainOutAll.x8_chain_out_all
+#print axioms Hashtree.Proofs.Avx2X8ChainOutAll.x8_callChain_out
 
 #print axioms Hashtree.Gen.AvxX4P.out_final
 #print axioms Hashtree.Gen.Avx2X8P.out_final

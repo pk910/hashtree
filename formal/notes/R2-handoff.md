@@ -62,7 +62,53 @@ builds under `lake build`, not `lake env lean -o`.
   `r1`) from the resumed x4 state: halted, no error, no tail, its log = own writes over the x4
   cut log, x4 log and renamed x8 log, `InRange`/`OutOk` of the `s - 12` blocks, `RegsOk`.  Proof:
   `x1cut_framed` at the exact framed cut + `X86.run_agree` with `AvxX1Agree.Dsx` from `[0, 1]`.
-  Remaining x8 -> x4 -> x1 cases: `9 <= s < 12` (x4 small path, `KSm`), the single-pass `W1_*`.
+* x8 -> x4 -> x1, remaining cases (same module): `x8_x4_x1_W_small` (`9 <= s < 12`, x4 small
+  path `KSm`), `x8_x4_x1_W1_small` (`9 <= c < 12`), `x8_x4_x1_W1_last` (`12 <= c < 16`).
+  The small path needs an x1 environment over the swapped viewed memory: `envSw env' σ4 m` keeps
+  the cut's numbered variables and reads memory keys from `m = (swap 4 r1).mem (view L mem0c)`,
+  so `EnvMem` holds by `rfl`; `mapState_entryW_congr` (entryW has no memory keys, `noMk` decided)
+  moves `resume_KSm`'s entry state to that environment; `x1_ksm_framed` is the generic x1 post
+  behind the log.  Module checks in 4.4 s; audit 0 sorryAx, gate 0.  Every x8 -> x4 -> x1 case
+  with an x1 tail is proved.
+* x8 all-count closure (`Avx2X8ChainW.x8_chain_W`): for every `c >= 8` (`σ 2 = c`, ABI residue),
+  the x8 run for `x8Steps c`, the x4 run for `x4Steps (c % 8)` from the resumed x8 state and,
+  when `c % 8 ≠ 0`, the x1 run for `steps (c % 4)` from the resumed x4 state end halted, with no
+  error and no tail; the x1 input is the caller's at block `c - c % 4`.  The six per-case
+  theorems are the case split (`c < 16` single pass; else `j = c / 8 - 2`, `s = c % 8 + 8`).
+  18 s; audit 0 sorryAx, gate 0.
+* Every count `c >= 1` (`Avx2X8SmallW`): `x8_small_run_at` (the x8 small path with its table at
+  `r8`), `handoff` (the resumed small-path cut is `{mapState e' σ entryW with flags}` behind the
+  renamed small-path log: `x8Sm_resume`, `mapState_entryW` turns `entryWx` at `upd15 σ` into
+  `entryW` at `σ`), `agree_flags` + `run_agree4` (the flags are dead at the x4 entry), then the
+  x4 small path into `x1_ksm_framed` (`small_x4_x1`, `0 < c < 4`) or `x4_runW_last` into
+  `x1cut_framed` (`last_x4_x1`, `4 <= c < 8`); `x8_chain_small` and `x8_chain_W_all` (with
+  `x8StepsAll c = if c < 8 then 20 else x8Steps c`).  17 s; audit 0 sorryAx, gate 0.
+  Next on amd64: the chain spec form (`callChain`/`KSpecC`) for the wrapper, and the output
+  facts of the x8/x4 parts (R2c's `TurnOut8`/`turnOut4`) to state `OutOk` for all `c` blocks.
+
+* Chain form (`Avx2X8ChainC`): `x8_tails` (the x8 run always ends without error on the tail
+  call into avx_x4; when `c % 8 != 0` the x4 run from the resumed x8 state ends on the tail call
+  into avx_x1, from the cut facts `KTE_*`/`KTEs`/`x8Sm_facts` and the x4 agreements' `tail`
+  field against `KSm`/`K201W`), `x8Specs` (links x8 at `r8`, x4 at 4, x1 at `r1`, step functions
+  `x8StepsAll`, `x4Steps (c % 8)`, `steps (c % 4)`, exact hand-over states as pre, run-level `Ret`
+  as post; x1 entered only when `c % 8 != 0`), `x8KSpecC` (KSpecC for every `c >= 1`) and
+  `x8_callChain` (the wrapper's `callChain` returns normally).  16 s; audit 0 sorryAx, gate 0.
+  Next: the output clause (`OutOk` of all `c` blocks over the chain log) from R2c's `TurnOut8`
+  (hypothesis) + `turnOut4`, then the linux wrapper's `callK` -> `callChain` switch.
+
+* Output clause (commits 2da19f1, d7c9931, this one): `Avx2X8OutLink` (statements `TurnOut8`,
+  `TurnOut8Last` = R5's text, proved on r2c 7151bbd, cited not merged; NEW `TurnOut4Last` for the
+  one-pass x4 W-mode exit `x4_runW_last`, shape of r2c `TurnOut4`/`TurnOut4WLast`, footprint 568 —
+  for R2c to prove; `x8_out_at`/`x8_out_last_at` at `r8` by the swap; `x4_last_out` at the
+  resumed x8 cut; `outOk_glue`), `Avx2X8ChainOut.x8_chain_W_out` (c >= 8, six cases),
+  `Avx2X8ChainOutAll` (`smallLog`: the x8 small path writes only stack bytes, kernel decide over 32
+  residues, ~2 min; `small_x4_x1_out`, `last_x4_x1_out`, `x8_chain_small_out`, `x8_chain_out_all`,
+  `x8SpecsO`/`x8KSpecC_out`/`x8_callChain_out`): the wrapper's chain call returns normally and its
+  log holds all `c` blocks (`OutOk inp (σ 1) c`) inside `FootC` (caller log, the `c` output
+  blocks, the 984-byte frame below the return marker), for every c >= 1, conditional only on
+  TurnOut8/TurnOut8Last/TurnOut4Last.  `x8_x4_x1_W_last`/`W1_last` now also export
+  `L1 = (x4 run).mem`.  Next: the linux wrapper's callK -> callChain switch (cf. R5
+  `WinWrapperChain`), and R2c's TurnOut4Last.
 
 ## In flight
 
