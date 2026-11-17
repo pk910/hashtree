@@ -75,9 +75,16 @@ builds under `lake build`, not `lake env lean -o`.
   when `c % 8 ≠ 0`, the x1 run for `steps (c % 4)` from the resumed x4 state end halted, with no
   error and no tail; the x1 input is the caller's at block `c - c % 4`.  The six per-case
   theorems are the case split (`c < 16` single pass; else `j = c / 8 - 2`, `s = c % 8 + 8`).
-  18 s; audit 0 sorryAx, gate 0.  Next on amd64: `c < 8` (the x8 small path into the x4 W-mode
-  contract, `x8_small_run`/`x8Sm_resume`) to close every count, then the chain spec form
-  (`callChain`/`KSpecC`) for the wrapper.
+  18 s; audit 0 sorryAx, gate 0.
+* Every count `c >= 1` (`Avx2X8SmallW`): `x8_small_run_at` (the x8 small path with its table at
+  `r8`), `handoff` (the resumed small-path cut is `{mapState e' σ entryW with flags}` behind the
+  renamed small-path log: `x8Sm_resume`, `mapState_entryW` turns `entryWx` at `upd15 σ` into
+  `entryW` at `σ`), `agree_flags` + `run_agree4` (the flags are dead at the x4 entry), then the
+  x4 small path into `x1_ksm_framed` (`small_x4_x1`, `0 < c < 4`) or `x4_runW_last` into
+  `x1cut_framed` (`last_x4_x1`, `4 <= c < 8`); `x8_chain_small` and `x8_chain_W_all` (with
+  `x8StepsAll c = if c < 8 then 20 else x8Steps c`).  17 s; audit 0 sorryAx, gate 0.
+  Next on amd64: the chain spec form (`callChain`/`KSpecC`) for the wrapper, and the output
+  facts of the x8/x4 parts (R2c's `TurnOut8`/`turnOut4`) to state `OutOk` for all `c` blocks.
 
 ## In flight
 
