@@ -22,6 +22,39 @@ over ssh, push to GitHub); the VM has no GitHub credentials.  Logs: `results/r5-
   `run_nowrite` (non-writing segment keeps the log).  These give `shani_call`'s `hcond`/`hpc`/`hnh`,
   `RegsOkW`'s callee-saved preservation, and the linux tail `add rsp,88; ret` leaving `mem` alone.
 
+## Windows avx2_x8 W-mode loop, every count `c >= 8` (commits 5802a2f, 625442a): `WinAvx2X8W{Shift,StripDefs,Loop,All,Out}`
+
+The linux `Avx2X8WLoop` port (residues) with the saved-cell handling of the windows avx_x4 loop.
+Pilot `Gen/WinAvx2X8P` (count 8, `entrySW 24`, 211 slices `K1..K212`; queue 29).
+
+* `WinAvx2X8WShift`: `x8P` (6 instructions to the `and rsp,-32` at pc 7), `x8A r`,
+  `align_hom8`/`run1_align` (residue `r = (σ 9 - 16) % 32`; ABI `σ 9 % 16 = 8` gives 8 or 24,
+  `residue_abi`), `shiftK8 r` (pilot offset `k ≥ 8 ↦ sAt (k - 24)`, `k < 8 ↦ sAt (k - 16 - r)`;
+  pushed `rbp` and saved `r12..r15` become pointer bytes; `rbx`, `r12..r15` take the wrapper's
+  pointers), `K2W r` (flags of `sub rsp,1248`), loop head `K3` (pc 25: every `ymm` is loaded
+  before read from there), `KT r` (24 instructions `K211 → pc 25`), `KTE r` (42 instructions to
+  the `jmp avx_x4`, gpr = `exitGprW`: `entryWin` with rcx+256, rdx+512, r8-8), `BODYLEN = 6039`.
+* `WinAvx2X8WStripDefs`: `pushC r` (368 saved cells: rbp/r12..r15 pointer bytes, rsi and the
+  ten ymm saves address-keyed data bytes), `m8P r`, `strip368`, `stripK8 r`, `KHs r` (`K3` with
+  all 16 `ymm` fixed and the dead `rsi` on the table), `KH4s r` (ymm7..15), `KH5s r`
+  (ymm14, 15), `KTs r`, `KTEs r`, `stripOk r`.
+* Kernel-check memory: one `decide +kernel` of the whole `shiftOk r`/`stripOk r` exceeds 80 GB
+  (memcg OOM at 40 G and 85 G).  Split per conjunct (`WinAvx2X8WShift{8,24}{a,b,c}`,
+  `WinAvx2X8WStrip{8,24}{a..d}`, one theorem per conjunct, 1-3 min and <40 G each), assembled
+  by `simp only` in `WinAvx2X8WShift{8,24}`/`WinAvx2X8WStrip{8,24}`.
+* `tools/winx8w.py <r> [--pass2]`: the 208 pass-1 slices 3..210 at `shiftK8 r` (`BodyR{r}P1..4`,
+  `body_runW`) and the 205 pass-2 slices 6..210 at `stripK8 r` (`BodyR{r}S1..4`, `bodyS_runW`;
+  head slices 3..5 from `stripOk`).
+* `WinAvx2X8WLoop`: `CutsW r`/`BodyW r`, invariant `WfMemW rodata []` + `SaveOk8 r` (data bytes
+  of the right index, pointer bytes exactly) + `OutLogW`; `wfP_of_saveOk8` gives the push-list
+  relation under `ecomb`; `entry_runW` (24 steps), `first_turnW`, `iter_stepS`, `loopW`,
+  `first_exitW`, `final_runW`, `x8w_runW_last`, `x8w_runW`.
+* `WinAvx2X8WAll`: `x8w_runW_last_abi` (`8 ≤ c < 16`, `24 + (BODYLEN + 42)` steps to `KTE r`)
+  and `x8w_runW_abi` (`c = 8 (j+1) + s`, to `KTEs r` at `sIt8 (j+1) σ`).
+* `WinAvx2X8WOut` (statements for R2c, nothing proved): `TurnOut8W`/`TurnOut8WLast` over exactly
+  those runs, footprint `[σ 9 - 1296, σ 9)`.  Next: the avx2_x8 link `KSpecC8` from them (as
+  `WinAvxX4Cert` from `TurnOut4W`), plus the small path `0 < c < 8` (jb at pc 24 to the restores).
+
 ## Checkpoint (a): DONE — module `Proofs/WinShaniBridge.lean`
 
 `shani_KSpecW : KSpecW winProg Kernels.X86Win.Shani.rodata stepsW 248` and `fitsW_shani : FitsW
@@ -284,6 +317,21 @@ in the pinned archive changes) and PACKS AT INTEGRATION (`pack-gen.sh` + `ci/pro
 record-gen`, not run in R5).  Its `Final.out_final` is the count-4 run from `mapState env0 σ
 (entrySW 24)` of the windows stream -- the base of `WinAvxX4Link.X4WinCert` (which needs the
 W-mode generalisation over counts, `AvxX4LoopWAll`-style, on the windows stream: R2's tooling).
+
+## avx_x4 link DONE modulo R2c's output contracts (commit U): `Proofs/WinAvxX4Cert.lean`
+
+* `x4WinCert_of : TurnOut4W → TurnOut4WLast → X4WinCert` and `KSpecC4_of_turnOut4W` (the avx_x4
+  link `KSpecC4` with step function `if c = 0 then 4 else stepsW c`).  `stepsW c`: 28 for
+  `0 < c < 4` (`WinAvxX4Small.small_prefixW`), `x4wLastSteps` for `4 ≤ c < 8`
+  (`x4w_runW_last_all` to `KTE`), `x4wRunSteps (c / 4 - 2)` for `c ≥ 8` (`x4w_runW_all` with
+  `s = c % 4 + 4` to `KTEs`).  Registers from `exitGprW` (`KTE`/`KTEs`) or `entryWin` (`KSmW`);
+  callee-saved + rsi/rdi by `run_preserve_all` + `unwrittenScan`; log facts from `TurnOut4W*` on
+  the empty caller log.  Kernel facts in `WinAvxX4CertFacts` (3.7 min); the link checks in 3 s.
+  Axioms: standard + `loadLane_hom._native.bv_decide.ax_1_6`.
+* Trap (again): `rw` closes with `rfl`, and a goal `KTE.err = none` / `run … (16 + …) s = …` makes
+  that `rfl` evaluate the cut / the run.  Use `(congrArg State.err hf).trans …` terms and rewrite
+  the hypotheses into syntactic form first (`rw [e] at r8; rw [hf, r8]`); `congr 2` on
+  `Val.ptr ⟨…⟩` goals also timed out.
 
 ## Statements for R2c (commit T, text only, nothing proved)
 

@@ -20,6 +20,7 @@ import Hashtree.Proofs.WinWrapperAvx1
 import Hashtree.Proofs.WinAvxX1Link
 import Hashtree.Proofs.WinAvxX4WAll
 import Hashtree.Proofs.WinAvxX4Small
+import Hashtree.Proofs.WinAvxX4Cert
 import Hashtree.Proofs.WrapperAmd64
 import Hashtree.Proofs.Avx2X8Body
 import Hashtree.Proofs.Avx512X16Body
@@ -103,6 +104,9 @@ import Hashtree.Proofs.Avx512X16WLoop
 import Hashtree.Proofs.Avx512X16WOut
 /- R2c: x4 output correctness -/
 import Hashtree.Proofs.AvxX4LoopWOut
+import Hashtree.Proofs.WinAvx2X8WSmall
+import Hashtree.Proofs.WinAvx2X8WOut
+import Hashtree.Proofs.WinAvx2X8WAll
 
 #print axioms Hashtree.Proofs.Shani.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -116,7 +120,13 @@ import Hashtree.Proofs.AvxX4LoopWOut
 #print axioms Hashtree.Proofs.WinWrapperAvx1.wrapper_correctW_noavx2
 #print axioms Hashtree.Proofs.WinAvxX1Link.last1
 #print axioms Hashtree.Proofs.WinAvxX4WAll.x4w_runW_all
+#print axioms Hashtree.Proofs.WinAvx2X8WSmall.x8w_small_run
+#print axioms Hashtree.Proofs.WinAvx2X8WLoop.x8w_runW
+#print axioms Hashtree.Proofs.WinAvx2X8WLoop.x8w_runW_last
+#print axioms Hashtree.Proofs.WinAvx2X8WAll.x8w_runW_abi
+#print axioms Hashtree.Proofs.WinAvx2X8WAll.x8w_runW_last_abi
 #print axioms Hashtree.Proofs.WinAvxX4Small.small_prefixW
+#print axioms Hashtree.Proofs.WinAvxX4Cert.KSpecC4_of_turnOut4W
 #print axioms Hashtree.Proofs.WrapperAmd64.wrapper_correct
 #print axioms Hashtree.Go.sha256_1_generic_eq
 #print axioms Hashtree.Glue.Hash_spec
