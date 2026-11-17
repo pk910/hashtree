@@ -96,6 +96,20 @@ builds under `lake build`, not `lake env lean -o`.
   Next: the output clause (`OutOk` of all `c` blocks over the chain log) from R2c's `TurnOut8`
   (hypothesis) + `turnOut4`, then the linux wrapper's `callK` -> `callChain` switch.
 
+* Output clause (commits 2da19f1, d7c9931, this one): `Avx2X8OutLink` (statements `TurnOut8`,
+  `TurnOut8Last` = R5's text, proved on r2c 7151bbd, cited not merged; NEW `TurnOut4Last` for the
+  one-pass x4 W-mode exit `x4_runW_last`, shape of r2c `TurnOut4`/`TurnOut4WLast`, footprint 568 —
+  for R2c to prove; `x8_out_at`/`x8_out_last_at` at `r8` by the swap; `x4_last_out` at the
+  resumed x8 cut; `outOk_glue`), `Avx2X8ChainOut.x8_chain_W_out` (c >= 8, six cases),
+  `Avx2X8ChainOutAll` (`smallLog`: the x8 small path writes only stack bytes, kernel decide over 32
+  residues, ~2 min; `small_x4_x1_out`, `last_x4_x1_out`, `x8_chain_small_out`, `x8_chain_out_all`,
+  `x8SpecsO`/`x8KSpecC_out`/`x8_callChain_out`): the wrapper's chain call returns normally and its
+  log holds all `c` blocks (`OutOk inp (σ 1) c`) inside `FootC` (caller log, the `c` output
+  blocks, the 984-byte frame below the return marker), for every c >= 1, conditional only on
+  TurnOut8/TurnOut8Last/TurnOut4Last.  `x8_x4_x1_W_last`/`W1_last` now also export
+  `L1 = (x4 run).mem`.  Next: the linux wrapper's callK -> callChain switch (cf. R5
+  `WinWrapperChain`), and R2c's TurnOut4Last.
+
 ## In flight
 
 * Windows x4 port, clone `/root/ht/hashtree-r5win`, branch `research/formal-r2-winx4` (off
