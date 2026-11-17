@@ -105,6 +105,7 @@ import Hashtree.Proofs.WinLinkLift
 import Hashtree.Proofs.WinChainAll
 import Hashtree.Proofs.WinLinkSwap
 import Hashtree.Proofs.WinChainRegions
+import Hashtree.Proofs.WinWrapperChain
 
 #print axioms Hashtree.Proofs.Shani.shani_correct
 #print axioms Hashtree.Proofs.ShaniW.correctW
@@ -128,11 +129,14 @@ import Hashtree.Proofs.WinChainRegions
 #print axioms Hashtree.Proofs.WinAvx2X8Link.KSpecC8_of_turnOut8W
 #print axioms Hashtree.Proofs.WinAvx2X8Link.KSpecC8U_of_turnOut8W
 #print axioms Hashtree.Proofs.WinLinkLift.lift
-#print axioms Hashtree.Proofs.WinChainAll.win_KSpecC
-#print axioms Hashtree.Proofs.WinChainAll.win_chain_correct
 #print axioms Hashtree.Proofs.WinLinkSwap.preLink_ren
 #print axioms Hashtree.Proofs.WinChainRegions.win_KSpecC_regions
 #print axioms Hashtree.Proofs.WinChainRegions.win_chain_correct_regions
+#print axioms Hashtree.Proofs.WinWrapperChain.withTables_ok
+#print axioms Hashtree.Proofs.WinWrapperChain.chainSpec512
+#print axioms Hashtree.Proofs.WinWrapperChain.chainSpec8
+#print axioms Hashtree.Proofs.WinWrapperChain.wrapper_avx512_chain
+#print axioms Hashtree.Proofs.WinWrapperChain.wrapper_avx2_chain
 #print axioms Hashtree.Proofs.WrapperAmd64.wrapper_correct
 #print axioms Hashtree.Go.sha256_1_generic_eq
 #print axioms Hashtree.Glue.Hash_spec

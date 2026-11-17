@@ -4,15 +4,19 @@ import Hashtree.Proofs.WinAvx512Final
 import Hashtree.Proofs.WinAvxX1Link
 
 /-!
-# R5: the windows tail chain `avx512_x16 -> avx2_x8 -> avx_x4 -> avx_x1`, assembled
+# R5: the windows tail chain `avx512_x16 -> avx2_x8 -> avx_x4 -> avx_x1`, per-link clauses
 
-`win_KSpecC`: `X86Chain.KSpecC` for `winSpecs` — every link of the shipped windows chain meets its
-obligation — conditional only on R2c's output contracts of the two windows W-mode loops
-(`TurnOut8W`/`TurnOut8WLast` for avx2_x8, `TurnOut4W`/`TurnOut4WLast` for avx_x4); the avx512_x16
-link is unconditional (`WinAvx512Final`), the avx_x1 link is `WinAvxX1Link.last1`.
-`win_chain_correct`: the chain run from the wrapper call state ends without a model error and
-without a pending tail, halted, with all `c` output blocks correct, the footprint inside the output
-and `[σ 9 - 1296, σ 9)`, and the Win64 callee-saved registers and `rsp` restored.
+The four per-link clauses of the windows tail chain (`clause512`, `clause8`, `clause4`,
+`clause1`), each at rodata region 4, conditional only on R2c's output contracts of the two windows
+W-mode loops (`TurnOut8W`/`TurnOut8WLast` for avx2_x8, `TurnOut4W`/`TurnOut4WLast` for avx_x4); the
+avx512_x16 link is unconditional (`WinAvx512Final`), the avx_x1 link is `WinAvxX1Link.last1`.
+
+The assembled chain is NOT stated here.  An earlier version composed the four clauses with every
+table in region 4 (`win_KSpecC`/`win_chain_correct`, removed): their four memory hypotheses fix
+region 4 to four different tables and cannot hold together, so that theorem was vacuous.  The
+chain theorem is `WinChainRegions.win_chain_correct_regions` (one region per table), and the
+wrapper-level statement on the shipped layout is `WinWrapperChain.wrapper_avx512_chain` /
+`wrapper_avx2_chain` (non-vacuity: `WinWrapperChain.withTables_ok`).
 
 The pre-condition of each later link is the hand-over `PreLink` on the register set `U` (all but
 the volatile `rax`, `r9..r11`) under some environment (the avx2_x8 loop restores `rsi` from its
@@ -21,10 +25,6 @@ largest frame, avx2_x8's).  The avx2_x8 and avx_x4 links are their call-state st
 (`KSpecC8U`, `callSpec4`) lifted to the hand-over state (`WinLinkLift.lift`); the avx512_x16 hand-over
 gains `rbx`/`rdi` by preservation (the stream never writes them).
 
-Modelling note: every link of `winSpecs` reads its table from rodata region 4 (`linkOf`), and each
-link's memory hypothesis `WfMemW` fixes region 4 to that link's table; the four tables differ, so
-the four hypotheses together are only satisfiable once the links have their own rodata regions
-(`X86Chain.Link.ro`; R2's region swap, `run_swap_chain`, on the amd64 branch).
 -/
 
 set_option autoImplicit false
@@ -152,13 +152,6 @@ def P8 : CS → Prop := fun s => ∃ e : Key → W32, PreLink e σ c (c - c % 16
 def P4 : CS → Prop := fun s => ∃ e : Key → W32, PreLink e σ c (c - c % 8) (c % 8) inp DW U s
 def P1 : CS → Prop := fun s => ∃ e : Key → W32, PreLink e σ c (c - c % 4) (c % 4) inp DW U s
 
-/-- The windows chain with its step functions and conditions. -/
-def specsW : List Spec :=
-  winSpecs Hashtree.Proofs.Avx512X16WLoop.steps (fun c => s8 (c % 16)) (fun c => s4 (c % 8))
-    (fun c => Hashtree.Proofs.WinAvxX1W.steps (c % 4))
-    (fun s => s = mapState env σ entryWin) (PostLink σ c inp DW)
-    (P8 σ c inp) (PostLink σ c inp DW) (P4 σ c inp) (PostLink σ c inp DW) (P1 σ c inp) (PostLink σ c inp DW)
-
 theorem clause512 (hw : WfMemW Hashtree.Kernels.X86Win.Avx512X16.rodata [] env σ m0) (he : EnvMem env σ m0)
     (hc : σ 2 = c) (hin : ∀ o : Nat, m0 ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) :
     ∀ s, s = mapState env σ entryWin →
@@ -251,42 +244,5 @@ theorem clause1 (hw : WfMemW Hashtree.Kernels.X86Win.AvxX1.rodata [] env σ m0)
     (wf_env _ env e σ m0 hw) hin s (preLink_mono e σ c _ _ inp (Nat.le_refl _) U_L1 s hpre)
 
 end Clauses
-
-/-! ## The chain -/
-
-/-- **Every link of the windows chain meets its obligation** (`KSpecC` for `winSpecs`), given
-R2c's output contracts of the windows avx2_x8 and avx_x4 W-mode loops. -/
-theorem win_KSpecC (hT8 : TurnOut8W) (hT8L : TurnOut8WLast) (hT4 : TurnOut4W) (hT4L : TurnOut4WLast)
-    (env : Key → W32) (σ : Nat → Int) (m0 : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (c : Nat)
-    (inp : Nat → Byte)
-    (hw512 : WfMemW Hashtree.Kernels.X86Win.Avx512X16.rodata [] env σ m0)
-    (hw8 : WfMemW rodata8 [] env σ m0) (hw4 : WfMemW rodata4W [] env σ m0)
-    (hw1 : WfMemW Hashtree.Kernels.X86Win.AvxX1.rodata [] env σ m0)
-    (he : EnvMem env σ m0) (hc : σ 2 = c) (habi : σ 9 % 16 = 8)
-    (hin : ∀ o : Nat, m0 ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) :
-    KSpecC m0 orcC c (specsW env σ c inp) :=
-  ⟨clause512 env σ m0 orcC c inp hw512 he hc hin,
-   clause8 env σ m0 orcC c inp hT8 hT8L hw8 habi hin,
-   clause4 env σ m0 orcC c inp hT4 hT4L hw4 habi hin,
-   clause1 env σ m0 orcC c inp hw1 hin⟩
-
-/-- **The windows chain from the wrapper call state**: no model error, no pending tail, halted,
-all `c` output blocks correct, the footprint inside the output and the 1296-byte frame below the
-return marker, the Win64 callee-saved registers and `rsp` restored. -/
-theorem win_chain_correct (hT8 : TurnOut8W) (hT8L : TurnOut8WLast) (hT4 : TurnOut4W) (hT4L : TurnOut4WLast)
-    (env : Key → W32) (σ : Nat → Int) (m0 : Addr Int → Cell W32 Int) (orcC : Nat → Bool) (c : Nat)
-    (inp : Nat → Byte)
-    (hw512 : WfMemW Hashtree.Kernels.X86Win.Avx512X16.rodata [] env σ m0)
-    (hw8 : WfMemW rodata8 [] env σ m0) (hw4 : WfMemW rodata4W [] env σ m0)
-    (hw1 : WfMemW Hashtree.Kernels.X86Win.AvxX1.rodata [] env σ m0)
-    (he : EnvMem env σ m0) (hc : σ 2 = c) (habi : σ 9 % 16 = 8)
-    (hin : ∀ o : Nat, m0 ⟨rIn, σ 0 + o⟩ = .dat ((inp o).zeroExtend 32) 0) :
-    let f := chainRun m0 orcC c (specsW env σ c inp) (mapState env σ entryWin)
-    f.err = none ∧ f.tail = none ∧ PostLink σ c inp DW f := by
-  have h := chain_sound m0 orcC c (specsW env σ c inp) (mapState env σ entryWin)
-    (win_KSpecC hT8 hT8L hT4 hT4L env σ m0 orcC c inp hw512 hw8 hw4 hw1 he hc habi hin) rfl
-  obtain ⟨herr, htl, hpost⟩ := h
-  refine ⟨herr, htl, ?_⟩
-  rcases hpost with h | h | h | h <;> exact h
 
 end Hashtree.Proofs.WinChainAll

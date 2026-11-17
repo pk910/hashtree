@@ -22,6 +22,32 @@ over ssh, push to GitHub); the VM has no GitHub credentials.  Logs: `results/r5-
   `run_nowrite` (non-writing segment keeps the log).  These give `shani_call`'s `hcond`/`hpc`/`hnh`,
   `RegsOkW`'s callee-saved preservation, and the linux tail `add rsp,88; ret` leaving `mem` alone.
 
+## The wrapper on the shipped chain (this commit): `WinWrapperChain`
+
+* Soundness gap closed: `WinWrapper.wrapRunW` calls one kernel at region 4 by `callK` (drops a
+  tail), which fits shani/avx_x1 only.  `wrapRunWC Fr links` is the same wrapper text with the
+  chain-aware `callChain` (`pushRet` then `chainRun` on `links.map specOf`; `chainRun_links`:
+  the run reads only the links, so the wrapper carries no proof conditions).
+* `links512` (x16@7 -> x8@8 -> x4@4 -> x1@9) and `links8` (x8@8, `s8 c` -> x4@4 -> x1@9): the chains
+  the binary runs from the two chain dispatch targets (`kprogOfW .avx512/.avx2` are their heads;
+  names = the tail instructions, `WinChain.win_chain_tails`).
+* `Tables m`: x16/x8/x1 tables at 7/8/9 (x4's at 4 via `WfMemW rodata4W argCells`).  Non-vacuity:
+  `withTables m` lays them into any memory and `withTables_ok` keeps every other wrapper
+  hypothesis (`WfMemW rodata4W argCells`, `EnvMem` with `ecomb`, input bytes) — so, unlike the
+  removed `WinChainAll.win_chain_correct`, the hypotheses hold together.
+* `ChainSpecW links D` (chain analogue of `KSpecW`); `chainSpec512` (from
+  `win_chain_correct_regions`), `chainSpec8` (`clause8E`: x8 entered at the call state, region 8,
+  from `callSpec8` by the region swap; tail of the KSpecC from `win_KSpecC_regions`).
+* `wrapper_chainW_core` (frame generic; copy of `wrapper_kernelW_core` with `callChain`),
+  `wrapper_chainW_fixed` (`$2048`), `wrapper_avx512_chain`, `wrapper_avx2_chain`: HashtreeHash on
+  the two chain targets returns, `rsp`/`rbp`/`r8` restored, `Foot (σ 9) 2056`, all `c` outputs
+  SHA-256 — conditional only on the four TurnOut*.  Shipped frame (`$1024`): not stated; the
+  x8 frame (1296 B) exceeds the 985..1016 B the shipped alignment leaves above SPe, so
+  `wrapper_kernelW_shipped`'s `hD9` fails for the chain (the known frame defect).
+* `WinChainAll`: vacuous `win_KSpecC`/`win_chain_correct`/`specsW` deleted (doc points here).
+* Next: (2) discharge TurnOut* by citing r2c once turnOut8W/Last land; optional: one dispatch
+  theorem over all four `pick` targets (shani/avx1 via `wrapper_correctW`).
+
 ## The windows chain assembled (this commit): `WinAvx2X8Link{Facts,Vr*}`, `WinLinkLift`, `WinChainAll`, `WinLinkSwap`, `WinChainRegions`
 
 * `WinAvx2X8Link.KSpecC8_of_turnOut8W : TurnOut8W → TurnOut8WLast → KSpecC8 s8 …` (the avx2_x8 link,
