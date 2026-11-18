@@ -199,3 +199,10 @@ proves R2's constant itself (`turnOut4Last_R2`, by unfolding `ShaniW.OutOk` and 
 Axioms: `propext`, `Classical.choice`, `Quot.sound`, 142 generated `*_native.bv_decide.ax_*`
 (the pilot's `Gen.AvxX4P.shape*`, `byte_bswap`, `loadLane_hom`, `SpecQ.qW_*`); no `sorryAx`.
 Cost: 1.5 s + 2.6 s (the bridge needs `Avx2X8OutLink`, whose imports took 3170 s at 1 thread).
+
+## Clean-worktree readiness of `d08f11a` (2026-11-18)
+
+Fresh worktree of `d08f11a` (x16, x4, x4 last pass, windows x4, x8 `TurnOut`s, R2 head 76f83b3
+merged), own `.lake`: `make all` rc 0 (2 workers at 60 G, 98709 s), `lake build` (library root)
+rc 0, `make audit` rc 0 with 457 + 48 prints, no `sorryAx`, no `ofReduceBool`/`native_decide`,
+`make gate` rc 0.
