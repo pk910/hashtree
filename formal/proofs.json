@@ -69,9 +69,12 @@
         "status": "proved-all-counts",
         "blocks": "every c",
         "theorems": [
-          "Hashtree.Proofs.ShaniAll.shani_correct",
+          "Hashtree.Proofs.Shani.shani_correct",
           "Hashtree.Proofs.ShaniW.correctW"
-        ]
+        ],
+        "modules": {
+          "Hashtree.Proofs.Shani.shani_correct": "Hashtree.Proofs.ShaniAll"
+        }
       }
     },
     {
@@ -91,8 +94,11 @@
         "status": "proved-all-counts",
         "blocks": "every c",
         "theorems": [
-          "Hashtree.Proofs.SseX1All.correct"
-        ]
+          "Hashtree.Proofs.SseX1L.correct"
+        ],
+        "modules": {
+          "Hashtree.Proofs.SseX1L.correct": "Hashtree.Proofs.SseX1All"
+        }
       }
     },
     {
@@ -112,9 +118,12 @@
         "status": "proved-all-counts",
         "blocks": "every c",
         "theorems": [
-          "Hashtree.Proofs.AvxX1All.correct",
+          "Hashtree.Proofs.AvxX1L.correct",
           "Hashtree.Proofs.AvxX1W.correctW"
-        ]
+        ],
+        "modules": {
+          "Hashtree.Proofs.AvxX1L.correct": "Hashtree.Proofs.AvxX1All"
+        }
       }
     },
     {
@@ -134,8 +143,11 @@
         "status": "proved-fixed-count",
         "blocks": "c = 4",
         "theorems": [
-          "Hashtree.Gen.AvxX4P.Final.out_final"
-        ]
+          "Hashtree.Gen.AvxX4P.out_final"
+        ],
+        "modules": {
+          "Hashtree.Gen.AvxX4P.out_final": "Hashtree.Gen.AvxX4P.Final"
+        }
       }
     },
     {
@@ -155,8 +167,11 @@
         "status": "proved-fixed-count",
         "blocks": "c = 8",
         "theorems": [
-          "Hashtree.Gen.Avx2X8P.Final.out_final"
-        ]
+          "Hashtree.Gen.Avx2X8P.out_final"
+        ],
+        "modules": {
+          "Hashtree.Gen.Avx2X8P.out_final": "Hashtree.Gen.Avx2X8P.Final"
+        }
       }
     },
     {
@@ -176,8 +191,11 @@
         "status": "proved-fixed-count",
         "blocks": "c = 16",
         "theorems": [
-          "Hashtree.Gen.Avx512X16P.Final.out_final"
-        ]
+          "Hashtree.Gen.Avx512X16P.out_final"
+        ],
+        "modules": {
+          "Hashtree.Gen.Avx512X16P.out_final": "Hashtree.Gen.Avx512X16P.Final"
+        }
       }
     },
     {
@@ -320,8 +338,11 @@
         "status": "proved-fixed-count",
         "blocks": "c = 2",
         "theorems": [
-          "Hashtree.Gen.ArmShaX1P.Final.out_final"
-        ]
+          "Hashtree.Gen.ArmShaX1P.out_final"
+        ],
+        "modules": {
+          "Hashtree.Gen.ArmShaX1P.out_final": "Hashtree.Gen.ArmShaX1P.Final"
+        }
       }
     },
     {
@@ -341,9 +362,13 @@
         "status": "proved-fixed-count",
         "blocks": "c = 2 and c = 0",
         "theorems": [
-          "Hashtree.Gen.ArmNeonX1P.Final.out_final",
-          "Hashtree.Gen.ArmNeonX1P0.Final.only_stack_writes_run"
-        ]
+          "Hashtree.Gen.ArmNeonX1P.out_final",
+          "Hashtree.Gen.ArmNeonX1P0.only_stack_writes_run"
+        ],
+        "modules": {
+          "Hashtree.Gen.ArmNeonX1P.out_final": "Hashtree.Gen.ArmNeonX1P.Final",
+          "Hashtree.Gen.ArmNeonX1P0.only_stack_writes_run": "Hashtree.Gen.ArmNeonX1P0.Final"
+        }
       }
     },
     {
@@ -363,8 +388,11 @@
         "status": "proved-fixed-count",
         "blocks": "c = 4",
         "theorems": [
-          "Hashtree.Gen.ArmNeonX4P.Final.out_final"
-        ]
+          "Hashtree.Gen.ArmNeonX4P.out_final"
+        ],
+        "modules": {
+          "Hashtree.Gen.ArmNeonX4P.out_final": "Hashtree.Gen.ArmNeonX4P.Final"
+        }
       }
     },
     {
@@ -444,9 +472,12 @@
         "status": "proved-fixed-count",
         "blocks": "c = 2",
         "theorems": [
-          "Hashtree.Gen.RvX1P.Final.out_final"
+          "Hashtree.Gen.RvX1P.out_final"
         ],
-        "note": "the Go path calls the unproved C dispatcher hashtree_hash, so this is a kernel proof, not end-to-end (R4/R6)"
+        "note": "the Go path calls the unproved C dispatcher hashtree_hash, so this is a kernel proof, not end-to-end (R4/R6)",
+        "modules": {
+          "Hashtree.Gen.RvX1P.out_final": "Hashtree.Gen.RvX1P.Final"
+        }
       }
     },
     {
@@ -466,9 +497,12 @@
         "status": "proved-fixed-count",
         "blocks": "c = 2",
         "theorems": [
-          "Hashtree.Gen.RvZbbX1P.Final.out_final"
+          "Hashtree.Gen.RvZbbX1P.out_final"
         ],
-        "note": "the Go path calls the unproved C dispatcher hashtree_hash, so this is a kernel proof, not end-to-end (R4/R6)"
+        "note": "the Go path calls the unproved C dispatcher hashtree_hash, so this is a kernel proof, not end-to-end (R4/R6)",
+        "modules": {
+          "Hashtree.Gen.RvZbbX1P.out_final": "Hashtree.Gen.RvZbbX1P.Final"
+        }
       }
     },
     {
@@ -488,9 +522,12 @@
         "status": "proved-fixed-count",
         "blocks": "c = 2",
         "theorems": [
-          "Hashtree.Gen.RvCryptoP.Final.out_final"
+          "Hashtree.Gen.RvCryptoP.out_final"
         ],
-        "note": "the Go path calls the unproved C dispatcher hashtree_hash, so this is a kernel proof, not end-to-end (R4/R6)"
+        "note": "the Go path calls the unproved C dispatcher hashtree_hash, so this is a kernel proof, not end-to-end (R4/R6)",
+        "modules": {
+          "Hashtree.Gen.RvCryptoP.out_final": "Hashtree.Gen.RvCryptoP.Final"
+        }
       }
     },
     {
@@ -578,8 +615,11 @@
         "status": "proved-all-lengths",
         "blocks": "any length",
         "theorems": [
-          "Hashtree.GoProof.sha256_1_generic_eq"
-        ]
+          "Hashtree.Go.sha256_1_generic_eq"
+        ],
+        "modules": {
+          "Hashtree.Go.sha256_1_generic_eq": "Hashtree.GoProof"
+        }
       }
     },
     {

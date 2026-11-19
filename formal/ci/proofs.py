@@ -190,9 +190,13 @@ def module_path(module):
     return module.replace(".", "/") + ".lean"
 
 
-def module_has_theorem(repo, theorem, gen_set):
-    """Check that the theorem's module and declaration are present."""
-    module = theorem_module(theorem)
+def module_has_theorem(repo, theorem, gen_set, module=None):
+    """Check that the theorem's module and declaration are present.
+
+    The module defaults to the theorem's namespace; a unit's proof names it in
+    `modules` (theorem -> module) when the namespace differs from the file, e.g.
+    `Hashtree.Proofs.Shani.shani_correct` in `Hashtree/Proofs/ShaniAll.lean`."""
+    module = module or theorem_module(theorem)
     name = theorem.split(".")[-1]
     rel = module_path(module)
     if module.startswith("Hashtree.Gen."):
@@ -424,7 +428,9 @@ def check(repo, manifest):
             if status in ("proved-all-counts", "proved-fixed-count",
                           "proved-conditional"):
                 for theorem in unit["proof"].get("theorems", []):
-                    ok, detail = module_has_theorem(repo, theorem, gen_set)
+                    ok, detail = module_has_theorem(
+                        repo, theorem, gen_set,
+                        unit["proof"].get("modules", {}).get(theorem))
                     if not ok:
                         errors.append("%s: certificate for `%s`: %s"
                                       % (name, theorem, detail))
