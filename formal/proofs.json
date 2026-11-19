@@ -197,7 +197,7 @@
         "status": "model-only",
         "blocks": "-",
         "theorems": [],
-        "note": "COFF code differs from linux/amd64 (calling convention, shadow space); validated by execution, no functional proof (R5)"
+        "note": "R5: Win64 ABI/frame model and the 668-instruction body correspondence are machine-checked in Hashtree/Proofs/WinShani.lean (shani_body_correspondence, shani_stack_footprint: footprint [sp-248, sp), shadow space untouched, shani_callee_gpr_untouched, shani_prologue_saves/epilogue_restores/save_slots_untouched).  The functional contract is not proved: it needs the frame-state simulation of formal/notes/R5.md section 6."
       }
     },
     {
@@ -217,7 +217,7 @@
         "status": "model-only",
         "blocks": "-",
         "theorems": [],
-        "note": "COFF code differs from linux/amd64 (calling convention, shadow space); validated by execution, no functional proof (R5)"
+        "note": "R5: Win64 ABI/frame model and the 4180-instruction body correspondence are machine-checked in Hashtree/Proofs/WinSseX1.lean (sse_body_correspondence; sse_stack_footprint: every rsp-based operand inside [sp, sp+192) = [entry_rsp-264, entry_rsp-72), return address and shadow space untouched; sse_body_footprint; sse_rsp_balanced; sse_prologue_pushes/sse_epilogue_pops with sse_callee_saved_covered; sse_prologue_saves/sse_epilogue_restores/sse_save_slots_untouched for xmm6-xmm13 and sse_no_xmm14_15/sse_callee_vec_split).  The body correspondence and the footprint/save-area scans are compiled native_decide evaluations over the shipped arrays and carry their native_decide axioms.  No functional contract yet: the frame-transfer lemma (stack-memory shift of 128 bytes) is the gap, formal/notes/R5.md section 6."
       }
     },
     {
@@ -237,7 +237,7 @@
         "status": "model-only",
         "blocks": "-",
         "theorems": [],
-        "note": "COFF code differs from linux/amd64 (calling convention, shadow space); validated by execution, no functional proof (R5)"
+        "note": "R5: Win64 ABI/frame model and the 4049-instruction body correspondence are machine-checked in Hashtree/Proofs/WinAvxX1.lean (avx_body_correspondence; avx_stack_footprint: every rsp-based operand inside [sp, sp+192) = [entry_rsp-264, entry_rsp-72), return address and shadow space untouched; avx_body_footprint; avx_rsp_balanced; avx_prologue_pushes/avx_epilogue_pops with avx_callee_saved_covered; avx_prologue_saves/avx_epilogue_restores/avx_save_slots_untouched for xmm6-xmm13 and avx_no_xmm14_15/avx_callee_vec_split).  The body correspondence and the footprint/save-area scans are compiled native_decide evaluations over the shipped arrays and carry their native_decide axioms.  No functional contract yet: the frame-transfer lemma (stack-memory shift of 128 bytes) is the gap, formal/notes/R5.md section 6."
       }
     },
     {
@@ -294,10 +294,13 @@
         "src/sha256_avx_x16.S"
       ],
       "proof": {
-        "status": "model-only",
-        "blocks": "-",
-        "theorems": [],
-        "note": "COFF code differs from linux/amd64 (calling convention, shadow space); validated by execution, no functional proof (R5)"
+        "status": "proved-fixed-count",
+        "blocks": "c = 16",
+        "theorems": [
+          "Hashtree.Proofs.WinAvx512.win_run",
+          "Hashtree.Proofs.WinAvx512.win_out"
+        ],
+        "note": "R5: the windows COFF stream is the linux stream under a machine-checked register-renaming simulation (Proofs.WinAvx512.win_transfer); the instruction-by-instruction identity of the two shipped streams is checked in-module (win_correspondence, a compiled native_decide comparison of all 3247 instructions), so the only remaining input is the model-versus-binary identity that formal/ci re-derives on every run.  The Go-facing output contract win_out is the linux Gen.Avx512X16P.Final.out_final restated on the windows instructions.  The kernel has no stack frame and clobbers xmm6-xmm15 (U6: win_no_rsp, u6_witness)."
       }
     },
     {
@@ -546,7 +549,7 @@
         "status": "unproved",
         "blocks": "-",
         "theorems": [],
-        "note": "R5"
+        "note": "R5: Go assembly (not a COFF object); no Lean model of the wrapper text yet.  The wrapper's call is staged on R2's chain-aware tail-call contract Hashtree.Proofs.X86Chain (6d27a36, imported verbatim), instantiated for the four windows streams in Hashtree/Proofs/WinChain.lean: win_chain_names/win_chain_tails/win_small_exit (shipped tail pcs 8/6103/4162 and the pc-3 ret exit), win_chainRun_returns (chain_sound), win_callChain_returns (caller gets err=none, tail=none, halted=false, pc=0 and the chain post) and win_callChain_fr (frame/log composition).  Remaining inputs: per-link KSpecC (avx512_x16 count 16 is Proofs/WinAvx512.win_out; the frame kernels have ABI/frame models only) and the Go wrapper model; per-link rodata regions await R2's region-renaming lemma.  formal/notes/R5.md section 7."
       }
     },
     {
