@@ -176,3 +176,56 @@ Gotcha (elaboration): `exact outShape8_sound (KT r) …` against a goal stated w
 `(KT r).mem.map …` instead of `(mapState e σ (KT r)).mem` never finished (the unifier unfolds the
 computed cut `KT r`); stating `mapState_mem` once for a variable cut and `rw [mapState_mem] at h`
 is instant.  Also `x8RunSteps_eq` is by `unfold …; omega`, not `rfl`.
+
+## windows avx2_x8 W-mode loop (`TurnOut8W`, `TurnOut8WLast`)
+
+Statements: R5's `Hashtree.Proofs.WinAvx2X8WOut.TurnOut8W` / `TurnOut8WLast` (`WinAvx2X8WOut.lean`,
+with `x8wRunSteps`, `x8wLastSteps`, `D8 = 1296`), proved as stated (`turnOut8W`, `turnOut8WLast` in
+`WinAvx2X8WOutAll`; the local `TurnOut8WCore` / `TurnOut8WLastCore` are the same text with
+`Avx512X16WOut.OutOk`, bridged by `unfold`).  Under `WfMemW rodata [] env0 σ mem0c`, `OutLogW σ M`,
+`σ 9 % 16 = 8` and the input bytes at `σ 0`: for `σ 2 = 8 (j + 1) + s`, `8 ≤ s < 16`, every cell of
+the log of `run prog 4 mem0c orcC (x8wRunSteps j) (fr M (mapState env0 σ entryWin))` is in `M`, an
+output cell in `[σ 1, σ 1 + 256 (j + 2))` or a frame cell in `[σ 9 - 1296, σ 9)`, and
+`OutOk inp (σ 1) (8 (j + 2))` holds on it; for `8 ≤ σ 2 < 16` the same over `x8wLastSteps` with 8
+blocks.
+
+Axioms (`#print axioms` of both): `propext`, `Classical.choice`, `Quot.sound` and 144 generated
+`*_native.bv_decide.ax_*` each (pilot `Gen.WinAvx2X8P.shape*`, `Asm.byte_bswap`, `Asm.loadLane_hom`,
+`Asm.SpecQ.qW_*`); no `sorryAx`, no `native_decide` / `ofReduceBool`.
+
+Route (pilot `Gen.WinAvx2X8P`, R5's `WinAvx2X8WLoop` / `WinAvx2X8WAll`; generator
+`tools/gen_r2c_x8w.py <pilot Final.lean> <pilot D211.lean> [--bad ids]`):
+* R5's body slices (first pass `WinAvx2X8WBodyR{r}.sliceW_k`, later pass `…BodyR{r}S.sliceV{3,4,5}s`,
+  `sliceS_k`) are already checked with the pilot's trees and lengths, and the pilot tracks nothing
+  up to `K4` (`L3 = L4 = []`), so the lifted chains start at `L3` (`WinAvx2X8WOutInvR{8,24}`:
+  `invC_lift` per body slice, chains `invW{r}_body` / `invS{r}_body : HMem → InvC (G211/GS211) L211`).
+* The pilot's exit slice 211 (`K211 → K212`, 42 steps, `jb` at pc 24 taken) holds the digest
+  stores.  The four tails per residue (`KT r`, `KTs r`: 24 steps; `KTE r`, `KTEs r`: 42 steps,
+  checked with `[]` by R5) are re-checked with `T211` (`WinAvx2X8WOutChk{T,X,TS,XS}{r}`) and lifted
+  from `step211` (`invC_lift'` for the turns, `invC_lift` for the exits).  Unlike the linux x8 tail,
+  the windows turn tail ends at the loop head (pc 25) before the IV reloads, and the exit's
+  restores touch only `ymm6..15` and gprs, while `L212`'s register labels are `ymm0..5`: the full
+  `T211` / `L212` check on all four tails, no label filtering (`--bad` stays empty).
+* `WinAvx2X8WOutTab`: `tab8w` (the pilot's 256 output cells), `outShape8W` (output cells
+  `sym 1 + o`, `o < 256`, or frame cells `sAt k`, `-1296 ≤ k < 0`; the first pass's log includes
+  the 368 saved cells) and `outOk_tab8w` (the 8 digests from `InvC … L212` for any cut whose
+  cells check, generated from the pilot's `out_final`); per cut one `decide +kernel` per fact,
+  each in its own file (`…Cel*`, `…Shp*`), so each kernel evaluation of a cut runs alone.
+* `WinAvx2X8WOutAll`: `OutR8 r B` bundles the four lifted tails and the cut facts;
+  `w8_entry` (R5's `entry_runW` with `HMem` of the entry environment), `w8_first_turn` /
+  `w8_iter` / `w8_first_exit` / `w8_final` mirror `first_turnW` / `iter_stepS` / `first_exitW` /
+  `final_runW` with the pass's log, cells and digests exposed, `w8_loop` (j later passes),
+  `turnOut8W_r` / `turnOut8WLast_r` compose along `x8w_runW` / `x8w_runW_last`; the residue
+  (`8` or `24`) is selected by `WinAvx2X8WAll.residue_cases`.
+
+Cost (VM, 1-3 threads): R5's prerequisites (`WinAvx2X8WAll`, `WinAvx2X8WOut`) rebuilt from source in
+this worktree, 84575 s at 1 thread.  The pilot's `P*` modules were not built by anything before: 209
+modules, ~35 s and ~14 G each (4 workers hit a 65 G cap; 3 workers: 2932 s, 44 G peak).  Lab 27 s,
+Tab 45 s.  Cut facts, 1 thread each: turn cuts (`T`, `TS`) 25-75 s and ~12 G; exit cuts (`X`, `XS`,
+42 steps through the restores) 490-560 s and up to 59 G each (3 at once OOM'd at 65 G); the 24 files
+6563 s serially.  Inv 5-6 s each, All 2 s.
+
+Gotcha (elaboration): `refine ⟨e2, (KT r).mem.map …, ?_, hL', ?_, …⟩` in `w8_first_turn` / `w8_iter`
+(the pass log given explicitly and the `OutLogW` fact passed inline) never finished (16 h, ~2 G: a
+`whnf` loop; heartbeat-limited runs fail at the theorem, bisection by `sorry` truncations isolates the
+`refine`).  The same `refine` with `?_` in that slot and a separate `· exact hL'` elaborates in seconds.
