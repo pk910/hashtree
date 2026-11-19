@@ -8,6 +8,7 @@ import Hashtree.Kernels.X86.AvxX4
 import Hashtree.Kernels.X86.Avx2X8
 import Hashtree.Kernels.X86.Avx512X16
 import Hashtree.Kernels.X86Win.AvxX4
+import Hashtree.Kernels.X86Win.Avx2X8
 import Hashtree.Asm.X86SymWin
 
 /-!
@@ -50,6 +51,10 @@ def kernels : List KSel := [
   { key := "wx4", ns := "Hashtree.Kernels.X86Win.AvxX4", gen := "WinAvxX4P",
     prog := Hashtree.Kernels.X86Win.AvxX4.prog, rodata := Hashtree.Kernels.X86Win.AvxX4.rodata, count := 4,
     desc := "The windows/amd64 AVX 4-lane kernel (hashtree_sha256_avx_x4), called on four blocks",
+    win := true, start := entrySW 24, entryName := "(entrySW 24)", extraImport := "import Hashtree.Asm.X86SymWin\n" },
+  { key := "wx8", ns := "Hashtree.Kernels.X86Win.Avx2X8", gen := "WinAvx2X8P",
+    prog := Hashtree.Kernels.X86Win.Avx2X8.prog, rodata := Hashtree.Kernels.X86Win.Avx2X8.rodata, count := 8,
+    desc := "The windows/amd64 AVX2 8-lane kernel (hashtree_sha256_avx2_x8), called on eight blocks",
     win := true, start := entrySW 24, entryName := "(entrySW 24)", extraImport := "import Hashtree.Asm.X86SymWin\n" }]
 
 def randInput (seed n : Nat) : Array Nat := Id.run do
