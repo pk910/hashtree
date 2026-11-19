@@ -62,8 +62,13 @@ and the shipped code until the check is rerun. The CI gate
    `make -C formal/lean models`, rebuild that kernel's certificate with
    `make -C formal/lean regen KERNEL=<kernel>`, repack with
    `make -C formal/lean pack`, and commit the model, `formal/proofs.json` and
-   the `Gen` archive/hashes.
-3. Update `artifacts.sha256` and the log when the released objects change.
+   the `Gen` archive/hashes. `pack` also records the hashes of the models and
+   generator sources the certificate was produced from, so a later model or
+   generator edit without a new pack fails the gate.
+3. Run `formal/verify.sh` and have an independent reviewer run it on the same
+   commit; compare the Gen archive and file-manifest hashes and the axiom
+   audit. The cheap gate checks binding and coverage, not the Lean kernel.
+4. Update `artifacts.sha256` and the log when the released objects change.
 
 The identity check against `hashtree-bindings`' archives is separate and still
 run manually with `./check_instruction_identity.sh` (see above). The C code

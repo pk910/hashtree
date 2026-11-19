@@ -14,7 +14,7 @@ gen:            ## restore the pinned generated proofs
 	@zstd -dc Gen.tar.zst | tar -x
 	@echo "restored Hashtree/Gen"
 
-verify:         ## check the restored tree against the pinned hashes
+verify: gen     ## check the restored tree against the pinned hashes
 	@sha256sum -c Gen.files.sha256 --quiet
 	@echo "Hashtree/Gen matches the pinned hashes"
 

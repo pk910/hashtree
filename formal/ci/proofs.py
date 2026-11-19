@@ -14,22 +14,43 @@ Two jobs:
               .syso files, update formal/proofs.json, and tell you which
               kernels need `make regen KERNEL=...` (the expensive step).
 
+  check-audit (reviewer) check the output of `make audit` against the axiom
+              policy: only Lean's standard axioms and the per-lemma
+              `_native.bv_decide` axioms are allowed, and every theorem the
+              manifest marks proved must actually have been audited.
+
+  report      (reviewer) write a machine-readable verification report from a
+              successful `make all && make audit` run: commit, toolchain,
+              certificate digests, audit summary, host.  This is what an
+              author and an independent reviewer compare in the PR.
+
 The manifest formal/proofs.json is the certificate registry: it maps every
 shipped kernel to the object it was extracted from, the Lean model, and the
 theorem that covers it.  A kernel without an entry is reported as unproved.
+It also records, at pack time, the hashes of the models and generator sources
+the committed certificate was produced from; the cheap gate fails when either
+changed without a new pack.
+
+The heavy Lean check is deliberately NOT run in hosted CI.  Authors run it
+locally and a reviewer repeats it; `formal/verify.sh` runs the full sequence
+and emits the report both sides compare.
 
 Usage:
   python3 formal/ci/proofs.py check --repo .
   python3 formal/ci/proofs.py gen-models --repo . [--force]
+  python3 formal/ci/proofs.py check-audit --repo . --audit audit.log
+  python3 formal/ci/proofs.py report --repo . --audit audit.log --out report.json
 
 Exit codes: 0 ok, 1 verification failure, 2 usage/environment error,
 3 models were rewritten and need `make regen KERNEL=...`.
 """
 
 import argparse
+import datetime
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -51,6 +72,31 @@ TRANSLATORS = {
 # object that is not in the manifest is an error: somebody added a kernel and
 # did not add a proof.
 KNOWN_UNPROVED_OBJECTS = {"sha256_generic.o", "hashtree.o"}
+
+# Sources that emit Hashtree/Gen.  The committed certificate is only meaningful
+# for the models and generators recorded in the manifest; changing either
+# without regenerating and repacking makes the gate fail.
+GENERATOR_SOURCES = [
+    "formal/lean/X86Loop.lean",
+    "formal/lean/X86LoopW.lean",
+    "formal/lean/X86Loop1.lean",
+    "formal/lean/X86Loop1W.lean",
+    "formal/lean/X86Proof1.lean",
+    "formal/lean/X86ProofV.lean",
+    "formal/lean/ArmProof.lean",
+    "formal/lean/RvProof.lean",
+    "formal/lean/tools/x86_to_lean.py",
+    "formal/lean/tools/arm_to_lean.py",
+    "formal/lean/tools/riscv_to_lean.py",
+]
+
+STANDARD_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
+NATIVE_AXIOM_RE = re.compile(r".*_native\.bv_decide\.ax_.*")
+
+
+def is_allowed_axiom(name, extra):
+    return (name in STANDARD_AXIOMS or name in extra or
+            NATIVE_AXIOM_RE.fullmatch(name) is not None)
 
 
 def die(msg):
@@ -166,6 +212,101 @@ def module_has_theorem(repo, theorem, gen_set):
     return True, rel
 
 
+def is_proved(unit):
+    return unit.get("proof", {}).get("status", "").startswith("proved")
+
+
+def audit_names(repo):
+    """Theorems covered by `#print axioms` in Axioms.lean."""
+    path = os.path.join(LEAN, "Axioms.lean")
+    if not os.path.exists(path):
+        return None, []
+    with open(path, errors="replace") as f:
+        body = f.read()
+    names = re.findall(r"^\s*#print axioms\s+([A-Za-z0-9_'.]+)", body, re.M)
+    return set(names), names
+
+
+def check_bindings(repo, manifest):
+    """The certificate must have been packed from the current models and generators."""
+    errors = []
+    units = manifest["units"]
+    proved_models = [u for u in units if is_proved(u) and u.get("model")]
+    recorded_models = manifest.get("models")
+    if proved_models and recorded_models is None:
+        errors.append("manifest is missing certificate model hashes; run `make pack`")
+        recorded_models = {}
+    for unit in units:
+        model = unit.get("model")
+        if not model or not is_proved(unit):
+            continue
+        path = os.path.join(LEAN, model)
+        if not os.path.exists(path):
+            errors.append("%s: model %s is missing" % (unit["name"], model))
+            continue
+        recorded = recorded_models.get(model)
+        actual = sha256_file(path)
+        if recorded is None:
+            errors.append("%s: no recorded hash for model %s; run `make pack`"
+                          % (unit["name"], model))
+        elif actual != recorded:
+            errors.append(
+                "%s: model %s changed since the certificate was packed; rebuild "
+                "it with `make -C formal/lean regen KERNEL=%s`, then `make pack`"
+                % (unit["name"], model, unit["name"]))
+    generators = manifest.get("generators")
+    if proved_models and generators is None:
+        errors.append("manifest is missing generator hashes; run `make pack`")
+        generators = {}
+    for rel, recorded in sorted(generators.items()):
+        path = os.path.join(repo, rel)
+        if not os.path.exists(path):
+            errors.append("recorded generator %s is missing" % rel)
+            continue
+        actual = sha256_file(path)
+        if actual != recorded:
+            errors.append(
+                "generator %s changed since the certificate was packed; "
+                "regenerate the affected kernels (`make regen KERNEL=...`), "
+                "then run `make pack`" % rel)
+    return errors
+
+
+def check_audit_coverage(repo, manifest):
+    """Every proved theorem must be printed by `make audit`."""
+    names, _ = audit_names(repo)
+    if names is None:
+        return ["missing formal/lean/Axioms.lean"]
+    errors = []
+    for unit in manifest["units"]:
+        if not is_proved(unit):
+            continue
+        for theorem in unit["proof"].get("theorems", []):
+            if theorem not in names:
+                errors.append("%s: `%s` is not audited in Axioms.lean"
+                              % (unit["name"], theorem))
+    return errors
+
+
+def check_axiom_declarations(repo):
+    """Reject hand-written `axiom` declarations outside the generated proofs."""
+    errors = []
+    for root, dirs, files in os.walk(LEAN):
+        dirs[:] = [d for d in dirs if d not in (".lake", "Gen")]
+        for fn in files:
+            if not fn.endswith(".lean"):
+                continue
+            path = os.path.join(root, fn)
+            rel = os.path.relpath(path, repo)
+            with open(path, errors="replace") as f:
+                for lineno, line in enumerate(f, 1):
+                    m = re.match(r"\s*axiom\s+([A-Za-z0-9_']+)", line)
+                    if m:
+                        errors.append("%s:%d: unexpected `axiom %s` declaration"
+                                      % (rel, lineno, m.group(1)))
+    return errors
+
+
 def check_archive(repo, manifest):
     errors = []
     archive = os.path.join(repo, manifest["gen"]["archive"])
@@ -196,6 +337,9 @@ def check(repo, manifest):
     rows = []
 
     errors += check_archive(repo, manifest)
+    errors += check_bindings(repo, manifest)
+    errors += check_audit_coverage(repo, manifest)
+    errors += check_axiom_declarations(repo)
     gen_set = gen_members(repo)
 
     artifacts = manifest.get("artifacts", {})
@@ -437,10 +581,168 @@ def record_gen(repo):
     archive = os.path.join(repo, manifest["gen"]["archive"])
     if not os.path.exists(archive):
         die("missing %s (run pack-gen.sh first)" % manifest["gen"]["archive"])
+    manifest["schema"] = 2
     manifest["gen"]["sha256"] = sha256_file(archive)
+    files_manifest = os.path.join(repo, manifest["gen"]["files_manifest"])
+    if not os.path.exists(files_manifest):
+        die("missing %s (run pack-gen.sh first)" % manifest["gen"]["files_manifest"])
+    manifest["gen"]["files_manifest_sha256"] = sha256_file(files_manifest)
+
+    generators = {}
+    for rel in GENERATOR_SOURCES:
+        path = os.path.join(repo, rel)
+        if os.path.exists(path):
+            generators[rel] = sha256_file(path)
+    manifest["generators"] = dict(sorted(generators.items()))
+
+    models = {}
+    for unit in manifest["units"]:
+        model = unit.get("model")
+        if not model:
+            continue
+        path = os.path.join(LEAN, model)
+        if os.path.exists(path):
+            models[model] = sha256_file(path)
+    manifest["models"] = dict(sorted(models.items()))
+
     write_manifest(repo, manifest)
     print("recorded %s %s" % (manifest["gen"]["archive"],
                               manifest["gen"]["sha256"]))
+    print("recorded %d model and %d generator hashes"
+          % (len(manifest["models"]), len(manifest["generators"])))
+    return 0
+
+
+AUDIT_DEPENDS_RE = re.compile(
+    r"^\s*(?:'([^']+)'|([A-Za-z0-9_.]+)) depends on axioms: \[(.*)\]\s*$")
+AUDIT_NONE_RE = re.compile(
+    r"^\s*(?:'([^']+)'|([A-Za-z0-9_.]+)) does not depend on any axioms")
+
+
+def parse_audit(path):
+    """Map theorem -> list of axioms from `make audit` output."""
+    result = {}
+    if not os.path.exists(path):
+        die("missing audit log %s" % path)
+    with open(path, errors="replace") as f:
+        for line in f:
+            m = AUDIT_DEPENDS_RE.match(line)
+            if m:
+                name = m.group(1) or m.group(2)
+                axioms = [a.strip() for a in m.group(3).split(",") if a.strip()]
+                result[name] = axioms
+                continue
+            m = AUDIT_NONE_RE.match(line)
+            if m:
+                result[m.group(1) or m.group(2)] = []
+    return result
+
+
+def check_audit(repo, audit_path, extra):
+    manifest = read_manifest(repo)
+    audited = parse_audit(audit_path)
+    problems = []
+    if not audited:
+        problems.append("audit log contains no `#print axioms` output")
+    for name, axioms in sorted(audited.items()):
+        for axiom in axioms:
+            if not is_allowed_axiom(axiom, extra):
+                problems.append("%s depends on disallowed axiom %s"
+                                % (name, axiom))
+    for unit in manifest["units"]:
+        if not is_proved(unit):
+            continue
+        for theorem in unit["proof"].get("theorems", []):
+            if theorem not in audited:
+                problems.append("%s: `%s` was not audited"
+                                % (unit["name"], theorem))
+    if problems:
+        print("audit check failed:", file=sys.stderr)
+        for p in problems:
+            print("  FAIL: " + p, file=sys.stderr)
+        return 1
+    print("audit clean: %d theorems, only standard and bv_decide native axioms"
+          % len(audited))
+    return 0
+
+
+def verification_report(repo, audit_path, out, command, verifier):
+    manifest = read_manifest(repo)
+    audit_problems = []
+    audited = parse_audit(audit_path)
+    for name, axioms in sorted(audited.items()):
+        for axiom in axioms:
+            if axiom == "sorryAx" or not is_allowed_axiom(axiom, set()):
+                audit_problems.append("%s: %s" % (name, axiom))
+    for unit in manifest["units"]:
+        if not is_proved(unit):
+            continue
+        for theorem in unit["proof"].get("theorems", []):
+            if theorem not in audited:
+                audit_problems.append("%s: %s was not audited"
+                                      % (unit["name"], theorem))
+
+    def git(*args):
+        proc = subprocess.run(["git", "-C", repo] + list(args),
+                              capture_output=True, text=True)
+        return proc.stdout.strip() if proc.returncode == 0 else ""
+
+    commit = os.environ.get("VERIFY_COMMIT") or git("rev-parse", "HEAD")
+    branch = os.environ.get("VERIFY_BRANCH") or git("rev-parse", "--abbrev-ref", "HEAD")
+    dirty_env = os.environ.get("VERIFY_DIRTY")
+    dirty = (dirty_env == "1") if dirty_env is not None else bool(git("status", "--porcelain"))
+
+    files_manifest = os.path.join(repo, manifest["gen"]["files_manifest"])
+    files_count = 0
+    if os.path.exists(files_manifest):
+        with open(files_manifest, errors="replace") as f:
+            files_count = sum(1 for line in f if line.strip())
+    archive = os.path.join(repo, manifest["gen"]["archive"])
+
+    report = {
+        "result": "ok" if not audit_problems else "failed",
+        "gate": os.environ.get("VERIFY_GATE"),
+        "commit": commit,
+        "branch": branch,
+        "dirty": dirty,
+        "toolchain": manifest.get("toolchain"),
+        "lean_toolchain": open(os.path.join(repo, "formal", "lean",
+                                            "lean-toolchain")).read().strip()
+        if os.path.exists(os.path.join(repo, "formal", "lean", "lean-toolchain"))
+        else None,
+        "gen": {
+            "archive": manifest["gen"]["archive"],
+            "archive_sha256": sha256_file(archive) if os.path.exists(archive) else None,
+            "files": files_count,
+            "files_manifest_sha256": sha256_file(files_manifest)
+            if os.path.exists(files_manifest) else None,
+        },
+        "audit": {
+            "sha256": sha256_file(audit_path) if os.path.exists(audit_path) else None,
+            "theorems": len(audited),
+            "axioms": sorted({a for axioms in audited.values() for a in axioms}),
+            "problems": audit_problems,
+        },
+        "host": {
+            "name": platform.node(),
+            "machine": platform.machine(),
+            "cpus": os.cpu_count(),
+            "utc": datetime.datetime.now(datetime.timezone.utc)
+            .replace(microsecond=0).isoformat(),
+        },
+        "verifier": verifier,
+        "command": command,
+    }
+    text = json.dumps(report, indent=2) + "\n"
+    if out:
+        with open(out, "w") as f:
+            f.write(text)
+        print("wrote %s" % out)
+    print(text)
+    if audit_problems:
+        for p in audit_problems:
+            print("FAIL: " + p, file=sys.stderr)
+        return 1
     return 0
 
 
@@ -454,8 +756,22 @@ def main():
     p.add_argument("--repo", default=os.path.dirname(FORMAL))
     p.add_argument("--force", action="store_true",
                    help="record source hashes even if the artifact was not rebuilt")
-    p = sub.add_parser("record-gen", help="record the current Gen.tar.zst hash")
+    p = sub.add_parser("record-gen",
+                       help="record certificate hashes after packing Gen")
     p.add_argument("--repo", default=os.path.dirname(FORMAL))
+    p = sub.add_parser("check-audit",
+                       help="check `make audit` output against the axiom policy")
+    p.add_argument("--repo", default=os.path.dirname(FORMAL))
+    p.add_argument("--audit", required=True)
+    p.add_argument("--allow", action="append", default=[],
+                   help="additional axiom name to allow (repeatable)")
+    p = sub.add_parser("report",
+                       help="write a verification report from an audit log")
+    p.add_argument("--repo", default=os.path.dirname(FORMAL))
+    p.add_argument("--audit", required=True)
+    p.add_argument("--out", default=None)
+    p.add_argument("--command", default=None)
+    p.add_argument("--verifier", default=None)
     args = ap.parse_args()
     repo = os.path.abspath(args.repo)
 
@@ -467,6 +783,11 @@ def main():
         return check(repo, read_manifest(repo))
     if args.cmd == "record-gen":
         return record_gen(repo)
+    if args.cmd == "check-audit":
+        return check_audit(repo, args.audit, set(args.allow))
+    if args.cmd == "report":
+        return verification_report(repo, args.audit, args.out,
+                                   args.command, args.verifier)
     return gen_models(repo, args.force)
 
 
