@@ -67,6 +67,22 @@ theorem invC_lift (inp : Nat → Byte) (env : Key → W32) (prog : Array Instr) 
     (agree_of_trees env _ _ T L hT (slice_trees_mem prog ro memS orcS n KS KS' T hS env)
       (slice_trees_mem prog ro memW orcW n KW KW' T hW env)) h
 
+/-- **The lift, with independent slices.**  The S-mode slice (`KS` to `KS'`, `nS` steps, oracle
+`orcS`) and the W-mode slice (`KW` to `KW'`, `nW` steps, oracle `orcW`) need not have the same
+length: the lifted invariant only uses that both are checked with the same trees `T`. -/
+theorem invC_lift' (inp : Nat → Byte) (env : Key → W32) (prog : Array Instr) (ro : Region)
+    (memS : Addr Lin → Cell E Lin) (orcS : Nat → Bool) (nS : Nat) (KS KS' : State E Lin)
+    (memW : Addr Lin → Cell E Lin) (orcW : Nat → Bool) (nW : Nat) (KW KW' : State E Lin)
+    (T : List (Nat × E)) (L : List (Nat × Q))
+    (hS : sliceCheck prog ro memS orcS nS KS KS' T = true)
+    (hW : sliceCheck prog ro memW orcW nW KW KW' T = true)
+    (hT : T.map (·.1) = L.map (·.1))
+    (h : InvC inp (envAbs env (run prog ro memS orcS nS KS)) L) :
+    InvC inp (envAbs env (run prog ro memW orcW nW KW)) L :=
+  invC_congr inp _ _ L
+    (agree_of_trees env _ _ T L hT (slice_trees_mem prog ro memS orcS nS KS KS' T hS env)
+      (slice_trees_mem prog ro memW orcW nW KW KW' T hW env)) h
+
 /-! ## Write-log lemmas -/
 
 theorem same_int_false (a b : Addr Int) (h : b ≠ a) : AddrEq.same a b = some false := by
@@ -253,5 +269,45 @@ theorem hmem_view (e : Key → W32) (σ : Nat → Int) (M : CLog) (m : Addr Int 
     HMem 1024 inp (ecomb e σ (view M m)) :=
   hmem_of_envMem _ σ _ inp 1024 (envMem_ecomb e σ (view M m))
     (fun o => by rw [view_rIn M m _ hM]; exact hin o)
+
+/-! ## Generic composition (any number of blocks per turn) -/
+
+/-- The blocks of the input shifted by `K` blocks. -/
+theorem blk_shift' (inp : Nat → Byte) (K n : Nat) :
+    blk (fun o => inp (64 * K + o)) n = blk inp (K + n) := by
+  funext i
+  simp only [blk]
+  congr 1
+  omega
+
+/-- Older log `M` holds blocks `< K`; the newer prefix `N` holds the next `B` blocks of the input
+shifted by `K` blocks, at base `ob + 32 K`, and writes no output cell below. -/
+theorem outOk_step' (inp : Nat → Byte) (ob : Int) (K B : Nat) (N M : CLog)
+    (hN : ∀ p ∈ N, p.1.region = rOut → ob + 32 * (K : Int) ≤ p.1.off)
+    (hM : OutOk inp ob K M)
+    (hT : OutOk (fun o => inp (64 * K + o)) (ob + 32 * (K : Int)) B N) :
+    OutOk inp ob (K + B) (N ++ M) := by
+  intro n i b hn hi hb
+  by_cases hlt : n < K
+  · exact outOk_append_right inp ob K N M hN hM n i b hlt hi hb
+  · obtain ⟨n', rfl⟩ : ∃ n', n = K + n' := ⟨n - K, by omega⟩
+    obtain ⟨x, hx, hbx⟩ := hT n' i b (by omega) hi hb
+    refine ⟨x, ?_, ?_⟩
+    · have : ob + 32 * (K : Int) + ((32 * n' + 4 * i + b : Nat) : Int) =
+          ob + ((32 * (K + n') + 4 * i + b : Nat) : Int) := by
+        push_cast
+        omega
+      rw [← this]
+      exact lookup_append_found _ N M _ hx
+    · rw [hbx, blk_shift']
+
+/-- The other order: the older log `N1` holds the first `B` blocks, the newer prefix `N2` holds
+the next `m` blocks of the input shifted by `B` blocks, at base `ob + 32 B`. -/
+theorem outOk_glue' (inp : Nat → Byte) (ob : Int) (B m : Nat) (N2 N1 : CLog)
+    (hlo : ∀ p ∈ N2, p.1.region = rOut → ob + 32 * (B : Int) ≤ p.1.off)
+    (h1 : OutOk inp ob B N1)
+    (h2 : OutOk (fun o => inp (64 * B + o)) (ob + 32 * (B : Int)) m N2) :
+    OutOk inp ob (B + m) (N2 ++ N1) :=
+  outOk_step' inp ob B m N2 N1 hlo h1 h2
 
 end Hashtree.Proofs.Avx512X16WOut
