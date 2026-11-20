@@ -625,13 +625,32 @@ AUDIT_NONE_RE = re.compile(
     r"^\s*(?:'([^']+)'|([A-Za-z0-9_.]+)) does not depend on any axioms")
 
 
+def join_axiom_lists(lines):
+    """Lean wraps a long `depends on axioms: [...]` list over several lines;
+    yield each list joined into one line."""
+    pending = None
+    for line in lines:
+        line = line.rstrip("\n")
+        if pending is not None:
+            pending += " " + line.strip()
+            if "]" in line:
+                yield pending
+                pending = None
+        elif "depends on axioms: [" in line and "]" not in line:
+            pending = line
+        else:
+            yield line
+    if pending is not None:
+        yield pending
+
+
 def parse_audit(path):
     """Map theorem -> list of axioms from `make audit` output."""
     result = {}
     if not os.path.exists(path):
         die("missing audit log %s" % path)
     with open(path, errors="replace") as f:
-        for line in f:
+        for line in join_axiom_lists(f):
             m = AUDIT_DEPENDS_RE.match(line)
             if m:
                 name = m.group(1) or m.group(2)
